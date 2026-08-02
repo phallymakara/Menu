@@ -1,4 +1,4 @@
-# 🍽️ មីនុយ (Menu API) - Backend Service
+# មីនុយ (Menu API)
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.140+-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Python](https://img.shields.io/badge/Python-3.13+-3776AB?logo=python)](https://www.python.org/)
@@ -10,7 +10,7 @@ For the comprehensive project proposal, vision, feature breakdown, and system ar
 
 ---
 
-## 🚀 Quick Setup Instructions
+## Quick Setup Instructions
 
 ### 1. Install Dependencies
 
@@ -53,7 +53,7 @@ Access API docs at:
 
 ---
 
-## 🧪 Testing & Code Quality
+## Testing & Code Quality
 
 ```bash
 # Run tests

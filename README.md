@@ -1,4 +1,4 @@
-# មីនុយ - Menu (Multi-Tenant SaaS Platform)
+# មីនុយ - Menu
 
 **មីនុយ (Menu)** is a multi-tenant Software-as-a-Service (SaaS) cloud operating platform designed for Cambodian restaurants, cafés, drink shops, bakeries. It empowers business owners with bilingual (Khmer & English) ordering, sales, cash & KHQR payments, kitchen display workflows, multi-branch management, and real-time operational analytics without requiring custom server maintenance.
 
@@ -62,7 +62,7 @@ The platform follows a modular monolith architecture designed for horizontal sca
 - **Security & Tokens:** `pwdlib`, `python-jose`, `email-validator`
 - **Testing & Quality:** `pytest`, `ruff` (Linter & Formatter), `pyright` (Type Checker)
 
-### Frontend *(Planned/In Progress)*
+### Frontend *(Planned)*
 - **Framework:** React + TypeScript + Vite
 - **Styling:** Tailwind CSS
 - **State & Data Fetching:** TanStack Query, React Router
