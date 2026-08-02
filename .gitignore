@@ -1,0 +1,58 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Node and Bun
+node_modules/
+bun.lockb
+*.local
+
+# Keep Bun's text lockfile
+!bun.lock
+
+# Frontend builds
+dist/
+build/
+.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Docker volumes
+docker-data/
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Uploaded local files
+uploads/
