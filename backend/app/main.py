@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 app = FastAPI(
-    title="មីនុយ-Menu API",
+    title="អុី មីនុយ-E Menu API",
     version="0.1.0",
 )
 
@@ -9,7 +9,7 @@ app = FastAPI(
 @app.get("/")
 async def root() -> dict[str, str]:
     return {
-        "name": "មីនុយ-Menu API",
+        "name": "អុី មីនុយ-E Menu API",
         "status": "running",
     }
 
