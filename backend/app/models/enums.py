@@ -14,3 +14,10 @@ class MembershipStatus(StrEnum):
     INVITED = "invited"
     SUSPENDED = "suspended"
     TERMINATED = "terminated"
+
+
+class OrganizationStatus(StrEnum):
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    ARCHIVED = "archived"
+

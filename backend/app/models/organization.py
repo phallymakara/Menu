@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, String
+from sqlalchemy import Boolean, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.models.enums import OrganizationStatus
 
 if TYPE_CHECKING:
     from app.models.business import Business
@@ -27,9 +28,13 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
 
-    status: Mapped[str] = mapped_column(
-        String(30),
-        default="active",
+    status: Mapped[OrganizationStatus] = mapped_column(
+        Enum(
+            OrganizationStatus,
+            name="organization_status",
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+        default=OrganizationStatus.ACTIVE,
         index=True,
         nullable=False,
     )
@@ -48,3 +53,4 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="organization",
         cascade="all, delete-orphan",
     )
+

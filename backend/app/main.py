@@ -1,21 +1,24 @@
 from fastapi import FastAPI
 
+from app.api.v1.router import api_router
+from app.core.config import settings
+
 app = FastAPI(
-    title="អុី មីនុយ-E Menu API",
-    version="0.1.0",
+    title=settings.app_name,
+    version=settings.app_version,
+    debug=settings.debug,
+)
+
+app.include_router(
+    api_router,
+    prefix="/api/v1",
 )
 
 
 @app.get("/")
 async def root() -> dict[str, str]:
     return {
-        "name": "អុី មីនុយ-E Menu API",
+        "name": settings.app_name,
+        "version": settings.app_version,
         "status": "running",
-    }
-
-
-@app.get("/api/v1/health")
-async def health_check() -> dict[str, str]:
-    return {
-        "status": "healthy",
     }

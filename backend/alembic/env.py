@@ -13,10 +13,7 @@ config = context.config
 
 config.set_main_option(
     "sqlalchemy.url",
-    settings.database_url.replace(
-        "postgresql+asyncpg",
-        "postgresql+psycopg",
-    ),
+    str(settings.sync_database_url),
 )
 
 # Interpret the config file for Python logging.
