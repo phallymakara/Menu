@@ -16,8 +16,36 @@ async def register_owner(
     session: AsyncSession,
     payload: OwnerRegistrationRequest,
 ) -> tuple[User, Organization, Business, Branch]:
+    """
+    Registers a new business owner and sets up their tenant organization workspace.
+
+    This service function performs the following steps:
+    1. Validates that the provided email and/or phone number are unique.
+    2. Validates that the organization slug is not already taken.
+    3. Creates the User record with a hashed password.
+    4. Creates the Organization record.
+    5. Creates an OrganizationMembership record with 'Owner' role.
+    6. Creates the initial Business record.
+    7. Creates the first Branch record for the business with localized defaults.
+
+    All operations are executed within the same database transaction.
+
+    Args:
+        session: The SQLAlchemy async database session.
+        payload: The registration request payload containing owner and
+                 organization details.
+
+    Returns:
+        A tuple of (User, Organization, Business, Branch) representing the
+        created records.
+
+    Raises:
+        RegistrationConflictError: If the email, phone, or organization slug
+                                   is already registered.
+    """
     contact_conditions = []
 
+    # 1. Validate contact uniqueness (email and/or phone)
     if payload.email is not None:
         contact_conditions.append(User.email == payload.email)
 
@@ -35,6 +63,7 @@ async def register_owner(
                 "A user with this email or phone already exists."
             )
 
+    # 2. Validate organization slug uniqueness
     existing_slug_result = await session.execute(
         select(Organization).where(Organization.slug == payload.organization_slug)
     )
@@ -42,6 +71,7 @@ async def register_owner(
     if existing_slug_result.scalar_one_or_none() is not None:
         raise RegistrationConflictError("This organization slug is already in use.")
 
+    # 3. Create the user record
     user = User(
         email=str(payload.email) if payload.email else None,
         phone=payload.phone,
@@ -53,6 +83,7 @@ async def register_owner(
         is_platform_admin=False,
     )
 
+    # 4. Create the organization record
     organization = Organization(
         name=payload.organization_name,
         slug=payload.organization_slug,
@@ -60,9 +91,11 @@ async def register_owner(
         is_active=True,
     )
 
+    # Flush to generate IDs for user and organization
     session.add_all([user, organization])
     await session.flush()
 
+    # 5. Create membership as Owner
     membership = OrganizationMembership(
         organization_id=organization.id,
         user_id=user.id,
@@ -71,6 +104,7 @@ async def register_owner(
         is_owner=True,
     )
 
+    # 6. Create initial business
     business = Business(
         organization_id=organization.id,
         name_en=payload.business_name_en,
@@ -79,9 +113,11 @@ async def register_owner(
         is_active=True,
     )
 
+    # Flush to generate business ID
     session.add_all([membership, business])
     await session.flush()
 
+    # 7. Create initial branch
     branch = Branch(
         organization_id=organization.id,
         business_id=business.id,

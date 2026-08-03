@@ -17,6 +17,9 @@ app.include_router(
 
 @app.get("/")
 async def root() -> dict[str, str]:
+    """
+    Root status endpoint to check application availability and version information.
+    """
     return {
         "name": settings.app_name,
         "version": settings.app_version,

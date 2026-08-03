@@ -27,6 +27,13 @@ class Settings(BaseSettings):
 
     @property
     def sync_database_url(self) -> URL:
+        """
+        Derives and returns a synchronous database connection URL
+        from the async database URL.
+
+        Converts the database driver to 'postgresql+psycopg' and
+        ensures SSL parameters are properly mapped.
+        """
         url = make_url(self.database_url).set(drivername="postgresql+psycopg")
 
         query = dict(url.query)
@@ -39,6 +46,11 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """
+    Returns a cached Settings instance.
+
+    Uses lru_cache to ensure settings are loaded from the environment only once.
+    """
     return Settings()  # pyright: ignore[reportCallIssue]
 
 
