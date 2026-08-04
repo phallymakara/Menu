@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
@@ -74,3 +76,41 @@ class OwnerRegistrationResponse(BaseModel):
     business_id: str
     branch_id: str
     message: str
+
+
+class LoginRequest(BaseModel):
+    identifier: str = Field(
+        min_length=3,
+        max_length=255,
+        description="Email address or Cambodian phone number",
+    )
+
+    password: str = Field(
+        min_length=8,
+        max_length=128,
+    )
+
+
+class AccessTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class MembershipResponse(BaseModel):
+    membership_id: UUID
+    organization_id: UUID
+    organization_name: str
+    organization_slug: str
+    job_title: str | None
+    is_owner: bool
+
+
+class CurrentUserResponse(BaseModel):
+    user_id: UUID
+    email: str | None
+    phone: str | None
+    full_name: str
+    preferred_language: str
+    is_platform_admin: bool
+    memberships: list[MembershipResponse]

@@ -34,6 +34,8 @@ class Settings(BaseSettings):
 
     # Logging configurations
     log_level: str = "INFO"
+    slow_request_threshold_ms: float = 500.0
+    slow_database_threshold_ms: float = 100.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

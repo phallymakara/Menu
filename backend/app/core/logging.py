@@ -6,10 +6,23 @@ from collections.abc import Awaitable, Callable
 
 import structlog
 from fastapi import Request, Response
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.core.config import settings
 
 # Central logger for this module
 logger = structlog.get_logger("app.core.logging")
+
+# High-frequency, low-value paths that should not clutter normal logs
+IGNORED_PATHS = {
+    "/",
+    "/api/v1/health",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+}
 
 
 def setup_logging(log_level: str = "INFO", environment: str = "development") -> None:
@@ -83,6 +96,45 @@ def setup_logging(log_level: str = "INFO", environment: str = "development") -> 
     )
 
 
+# --- SQLAlchemy Slow Query Profiler Event Listeners ---
+
+
+@event.listens_for(Engine, "before_cursor_execute")
+def before_cursor_execute(
+    conn, cursor, statement, parameters, context, executemany
+) -> None:
+    """Record the start time of database query execution."""
+    if context is not None:
+        context._query_start_time = time.perf_counter()
+
+
+@event.listens_for(Engine, "after_cursor_execute")
+def after_cursor_execute(
+    conn, cursor, statement, parameters, context, executemany
+) -> None:
+    """Check database query duration and log warnings for slow queries."""
+    if context is None:
+        return
+    start_time = getattr(context, "_query_start_time", None)
+    if start_time is None:
+        return
+
+    duration_ms = (time.perf_counter() - start_time) * 1000.0
+    threshold = settings.slow_database_threshold_ms
+
+    if duration_ms >= threshold:
+        db_logger = structlog.get_logger("sqlalchemy.slow_query")
+        db_logger.warning(
+            "Slow database query detected",
+            duration_ms=round(duration_ms, 2),
+            threshold_ms=threshold,
+            statement=statement,  # Omit parameters to prevent leaking secrets
+        )
+
+
+# --- Request Logging Middleware ---
+
+
 class LoggingMiddleware(BaseHTTPMiddleware):
     """
     FastAPI HTTP middleware to log request start, duration, status codes,
@@ -106,21 +158,46 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         )
 
         request_logger = structlog.get_logger("api.request")
-        request_logger.info("Request started")
+
+        # Filter high-frequency low-value requests unless debug mode is active
+        is_low_value = request.url.path in IGNORED_PATHS
+        should_log_info = not is_low_value or settings.debug
+
+        if should_log_info:
+            request_logger.info("Request started")
 
         start_time = time.perf_counter()
         try:
             response = await call_next(request)
             duration = time.perf_counter() - start_time
+            duration_ms = round(duration * 1000, 2)
 
             # Attach tracing ID to response headers
             response.headers["X-Request-ID"] = request_id
 
-            request_logger.info(
-                "Request completed",
-                status_code=response.status_code,
-                duration_ms=round(duration * 1000, 2),
-            )
+            # Log standard completion
+            if should_log_info or response.status_code >= 400:
+                request_logger.info(
+                    "Request completed",
+                    status_code=response.status_code,
+                    duration_ms=duration_ms,
+                )
+
+            # Alert if the request duration exceeds slow threshold
+            if duration_ms >= settings.slow_request_threshold_ms:
+                request_logger.warning(
+                    "Slow request detected",
+                    duration_ms=duration_ms,
+                    threshold_ms=settings.slow_request_threshold_ms,
+                )
+
+            # Log common client errors as warnings
+            if 400 <= response.status_code < 500:
+                request_logger.warning(
+                    "Client error response returned",
+                    status_code=response.status_code,
+                )
+
             return response
         except Exception as exc:
             duration = time.perf_counter() - start_time

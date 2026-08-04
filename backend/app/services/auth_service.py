@@ -2,9 +2,13 @@ import structlog
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import RegistrationConflictError
+from app.core.exceptions import (
+    InactiveAccountError,
+    InvalidCredentialsError,
+    RegistrationConflictError,
+)
 from app.core.phone import normalize_cambodian_phone
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.models.branch import Branch
 from app.models.business import Business
 from app.models.enums import MembershipStatus, OrganizationStatus, UserStatus
@@ -49,7 +53,6 @@ async def register_owner(
     """
     logger.info(
         "Starting owner registration process",
-        email=payload.email,
         organization_name=payload.organization_name,
         organization_slug=payload.organization_slug,
     )
@@ -70,8 +73,8 @@ async def register_owner(
     if contact_conditions:
         logger.debug(
             "Checking uniqueness of contact email and phone",
-            email=payload.email,
-            phone=normalized_phone,
+            has_email=payload.email is not None,
+            has_phone=normalized_phone is not None,
         )
         existing_user_result = await session.execute(
             select(User).where(or_(*contact_conditions))
@@ -79,10 +82,14 @@ async def register_owner(
         existing_user = existing_user_result.scalar_one_or_none()
 
         if existing_user is not None:
+            conflict_fields = []
+            if payload.email and existing_user.email == str(payload.email).lower():
+                conflict_fields.append("email")
+            if normalized_phone and existing_user.phone == normalized_phone:
+                conflict_fields.append("phone")
             logger.warning(
-                "Owner registration failed: contact email or phone already exists",
-                email=payload.email,
-                phone=normalized_phone,
+                "Owner registration failed: contact info already exists",
+                conflict_fields=conflict_fields,
             )
             raise RegistrationConflictError(
                 "A user with this email or phone already exists."
@@ -106,7 +113,6 @@ async def register_owner(
 
     logger.info(
         "Validation checks passed, creating owner and tenant records",
-        email=payload.email,
         organization_slug=payload.organization_slug,
     )
 
@@ -190,3 +196,65 @@ async def register_owner(
     )
 
     return user, organization, business, branch
+
+
+async def authenticate_user(
+    session: AsyncSession,
+    identifier: str,
+    password: str,
+) -> User:
+    """
+    Authenticate a user using either email or Cambodian phone number.
+
+    The same generic credential error is returned for unknown users and
+    incorrect passwords to avoid revealing registered accounts.
+    """
+    normalized_identifier = identifier.strip().lower()
+
+    if "@" in normalized_identifier:
+        condition = User.email == normalized_identifier
+    else:
+        try:
+            normalized_phone = normalize_cambodian_phone(normalized_identifier)
+        except ValueError as exc:
+            logger.warning(
+                "Authentication failed: invalid phone number format",
+                error=str(exc),
+            )
+            raise InvalidCredentialsError(
+                "Invalid email, phone number, or password."
+            ) from exc
+
+        condition = User.phone == normalized_phone
+
+    result = await session.execute(select(User).where(condition))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        logger.warning("Authentication failed: user not found")
+        raise InvalidCredentialsError("Invalid email, phone number, or password.")
+
+    if not verify_password(
+        password,
+        user.password_hash,
+    ):
+        logger.warning(
+            "Authentication failed: incorrect password",
+            user_id=str(user.id),
+        )
+        raise InvalidCredentialsError("Invalid email, phone number, or password.")
+
+    if user.status != UserStatus.ACTIVE:
+        logger.warning(
+            "Authentication failed: account is inactive",
+            user_id=str(user.id),
+            status=user.status,
+        )
+        raise InactiveAccountError("This account is not active.")
+
+    logger.info(
+        "User authenticated successfully",
+        user_id=str(user.id),
+    )
+
+    return user
