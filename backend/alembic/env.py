@@ -13,7 +13,9 @@ config = context.config
 
 config.set_main_option(
     "sqlalchemy.url",
-    str(settings.sync_database_url),
+    settings.sync_database_url.render_as_string(
+        hide_password=False,
+    ),
 )
 
 # Interpret the config file for Python logging.

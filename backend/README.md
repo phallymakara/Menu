@@ -33,8 +33,9 @@ DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/menu_db"
 REDIS_URL="redis://localhost:6379/0"
 
 SECRET_KEY="your-secret-key"
-ALGORITHM="HS256"
+JWT_ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES=60
+CORS_ORIGINS="*"
 ```
 
 ### 3. Run Migrations & Server

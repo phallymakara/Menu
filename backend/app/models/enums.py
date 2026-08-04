@@ -20,4 +20,3 @@ class OrganizationStatus(StrEnum):
     ACTIVE = "active"
     SUSPENDED = "suspended"
     ARCHIVED = "archived"
-

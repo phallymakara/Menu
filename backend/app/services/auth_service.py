@@ -1,7 +1,9 @@
+import structlog
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import RegistrationConflictError
+from app.core.phone import normalize_cambodian_phone
 from app.core.security import hash_password
 from app.models.branch import Branch
 from app.models.business import Business
@@ -10,6 +12,8 @@ from app.models.organization import Organization
 from app.models.organization_membership import OrganizationMembership
 from app.models.user import User
 from app.schemas.auth import OwnerRegistrationRequest
+
+logger = structlog.get_logger("app.services.auth_service")
 
 
 async def register_owner(
@@ -43,38 +47,73 @@ async def register_owner(
         RegistrationConflictError: If the email, phone, or organization slug
                                    is already registered.
     """
+    logger.info(
+        "Starting owner registration process",
+        email=payload.email,
+        organization_name=payload.organization_name,
+        organization_slug=payload.organization_slug,
+    )
+
+    normalized_phone = (
+        normalize_cambodian_phone(payload.phone) if payload.phone is not None else None
+    )
+
     contact_conditions = []
 
     # 1. Validate contact uniqueness (email and/or phone)
     if payload.email is not None:
-        contact_conditions.append(User.email == payload.email)
+        contact_conditions.append(User.email == str(payload.email).lower())
 
-    if payload.phone is not None:
-        contact_conditions.append(User.phone == payload.phone)
+    if normalized_phone is not None:
+        contact_conditions.append(User.phone == normalized_phone)
 
     if contact_conditions:
+        logger.debug(
+            "Checking uniqueness of contact email and phone",
+            email=payload.email,
+            phone=normalized_phone,
+        )
         existing_user_result = await session.execute(
             select(User).where(or_(*contact_conditions))
         )
         existing_user = existing_user_result.scalar_one_or_none()
 
         if existing_user is not None:
+            logger.warning(
+                "Owner registration failed: contact email or phone already exists",
+                email=payload.email,
+                phone=normalized_phone,
+            )
             raise RegistrationConflictError(
                 "A user with this email or phone already exists."
             )
 
     # 2. Validate organization slug uniqueness
+    logger.debug(
+        "Checking uniqueness of organization slug",
+        slug=payload.organization_slug,
+    )
     existing_slug_result = await session.execute(
         select(Organization).where(Organization.slug == payload.organization_slug)
     )
 
     if existing_slug_result.scalar_one_or_none() is not None:
+        logger.warning(
+            "Owner registration failed: organization slug already in use",
+            slug=payload.organization_slug,
+        )
         raise RegistrationConflictError("This organization slug is already in use.")
+
+    logger.info(
+        "Validation checks passed, creating owner and tenant records",
+        email=payload.email,
+        organization_slug=payload.organization_slug,
+    )
 
     # 3. Create the user record
     user = User(
-        email=str(payload.email) if payload.email else None,
-        phone=payload.phone,
+        email=str(payload.email).lower() if payload.email else None,
+        phone=normalized_phone,
         password_hash=hash_password(payload.password),
         full_name=payload.full_name,
         preferred_language="km",
@@ -94,6 +133,11 @@ async def register_owner(
     # Flush to generate IDs for user and organization
     session.add_all([user, organization])
     await session.flush()
+    logger.debug(
+        "User and organization records flushed",
+        user_id=str(user.id),
+        organization_id=str(organization.id),
+    )
 
     # 5. Create membership as Owner
     membership = OrganizationMembership(
@@ -116,6 +160,10 @@ async def register_owner(
     # Flush to generate business ID
     session.add_all([membership, business])
     await session.flush()
+    logger.debug(
+        "Membership and business records flushed",
+        business_id=str(business.id),
+    )
 
     # 7. Create initial branch
     branch = Branch(
@@ -132,5 +180,13 @@ async def register_owner(
 
     session.add(branch)
     await session.flush()
+
+    logger.info(
+        "Owner registration and workspace setup completed successfully",
+        user_id=str(user.id),
+        organization_id=str(organization.id),
+        business_id=str(business.id),
+        branch_id=str(branch.id),
+    )
 
     return user, organization, business, branch

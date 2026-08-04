@@ -76,4 +76,3 @@ async def register_owner_endpoint(
             status_code=status.HTTP_409_CONFLICT,
             detail="Registration conflicts with existing data.",
         ) from exc
-
