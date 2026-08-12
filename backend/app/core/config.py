@@ -76,12 +76,41 @@ def get_settings() -> Settings:
     Returns a cached Settings instance.
 
     Uses lru_cache to ensure settings are loaded from the environment only once.
-    Checks and handles validation errors gracefully.
+    Checks and handles validation errors gracefully with clear output.
     """
     try:
         return Settings()  # pyright: ignore[reportCallIssue]
     except ValidationError as e:
-        print(f"Configuration validation error: {e}", file=sys.stderr)
+        missing_fields: list[str] = []
+        invalid_fields: list[str] = []
+
+        for error in e.errors():
+            field_name = ".".join(str(item) for item in error.get("loc", []))
+            msg = error.get("msg", "")
+            err_type = error.get("type", "")
+
+            if "missing" in err_type or "Field required" in msg:
+                missing_fields.append(field_name.upper())
+            else:
+                invalid_fields.append(f"{field_name.upper()}: {msg}")
+
+        print("CRITICAL: Configuration validation failed.", file=sys.stderr)
+
+        if missing_fields:
+            print("Missing required environment variable(s):", file=sys.stderr)
+            for field in missing_fields:
+                print(f"  - {field}", file=sys.stderr)
+
+        if invalid_fields:
+            print("Invalid configuration field(s):", file=sys.stderr)
+            for err in invalid_fields:
+                print(f"  - {err}", file=sys.stderr)
+
+        print(
+            "Action Required: Please ensure '.env' exists in backend directory"
+            " with required variables configured.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
 

@@ -1,3 +1,6 @@
+from contextlib import asynccontextmanager
+
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,13 +14,31 @@ setup_logging(
     environment=settings.environment,
 )
 
+logger = structlog.get_logger("app.main")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan context manager for logging startup and shutdown.
+    """
+    logger.info(
+        "Starting backend application",
+        app_name=settings.app_name,
+        version=settings.app_version,
+    )
+    yield
+    logger.info("Shutting down backend application")
+
+
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     debug=settings.debug,
+    lifespan=lifespan,
 )
 
-# Add HTTP request tracking and tracing context middleware
+# Add HTTP request tracking middleware
 app.add_middleware(LoggingMiddleware)
 
 # Configure CORS origins
@@ -29,6 +50,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include API v1 router
 app.include_router(
     api_router,
     prefix="/api/v1",
