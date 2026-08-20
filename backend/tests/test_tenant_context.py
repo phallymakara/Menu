@@ -302,7 +302,7 @@ async def test_multi_organization_header_selection():
 
 @pytest.mark.anyio
 async def test_owner_registration_minimal_fields():
-    """Test owner registration with minimal 3 required fields (email, password, full_name)."""
+    """Test owner registration with minimal 3 required fields."""
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -310,6 +310,7 @@ async def test_owner_registration_minimal_fields():
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
 
     async with sessionmaker() as session:
+
         async def _override_get_db():
             yield session
 
@@ -333,7 +334,9 @@ async def test_owner_registration_minimal_fields():
         assert "organization_id" in data
         assert "business_id" in data
         assert "branch_id" in data
-        assert data["message"] == "Owner account and business workspace created successfully."
+        assert (
+            data["message"]
+            == "Owner account and business workspace created successfully."
+        )
 
     await engine.dispose()
-

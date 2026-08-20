@@ -80,3 +80,39 @@ class TableSessionStatus(StrEnum):
     CANCELLED = "cancelled"
     MERGED = "merged"
     TRANSFERRED = "transferred"
+
+
+class OrderStatus(StrEnum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    PREPARING = "preparing"
+    READY_TO_SERVE = "ready_to_serve"
+    SERVED = "served"
+    CANCELLED = "cancelled"
+
+
+class OrderItemStatus(StrEnum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    PREPARING = "preparing"
+    READY_TO_SERVE = "ready_to_serve"
+    SERVED = "served"
+    VOIDED = "voided"
+
+
+class OrderType(StrEnum):
+    DINE_IN = "dine_in"
+    TAKEAWAY = "takeaway"
+    DELIVERY = "delivery"
+
+
+class OrderSource(StrEnum):
+    GUEST_QR = "guest_qr"
+    STAFF_POS = "staff_pos"
+
+
+class CourseStage(StrEnum):
+    DRINKS = "drinks"
+    STARTERS = "starters"
+    MAINS = "mains"
+    DESSERTS = "desserts"

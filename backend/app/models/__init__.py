@@ -8,6 +8,7 @@ from app.models.dining_area import DiningArea
 from app.models.item_variant import ItemVariant
 from app.models.menu_item import MenuItem
 from app.models.modifier import MenuItemModifierGroup, ModifierGroup, ModifierOption
+from app.models.order import Order, OrderItem, OrderItemModifier
 from app.models.organization import Organization
 from app.models.organization_membership import OrganizationMembership
 from app.models.plan import Plan
@@ -32,6 +33,9 @@ __all__ = [
     "MenuItemModifierGroup",
     "ModifierGroup",
     "ModifierOption",
+    "Order",
+    "OrderItem",
+    "OrderItemModifier",
     "Organization",
     "OrganizationMembership",
     "Plan",

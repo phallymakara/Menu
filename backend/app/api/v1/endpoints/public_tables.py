@@ -7,6 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import TenantNotFoundError
 from app.db.session import get_db_session
+from app.schemas.order import (
+    GuestOrderPlacementRequest,
+    OrderResponse,
+    TableSessionOrdersSummaryResponse,
+)
 from app.schemas.restaurant_table import TablePublicVerifyResponse
 from app.schemas.table_session import (
     TableSessionOpenRequest,
@@ -125,3 +130,52 @@ async def request_public_table_bill_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+
+
+@router.post(
+    "/orders",
+    response_model=OrderResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Guest places multi-round order from table QR",
+)
+async def place_public_guest_order_endpoint(
+    branch_id: Annotated[UUID, Query(description="Branch ID from scanned QR")],
+    table_id: Annotated[UUID, Query(description="Table ID from scanned QR")],
+    token: Annotated[str, Query(description="Verification token from scanned QR")],
+    payload: GuestOrderPlacementRequest,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> OrderResponse:
+    """Guest places order directly from mobile phone at table."""
+    from app.services.order_placement_service import place_guest_order
+
+    order = await place_guest_order(
+        session=session,
+        branch_id=branch_id,
+        table_id=table_id,
+        token=token,
+        payload=payload,
+    )
+    return OrderResponse.model_validate(order)
+
+
+@router.get(
+    "/sessions/orders",
+    response_model=TableSessionOrdersSummaryResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Guest views all orders & active bill total for table session",
+)
+async def get_public_table_session_orders_endpoint(
+    branch_id: Annotated[UUID, Query(description="Branch ID from scanned QR")],
+    table_id: Annotated[UUID, Query(description="Table ID from scanned QR")],
+    token: Annotated[str, Query(description="Verification token from scanned QR")],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> TableSessionOrdersSummaryResponse:
+    """Retrieves all placed orders and live totals for the active table session."""
+    from app.services.order_placement_service import get_table_session_orders_summary
+
+    return await get_table_session_orders_summary(
+        session=session,
+        branch_id=branch_id,
+        table_id=table_id,
+        token=token,
+    )
