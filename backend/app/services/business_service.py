@@ -70,6 +70,19 @@ async def update_business_profile(
 
     await session.commit()
 
+    from app.services.audit_service import record_audit_log
+
+    await record_audit_log(
+        session=session,
+        action="BUSINESS_UPDATED",
+        organization_id=tenant.organization_id,
+        user_id=tenant.user_id,
+        resource_type="business",
+        resource_id=str(business_id),
+        details={"updated_fields": list(update_data.keys())},
+    )
+    await session.commit()
+
     # Re-query with selectinload to ensure branches relationship is eager loaded
     updated_result = await session.execute(
         select(Business)

@@ -298,3 +298,42 @@ async def test_multi_organization_header_selection():
         assert data[0]["organization_id"] == str(org_2.id)
 
     await engine.dispose()
+
+
+@pytest.mark.anyio
+async def test_owner_registration_minimal_fields():
+    """Test owner registration with minimal 3 required fields (email, password, full_name)."""
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with sessionmaker() as session:
+        async def _override_get_db():
+            yield session
+
+        app.dependency_overrides[get_db_session] = _override_get_db
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/v1/auth/register",
+                json={
+                    "email": "minimal.owner@example.com",
+                    "password": "Password123!",
+                    "full_name": "Minimal Owner",
+                },
+            )
+
+        app.dependency_overrides.clear()
+
+        assert response.status_code == status.HTTP_201_CREATED
+        data = response.json()
+        assert "user_id" in data
+        assert "organization_id" in data
+        assert "business_id" in data
+        assert "branch_id" in data
+        assert data["message"] == "Owner account and business workspace created successfully."
+
+    await engine.dispose()
+

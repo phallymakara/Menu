@@ -1,3 +1,6 @@
+import re
+import secrets
+
 import structlog
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,41 +23,34 @@ from app.schemas.auth import OwnerRegistrationRequest
 logger = structlog.get_logger("app.services.auth_service")
 
 
+def _generate_slug(name: str) -> str:
+    """Generates a URL-safe slug from a business name."""
+    cleaned = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    if not cleaned:
+        cleaned = "org"
+    return f"{cleaned[:30]}-{secrets.token_hex(3)}"
+
+
 async def register_owner(
     session: AsyncSession,
     payload: OwnerRegistrationRequest,
 ) -> tuple[User, Organization, Business, Branch]:
     """
     Registers a new business owner and sets up their tenant organization workspace.
-
-    This service function performs the following steps:
-    1. Validates that the provided email and/or phone number are unique.
-    2. Validates that the organization slug is not already taken.
-    3. Creates the User record with a hashed password.
-    4. Creates the Organization record.
-    5. Creates an OrganizationMembership record with 'Owner' role.
-    6. Creates the initial Business record.
-    7. Creates the first Branch record for the business with localized defaults.
-
-    All operations are executed within the same database transaction.
-
-    Args:
-        session: The SQLAlchemy async database session.
-        payload: The registration request payload containing owner and
-                 organization details.
-
-    Returns:
-        A tuple of (User, Organization, Business, Branch) representing the
-        created records.
-
-    Raises:
-        RegistrationConflictError: If the email, phone, or organization slug
-                                   is already registered.
     """
+    org_name = payload.organization_name or f"{payload.full_name}'s Restaurant"
+    org_slug = payload.organization_slug or _generate_slug(org_name)
+    biz_name_en = payload.business_name_en or org_name
+    biz_name_km = payload.business_name_km
+    biz_type = payload.business_type or "Restaurant"
+    branch_name_en = payload.branch_name_en or "Main Branch"
+    branch_name_km = payload.branch_name_km
+    branch_code = payload.branch_code or "MAIN"
+
     logger.info(
         "Starting owner registration process",
-        organization_name=payload.organization_name,
-        organization_slug=payload.organization_slug,
+        organization_name=org_name,
+        organization_slug=org_slug,
     )
 
     normalized_phone = (
@@ -98,22 +94,22 @@ async def register_owner(
     # 2. Validate organization slug uniqueness
     logger.debug(
         "Checking uniqueness of organization slug",
-        slug=payload.organization_slug,
+        slug=org_slug,
     )
     existing_slug_result = await session.execute(
-        select(Organization).where(Organization.slug == payload.organization_slug)
+        select(Organization).where(Organization.slug == org_slug)
     )
 
     if existing_slug_result.scalar_one_or_none() is not None:
         logger.warning(
             "Owner registration failed: organization slug already in use",
-            slug=payload.organization_slug,
+            slug=org_slug,
         )
         raise RegistrationConflictError("This organization slug is already in use.")
 
     logger.info(
         "Validation checks passed, creating owner and tenant records",
-        organization_slug=payload.organization_slug,
+        organization_slug=org_slug,
     )
 
     # 3. Create the user record
@@ -130,8 +126,8 @@ async def register_owner(
 
     # 4. Create the organization record
     organization = Organization(
-        name=payload.organization_name,
-        slug=payload.organization_slug,
+        name=org_name,
+        slug=org_slug,
         status=OrganizationStatus.ACTIVE,
         is_active=True,
     )
@@ -157,9 +153,9 @@ async def register_owner(
     # 6. Create initial business
     business = Business(
         organization_id=organization.id,
-        name_en=payload.business_name_en,
-        name_km=payload.business_name_km,
-        business_type=payload.business_type,
+        name_en=biz_name_en,
+        name_km=biz_name_km,
+        business_type=biz_type,
         is_active=True,
     )
 
@@ -175,9 +171,9 @@ async def register_owner(
     branch = Branch(
         organization_id=organization.id,
         business_id=business.id,
-        name_en=payload.branch_name_en,
-        name_km=payload.branch_name_km,
-        code=payload.branch_code,
+        name_en=branch_name_en,
+        name_km=branch_name_km,
+        code=branch_code,
         timezone="Asia/Phnom_Penh",
         default_language="km",
         base_currency="USD",
@@ -186,6 +182,24 @@ async def register_owner(
 
     session.add(branch)
     await session.flush()
+
+    # 8. Auto-provision 30-day trial subscription (Standard plan)
+    from app.services.subscription_service import provision_trial_subscription
+
+    await provision_trial_subscription(session, organization.id)
+
+    # 9. Record audit log for registration
+    from app.services.audit_service import record_audit_log
+
+    await record_audit_log(
+        session=session,
+        action="AUTH_REGISTER",
+        organization_id=organization.id,
+        user_id=user.id,
+        resource_type="user",
+        resource_id=str(user.id),
+        details={"email": user.email, "organization_slug": organization.slug},
+    )
 
     logger.info(
         "Owner registration and workspace setup completed successfully",

@@ -28,3 +28,15 @@ class TenantInactiveError(TenantContextError):
 
 class CrossTenantAccessError(TenantContextError):
     """Raised when accessing resources outside the active tenant."""
+
+
+class ResourceConflictError(Exception):
+    """Raised when a resource operation conflicts with existing unique constraints."""
+
+
+class PermissionDeniedError(Exception):
+    """Raised when a user lacks permission to perform a specific action."""
+
+
+class EntitlementLimitExceededError(Exception):
+    """Raised when an organization attempts an action exceeding its plan limits."""

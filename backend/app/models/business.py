@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, String, Uuid
+from sqlalchemy import Boolean, ForeignKey, Numeric, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.branch import Branch
+    from app.models.category import Category
+    from app.models.menu_item import MenuItem
     from app.models.organization import Organization
 
 
@@ -53,6 +56,42 @@ class Business(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=True,
     )
 
+    base_currency: Mapped[str] = mapped_column(
+        String(3),
+        default="USD",
+        nullable=False,
+    )
+
+    exchange_rate: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        default=Decimal("4100.00"),
+        nullable=False,
+    )
+
+    tax_percentage: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+    )
+
+    is_tax_inclusive: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
+    service_charge_percentage: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2),
+        default=Decimal("0.00"),
+        nullable=False,
+    )
+
+    is_service_charge_inclusive: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,
@@ -64,6 +103,16 @@ class Business(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     branches: Mapped[list[Branch]] = relationship(
+        back_populates="business",
+        cascade="all, delete-orphan",
+    )
+
+    categories: Mapped[list[Category]] = relationship(
+        back_populates="business",
+        cascade="all, delete-orphan",
+    )
+
+    items: Mapped[list[MenuItem]] = relationship(
         back_populates="business",
         cascade="all, delete-orphan",
     )

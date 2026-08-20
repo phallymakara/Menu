@@ -19,6 +19,10 @@ class Settings(BaseSettings):
 
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+    frontend_base_url: str = Field(
+        default="http://localhost:3000",
+        description="Base URL for customer web ordering frontend",
+    )
 
     # CORS settings
     cors_origins: list[str] = Field(

@@ -9,57 +9,74 @@ class OwnerRegistrationRequest(BaseModel):
         default=None,
         min_length=8,
         max_length=30,
+        description="Optional contact phone number",
     )
 
     password: str = Field(
         min_length=8,
         max_length=128,
+        description="Secure password (minimum 8 characters)",
     )
 
     full_name: str = Field(
         min_length=2,
         max_length=150,
+        description="Owner full name",
     )
 
-    organization_name: str = Field(
+    organization_name: str | None = Field(
+        default=None,
         min_length=2,
         max_length=150,
+        description="Optional company/brand name. Defaults to '{full_name}'s Business'",
     )
 
-    organization_slug: str = Field(
+    organization_slug: str | None = Field(
+        default=None,
         min_length=2,
         max_length=100,
         pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        description="Optional URL slug. Auto-generated if not provided.",
     )
 
-    business_name_en: str = Field(
+    business_name_en: str | None = Field(
+        default=None,
         min_length=2,
         max_length=150,
+        description="Optional initial brand name (defaults to organization name)",
     )
 
     business_name_km: str | None = Field(
         default=None,
         max_length=150,
+        description="Optional Khmer brand name",
     )
 
     business_type: str = Field(
+        default="Restaurant",
         min_length=2,
         max_length=50,
+        description="Type of business (e.g. Restaurant, Café, Bar)",
     )
 
     branch_name_en: str = Field(
+        default="Main Branch",
         min_length=2,
         max_length=150,
+        description="Name of the initial physical location",
     )
 
     branch_name_km: str | None = Field(
         default=None,
         max_length=150,
+        description="Optional Khmer branch name",
     )
 
     branch_code: str = Field(
+        default="MAIN",
         min_length=1,
         max_length=50,
+        description="Short branch code identifier",
     )
 
     @model_validator(mode="after")

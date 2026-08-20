@@ -38,6 +38,11 @@ router = APIRouter(
 
 
 @router.post(
+    "/register",
+    response_model=OwnerRegistrationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@router.post(
     "/register-owner",
     response_model=OwnerRegistrationResponse,
     status_code=status.HTTP_201_CREATED,
@@ -148,6 +153,18 @@ async def login(
         ) from exc
 
     access_token = create_access_token(user.id)
+
+    from app.services.audit_service import record_audit_log
+
+    await record_audit_log(
+        session=session,
+        action="AUTH_LOGIN",
+        user_id=user.id,
+        resource_type="user",
+        resource_id=str(user.id),
+        details={"identifier": payload.identifier},
+    )
+    await session.commit()
 
     return AccessTokenResponse(
         access_token=access_token,

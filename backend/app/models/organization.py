@@ -11,6 +11,7 @@ from app.models.enums import OrganizationStatus
 if TYPE_CHECKING:
     from app.models.business import Business
     from app.models.organization_membership import OrganizationMembership
+    from app.models.subscription import Subscription
 
 
 class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -51,5 +52,10 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     memberships: Mapped[list[OrganizationMembership]] = relationship(
         back_populates="organization",
+        cascade="all, delete-orphan",
+    )
+    subscription: Mapped[Subscription | None] = relationship(
+        back_populates="organization",
+        uselist=False,
         cascade="all, delete-orphan",
     )
