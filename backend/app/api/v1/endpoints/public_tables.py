@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import TenantNotFoundError
 from app.db.session import get_db_session
+from app.schemas.billing import BillSummaryResponse
 from app.schemas.order import (
     GuestOrderPlacementRequest,
     OrderResponse,
@@ -179,3 +180,25 @@ async def get_public_table_session_orders_endpoint(
         table_id=table_id,
         token=token,
     )
+
+
+@router.get(
+    "/sessions/{session_token}/bill",
+    response_model=BillSummaryResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Guest views consolidated running bill for active table session",
+)
+async def get_public_table_session_bill_endpoint(
+    session_token: str,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> BillSummaryResponse:
+    """
+    Public guest endpoint: retrieves real-time multi-round bill calculation in USD and KHR.
+    """
+    from app.services.billing_service import get_public_session_bill_summary
+
+    return await get_public_session_bill_summary(
+        session=session,
+        session_token=session_token,
+    )
+

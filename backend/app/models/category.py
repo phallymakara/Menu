@@ -10,6 +10,7 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.business import Business
+    from app.models.kitchen_station import KitchenStation
     from app.models.menu_item import MenuItem
     from app.models.organization import Organization
 
@@ -82,6 +83,13 @@ class Category(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
 
+    kitchen_station_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("kitchen_stations.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+
     parent: Mapped[Category | None] = relationship(
         "Category",
         remote_side="Category.id",
@@ -97,6 +105,10 @@ class Category(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     items: Mapped[list[MenuItem]] = relationship(
         back_populates="category",
+    )
+
+    station: Mapped[KitchenStation | None] = relationship(
+        back_populates="categories",
     )
 
     business: Mapped[Business] = relationship(

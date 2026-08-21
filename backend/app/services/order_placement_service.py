@@ -1,6 +1,5 @@
-from __future__ import annotations
-
 import secrets
+from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
@@ -14,6 +13,7 @@ from app.models.branch import Branch
 from app.models.branch_menu import BranchItemOverride
 from app.models.business import Business
 from app.models.enums import (
+    CourseStage,
     ItemAvailabilityStatus,
     OrderItemStatus,
     OrderSource,
@@ -103,11 +103,15 @@ async def _validate_and_build_order_items(
     built_items: list[OrderItem] = []
     order_subtotal_usd = Decimal("0.00")
 
+    now_utc = datetime.now(timezone.utc)
+    has_starters = any(i.course_stage == CourseStage.STARTERS for i in items_payload)
+
     # Collect menu item IDs
     item_ids = [item.menu_item_id for item in items_payload]
     menu_items_res = await session.execute(
         select(MenuItem)
         .options(
+            selectinload(MenuItem.category),
             selectinload(MenuItem.variants),
             selectinload(MenuItem.modifier_group_links)
             .selectinload(MenuItemModifierGroup.group)
@@ -251,9 +255,26 @@ async def _validate_and_build_order_items(
         subtotal_price = unit_price * item_input.quantity
         order_subtotal_usd += subtotal_price
 
+        # Resolve kitchen station (Item station -> Category station -> None)
+        target_station_id = menu_item.kitchen_station_id
+        if target_station_id is None and menu_item.category:
+            target_station_id = menu_item.category.kitchen_station_id
+
+        # Course Hold / Fire Status
+        if (
+            item_input.course_stage in (CourseStage.MAINS, CourseStage.DESSERTS)
+            and has_starters
+        ):
+            initial_status = OrderItemStatus.HELD
+            item_fired_at = None
+        else:
+            initial_status = OrderItemStatus.PENDING
+            item_fired_at = now_utc
+
         order_item = OrderItem(
             menu_item_id=menu_item.id,
             item_variant_id=item_input.item_variant_id,
+            kitchen_station_id=target_station_id,
             item_name_en=menu_item.name_en,
             item_name_km=menu_item.name_km,
             variant_name_en=variant_name_en,
@@ -264,7 +285,8 @@ async def _validate_and_build_order_items(
             subtotal_price=subtotal_price,
             course_stage=item_input.course_stage,
             special_instructions=item_input.special_instructions,
-            status=OrderItemStatus.PENDING,
+            status=initial_status,
+            fired_at=item_fired_at,
             modifiers=built_modifiers,
         )
         built_items.append(order_item)

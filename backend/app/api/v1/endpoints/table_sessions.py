@@ -9,6 +9,7 @@ from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.exceptions import ResourceConflictError, TenantNotFoundError
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
+from app.schemas.billing import BillSummaryResponse
 from app.schemas.table_session import (
     BranchTableLiveDashboardResponse,
     TableMergeRequest,
@@ -18,6 +19,7 @@ from app.schemas.table_session import (
     TableTransferRequest,
     TableUnmergeRequest,
 )
+from app.services.billing_service import get_table_session_bill_summary
 from app.services.table_session_service import (
     close_table_session,
     get_active_table_session,
@@ -301,3 +303,30 @@ async def unmerge_tables_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+
+
+@router.get(
+    "/table-sessions/{session_id}/bill",
+    response_model=BillSummaryResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get multi-round consolidated bill for a dining table session",
+)
+async def get_session_bill_endpoint(
+    business_id: UUID,
+    branch_id: UUID,
+    session_id: UUID,
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> BillSummaryResponse:
+    """
+    Computes and aggregates all order rounds for an active or completed table session,
+    providing full line-item details and dual currency breakdown in USD and KHR.
+    """
+    return await get_table_session_bill_summary(
+        session=session,
+        business_id=business_id,
+        branch_id=branch_id,
+        table_session_id=session_id,
+        tenant=tenant,
+    )
+

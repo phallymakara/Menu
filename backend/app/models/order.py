@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import (
+    DateTime,
     Enum,
     ForeignKey,
     Integer,
@@ -28,6 +30,7 @@ if TYPE_CHECKING:
     from app.models.branch import Branch
     from app.models.business import Business
     from app.models.item_variant import ItemVariant
+    from app.models.kitchen_station import KitchenStation
     from app.models.menu_item import MenuItem
     from app.models.modifier import ModifierOption
     from app.models.organization import Organization
@@ -168,6 +171,27 @@ class Order(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         comment="Staff member who took order (null for guest self-order)",
     )
 
+    cancel_reason_code: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    cancel_reason: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    cancelled_by_user_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    cancelled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     # Relationships
     organization: Mapped[Organization] = relationship(
         "Organization",
@@ -191,6 +215,12 @@ class Order(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     placed_by_user: Mapped[User | None] = relationship(
         "User",
+        foreign_keys=[placed_by_user_id],
+        lazy="selectin",
+    )
+    cancelled_by_user: Mapped[User | None] = relationship(
+        "User",
+        foreign_keys=[cancelled_by_user_id],
         lazy="selectin",
     )
     items: Mapped[list[OrderItem]] = relationship(
@@ -287,8 +317,55 @@ class OrderItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
 
+    kitchen_station_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("kitchen_stations.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+
+    fired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When the item was fired/released to kitchen for cooking",
+    )
+
+    cooking_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When line cook bumped to COOKING",
+    )
+
+    ready_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When item was marked READY_TO_SERVE",
+    )
+
+    served_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When item was marked SERVED to table",
+    )
+
+    void_reason_code: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
     void_reason: Mapped[str | None] = mapped_column(
         String(255),
+        nullable=True,
+    )
+
+    voided_by_user_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    voided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
     )
 
@@ -296,6 +373,11 @@ class OrderItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     order: Mapped[Order] = relationship(
         "Order",
         back_populates="items",
+    )
+    station: Mapped[KitchenStation | None] = relationship(
+        "KitchenStation",
+        back_populates="order_items",
+        lazy="selectin",
     )
     menu_item: Mapped[MenuItem] = relationship(
         "MenuItem",
@@ -309,6 +391,11 @@ class OrderItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         "OrderItemModifier",
         back_populates="order_item",
         cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    voided_by_user: Mapped[User | None] = relationship(
+        "User",
+        foreign_keys=[voided_by_user_id],
         lazy="selectin",
     )
 

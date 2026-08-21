@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from app.models.business import Business
     from app.models.category import Category
     from app.models.item_variant import ItemVariant
+    from app.models.kitchen_station import KitchenStation
     from app.models.modifier import MenuItemModifierGroup
     from app.models.organization import Organization
 
@@ -187,8 +188,19 @@ class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
 
+    kitchen_station_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("kitchen_stations.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+
     category: Mapped[Category | None] = relationship(
         back_populates="items",
+    )
+
+    station: Mapped[KitchenStation | None] = relationship(
+        back_populates="menu_items",
     )
 
     variants: Mapped[list[ItemVariant]] = relationship(

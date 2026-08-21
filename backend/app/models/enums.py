@@ -92,9 +92,11 @@ class OrderStatus(StrEnum):
 
 
 class OrderItemStatus(StrEnum):
+    HELD = "held"
     PENDING = "pending"
     CONFIRMED = "confirmed"
     PREPARING = "preparing"
+    COOKING = "cooking"
     READY_TO_SERVE = "ready_to_serve"
     SERVED = "served"
     VOIDED = "voided"
@@ -116,3 +118,56 @@ class CourseStage(StrEnum):
     STARTERS = "starters"
     MAINS = "mains"
     DESSERTS = "desserts"
+
+
+class StationType(StrEnum):
+    PREP_STATION = "prep_station"
+    EXPEDITER = "expediter"
+
+
+class PaymentMethod(StrEnum):
+    CASH = "cash"
+    KHQR = "khqr"
+    CARD = "card"
+    OTHER = "other"
+
+
+class PaymentStatus(StrEnum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    REFUNDED = "refunded"
+    CANCELLED = "cancelled"
+
+
+class ChangeCurrencyPreference(StrEnum):
+    KHR = "khr"
+    USD = "usd"
+    SPLIT = "split"
+
+
+class VoidReasonCode(StrEnum):
+    GUEST_CHANGED_MIND = "guest_changed_mind"
+    ORDER_ENTRY_MISTAKE = "order_entry_mistake"
+    OUT_OF_STOCK = "out_of_stock"
+    QUALITY_ISSUE = "quality_issue"
+    LONG_WAIT_TIME = "long_wait_time"
+    DUPLICATE_ORDER = "duplicate_order"
+    OTHER = "other"
+
+
+class DiscountType(StrEnum):
+    PERCENTAGE = "percentage"
+    FIXED_AMOUNT = "fixed_amount"
+
+
+class DiscountReason(StrEnum):
+    PROMOTION = "promotion"
+    VIP_CUSTOMER = "vip_customer"
+    STAFF_MEAL = "staff_meal"
+    MANAGEMENT_COMP = "management_comp"
+    SERVICE_RECOVERY = "service_recovery"
+    OTHER = "other"
+
+
+

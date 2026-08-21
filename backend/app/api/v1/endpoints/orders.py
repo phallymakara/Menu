@@ -11,10 +11,12 @@ from app.db.session import get_db_session
 from app.models.enums import OrderStatus
 from app.models.order import Order, OrderItem
 from app.models.user import User
+from app.schemas.billing import BillSummaryResponse
 from app.schemas.order import (
     OrderResponse,
     StaffOrderPlacementRequest,
 )
+from app.services.billing_service import get_order_bill_summary
 from app.services.order_placement_service import place_staff_order
 
 router = APIRouter(
@@ -115,3 +117,25 @@ async def get_order_details(
             detail="Order ticket not found.",
         )
     return OrderResponse.model_validate(order)
+
+
+@router.get(
+    "/businesses/{business_id}/branches/{branch_id}/orders/{order_id}/bill",
+    response_model=BillSummaryResponse,
+    summary="Get bill summary for a single order ticket",
+)
+async def get_single_order_bill(
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> BillSummaryResponse:
+    """Retrieves full bill calculation (USD and KHR) for a single order ticket."""
+    return await get_order_bill_summary(
+        session=session,
+        business_id=business_id,
+        branch_id=branch_id,
+        order_id=order_id,
+    )
+
