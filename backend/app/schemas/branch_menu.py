@@ -104,9 +104,12 @@ class BranchMenuItemDisplayResponse(BaseModel):
     display_order: int = 0
     availability_status: str
     is_available: bool
+    is_local_item: bool = False
+    branch_id: UUID | None = None
 
     variants: list[ItemVariantResponse] = []
     modifier_groups: list[ModifierGroupDetailResponse] = []
+
 
 
 class BranchCategoryMenuResponse(BaseModel):

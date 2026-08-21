@@ -32,6 +32,7 @@ from app.services.billing_service import (
     get_order_bill_summary,
     get_table_session_bill_summary,
 )
+from app.services.telegram_service import send_payment_telegram_notification
 
 logger = structlog.get_logger("app.services.payment_service")
 
@@ -269,11 +270,22 @@ async def settle_table_session_cash_payment(
 
     await session.commit()
 
+    # 9. Send Real-Time Telegram Notification (Non-blocking)
+    branch_name = table_sess.branch.name_en if table_sess.branch else "Branch"
+    table_ident = f"Table {table.table_number} (Session {table_sess.session_code})" if table else f"Session {table_sess.session_code}"
+    await send_payment_telegram_notification(
+        session=session,
+        payment=payment,
+        branch_name=branch_name,
+        table_identifier=table_ident,
+        cashier_name=current_user.full_name,
+    )
+
     logger.info(
         "Cash payment settled successfully",
         payment_number=payment.payment_number,
         session_id=str(table_session_id),
-        grand_total_usd=float(bill.financials.grand_total_usd),
+        grand_total_usd=float(financials.grand_total_usd),
         change_khr=change_khr,
         cashier_id=str(current_user.id),
     )
@@ -454,6 +466,405 @@ async def settle_single_order_cash_payment(
     )
 
     await session.commit()
+
+    # Send Real-Time Telegram Notification
+    from app.services.telegram_service import send_payment_telegram_notification
+    branch_name = order.branch.name_en if order.branch else "Branch"
+    order_ident = f"Order #{order.order_number}"
+    await send_payment_telegram_notification(
+        session=session,
+        payment=payment,
+        branch_name=branch_name,
+        table_identifier=order_ident,
+        cashier_name=current_user.full_name,
+    )
+
+    table = order.table
+    return PaymentResponse(
+        id=payment.id,
+        organization_id=payment.organization_id,
+        business_id=payment.business_id,
+        branch_id=payment.branch_id,
+        table_session_id=payment.table_session_id,
+        order_id=payment.order_id,
+        table_number=table.table_number if table else None,
+        table_name=f"Table {table.table_number}" if table else None,
+        payment_number=payment.payment_number,
+        payment_method=payment.payment_method,
+        payment_status=payment.payment_status,
+        bill_subtotal_usd=payment.bill_subtotal_usd,
+        discount_usd=payment.discount_usd,
+        service_charge_usd=payment.service_charge_usd,
+        tax_usd=payment.tax_usd,
+        grand_total_usd=payment.grand_total_usd,
+        exchange_rate=payment.exchange_rate,
+        grand_total_khr=payment.grand_total_khr,
+        amount_tendered_usd=payment.amount_tendered_usd,
+        amount_tendered_khr=payment.amount_tendered_khr,
+        total_tendered_usd=payment.total_tendered_usd,
+        change_usd=payment.change_usd,
+        change_khr=payment.change_khr,
+        promotion_id=payment.promotion_id,
+        discount_reason=payment.discount_reason,
+        received_by_user_id=payment.received_by_user_id,
+        notes=payment.notes,
+        settled_at=payment.settled_at,
+        created_at=payment.created_at,
+    )
+
+
+async def settle_table_session_khqr_payment(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    table_session_id: UUID,
+    payload: KHQRPaymentRequest,
+    current_user: User,
+    tenant: TenantContext | None = None,
+) -> PaymentResponse:
+    """
+    Settles a dine-in table session with KHQR (Bakong) payment confirmation,
+    closes session, sets table to dirty_cleaning, and sends Telegram alert.
+    """
+    sess_query = (
+        select(TableSession)
+        .options(
+            selectinload(TableSession.table),
+            selectinload(TableSession.branch),
+        )
+        .where(
+            TableSession.id == table_session_id,
+            TableSession.business_id == business_id,
+            TableSession.branch_id == branch_id,
+        )
+    )
+    if tenant:
+        sess_query = sess_query.where(TableSession.organization_id == tenant.organization_id)
+
+    sess_res = await session.execute(sess_query)
+    table_sess = sess_res.scalar_one_or_none()
+    if table_sess is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Table dining session not found.",
+        )
+
+    if table_sess.status == TableSessionStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This table session has already been settled and completed.",
+        )
+
+    bill = await get_table_session_bill_summary(
+        session=session,
+        business_id=business_id,
+        branch_id=branch_id,
+        table_session_id=table_session_id,
+        tenant=tenant,
+    )
+
+    if bill.total_item_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot settle a table session with no valid order items.",
+        )
+
+    from app.models.promotion import Promotion
+    from app.services.billing_service import calculate_financial_breakdown
+    from app.services.promotion_service import evaluate_discount
+
+    eval_result = await evaluate_discount(
+        session=session,
+        business_id=business_id,
+        branch_id=branch_id,
+        subtotal_usd=bill.financials.subtotal_usd,
+        promo_code=payload.promo_code,
+        manual_discount_type=payload.manual_discount_type,
+        manual_discount_value=payload.manual_discount_value,
+        discount_reason=payload.discount_reason,
+        tenant=tenant,
+    )
+
+    if eval_result.discount_usd > Decimal("0.00"):
+        financials = calculate_financial_breakdown(
+            subtotal_usd=bill.financials.subtotal_usd,
+            tax_pct=bill.financials.tax_percent,
+            sc_pct=bill.financials.service_charge_percent,
+            exchange_rate=bill.financials.exchange_rate,
+            discount_usd=eval_result.discount_usd,
+        )
+        if eval_result.promotion_id:
+            promo_res = await session.execute(
+                select(Promotion).where(Promotion.id == eval_result.promotion_id)
+            )
+            promo_obj = promo_res.scalar_one_or_none()
+            if promo_obj:
+                promo_obj.current_usage_count += 1
+    else:
+        financials = bill.financials
+
+    now_utc = datetime.now(timezone.utc)
+    payment_number = _generate_payment_number()
+
+    payment = Payment(
+        organization_id=table_sess.organization_id,
+        business_id=business_id,
+        branch_id=branch_id,
+        table_session_id=table_session_id,
+        order_id=None,
+        payment_number=payment_number,
+        payment_method=PaymentMethod.KHQR,
+        payment_status=PaymentStatus.COMPLETED,
+        bill_subtotal_usd=financials.subtotal_usd,
+        discount_usd=financials.discount_usd,
+        service_charge_usd=financials.service_charge_amount_usd,
+        tax_usd=financials.tax_amount_usd,
+        grand_total_usd=financials.grand_total_usd,
+        exchange_rate=financials.exchange_rate,
+        grand_total_khr=financials.grand_total_khr,
+        amount_tendered_usd=financials.grand_total_usd,
+        amount_tendered_khr=0,
+        total_tendered_usd=financials.grand_total_usd,
+        change_usd=Decimal("0.00"),
+        change_khr=0,
+        promotion_id=eval_result.promotion_id,
+        discount_reason=eval_result.discount_reason,
+        received_by_user_id=current_user.id,
+        notes=payload.notes or "Settled via KHQR (Bakong)",
+        settled_at=now_utc,
+    )
+    session.add(payment)
+
+    # Transition orders to SERVED
+    orders_res = await session.execute(
+        select(Order).where(
+            Order.table_session_id == table_session_id,
+            Order.status != OrderStatus.CANCELLED,
+        )
+    )
+    for ord_obj in orders_res.scalars().all():
+        ord_obj.status = OrderStatus.SERVED
+
+    table_sess.status = TableSessionStatus.COMPLETED
+    table_sess.closed_at = now_utc
+
+    table = table_sess.table
+    if table:
+        table.status = TableStatus.DIRTY_CLEANING
+
+    await record_audit_log(
+        session=session,
+        organization_id=table_sess.organization_id,
+        user_id=current_user.id,
+        action="payment.settled",
+        resource_type="payment",
+        resource_id=str(payment.id),
+        details={
+            "payment_number": payment.payment_number,
+            "method": "khqr",
+            "table_session_id": str(table_session_id),
+            "table_number": table.table_number if table else None,
+            "grand_total_usd": str(financials.grand_total_usd),
+            "grand_total_khr": financials.grand_total_khr,
+        },
+    )
+
+    await session.commit()
+
+    # Send Telegram alert
+    branch_name = table_sess.branch.name_en if table_sess.branch else "Branch"
+    table_ident = f"Table {table.table_number} (Session {table_sess.session_code})" if table else f"Session {table_sess.session_code}"
+    await send_payment_telegram_notification(
+        session=session,
+        payment=payment,
+        branch_name=branch_name,
+        table_identifier=table_ident,
+        cashier_name=current_user.full_name,
+    )
+
+    logger.info(
+        "KHQR payment settled successfully",
+        payment_number=payment.payment_number,
+        session_id=str(table_session_id),
+        grand_total_usd=float(financials.grand_total_usd),
+        cashier_id=str(current_user.id),
+    )
+
+    return PaymentResponse(
+        id=payment.id,
+        organization_id=payment.organization_id,
+        business_id=payment.business_id,
+        branch_id=payment.branch_id,
+        table_session_id=payment.table_session_id,
+        order_id=payment.order_id,
+        table_number=table.table_number if table else None,
+        table_name=f"Table {table.table_number}" if table else None,
+        payment_number=payment.payment_number,
+        payment_method=payment.payment_method,
+        payment_status=payment.payment_status,
+        bill_subtotal_usd=payment.bill_subtotal_usd,
+        discount_usd=payment.discount_usd,
+        service_charge_usd=payment.service_charge_usd,
+        tax_usd=payment.tax_usd,
+        grand_total_usd=payment.grand_total_usd,
+        exchange_rate=payment.exchange_rate,
+        grand_total_khr=payment.grand_total_khr,
+        amount_tendered_usd=payment.amount_tendered_usd,
+        amount_tendered_khr=payment.amount_tendered_khr,
+        total_tendered_usd=payment.total_tendered_usd,
+        change_usd=payment.change_usd,
+        change_khr=payment.change_khr,
+        promotion_id=payment.promotion_id,
+        discount_reason=payment.discount_reason,
+        received_by_user_id=payment.received_by_user_id,
+        notes=payment.notes,
+        settled_at=payment.settled_at,
+        created_at=payment.created_at,
+    )
+
+
+async def settle_single_order_khqr_payment(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+    payload: KHQRPaymentRequest,
+    current_user: User,
+    tenant: TenantContext | None = None,
+) -> PaymentResponse:
+    """
+    Settles a single/takeaway order with KHQR payment confirmation and dispatches Telegram notification.
+    """
+    order_query = (
+        select(Order)
+        .options(
+            selectinload(Order.table),
+            selectinload(Order.branch),
+        )
+        .where(
+            Order.id == order_id,
+            Order.business_id == business_id,
+            Order.branch_id == branch_id,
+        )
+    )
+    if tenant:
+        order_query = order_query.where(Order.organization_id == tenant.organization_id)
+
+    order_res = await session.execute(order_query)
+    order = order_res.scalar_one_or_none()
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found.",
+        )
+
+    if order.status == OrderStatus.SERVED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This order has already been settled.",
+        )
+
+    bill = await get_order_bill_summary(
+        session=session,
+        business_id=business_id,
+        branch_id=branch_id,
+        order_id=order_id,
+        tenant=tenant,
+    )
+
+    from app.models.promotion import Promotion
+    from app.services.billing_service import calculate_financial_breakdown
+    from app.services.promotion_service import evaluate_discount
+
+    eval_result = await evaluate_discount(
+        session=session,
+        business_id=business_id,
+        branch_id=branch_id,
+        subtotal_usd=bill.financials.subtotal_usd,
+        promo_code=payload.promo_code,
+        manual_discount_type=payload.manual_discount_type,
+        manual_discount_value=payload.manual_discount_value,
+        discount_reason=payload.discount_reason,
+        tenant=tenant,
+    )
+
+    if eval_result.discount_usd > Decimal("0.00"):
+        financials = calculate_financial_breakdown(
+            subtotal_usd=bill.financials.subtotal_usd,
+            tax_pct=bill.financials.tax_percent,
+            sc_pct=bill.financials.service_charge_percent,
+            exchange_rate=bill.financials.exchange_rate,
+            discount_usd=eval_result.discount_usd,
+        )
+        if eval_result.promotion_id:
+            promo_res = await session.execute(
+                select(Promotion).where(Promotion.id == eval_result.promotion_id)
+            )
+            promo_obj = promo_res.scalar_one_or_none()
+            if promo_obj:
+                promo_obj.current_usage_count += 1
+    else:
+        financials = bill.financials
+
+    now_utc = datetime.now(timezone.utc)
+    payment = Payment(
+        organization_id=order.organization_id,
+        business_id=business_id,
+        branch_id=branch_id,
+        table_session_id=None,
+        order_id=order_id,
+        payment_number=_generate_payment_number(),
+        payment_method=PaymentMethod.KHQR,
+        payment_status=PaymentStatus.COMPLETED,
+        bill_subtotal_usd=financials.subtotal_usd,
+        discount_usd=financials.discount_usd,
+        service_charge_usd=financials.service_charge_amount_usd,
+        tax_usd=financials.tax_amount_usd,
+        grand_total_usd=financials.grand_total_usd,
+        exchange_rate=financials.exchange_rate,
+        grand_total_khr=financials.grand_total_khr,
+        amount_tendered_usd=financials.grand_total_usd,
+        amount_tendered_khr=0,
+        total_tendered_usd=financials.grand_total_usd,
+        change_usd=Decimal("0.00"),
+        change_khr=0,
+        promotion_id=eval_result.promotion_id,
+        discount_reason=eval_result.discount_reason,
+        received_by_user_id=current_user.id,
+        notes=payload.notes or "Settled via KHQR (Bakong)",
+        settled_at=now_utc,
+    )
+    session.add(payment)
+
+    order.status = OrderStatus.SERVED
+
+    await record_audit_log(
+        session=session,
+        organization_id=order.organization_id,
+        user_id=current_user.id,
+        action="payment.settled",
+        resource_type="payment",
+        resource_id=str(payment.id),
+        details={
+            "payment_number": payment.payment_number,
+            "method": "khqr",
+            "order_id": str(order_id),
+            "order_number": order.order_number,
+            "grand_total_usd": str(financials.grand_total_usd),
+            "grand_total_khr": financials.grand_total_khr,
+        },
+    )
+
+    await session.commit()
+
+    branch_name = order.branch.name_en if order.branch else "Branch"
+    await send_payment_telegram_notification(
+        session=session,
+        payment=payment,
+        branch_name=branch_name,
+        table_identifier=f"Order #{order.order_number}",
+        cashier_name=current_user.full_name,
+    )
 
     table = order.table
     return PaymentResponse(

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.branch import Branch
     from app.models.business import Business
     from app.models.category import Category
     from app.models.item_variant import ItemVariant
@@ -30,7 +31,7 @@ if TYPE_CHECKING:
 class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "menu_items"
     __table_args__ = (
-        UniqueConstraint("business_id", "sku", name="uq_menu_items_business_sku"),
+        UniqueConstraint("business_id", "branch_id", "sku", name="uq_menu_items_biz_branch_sku"),
     )
 
     organization_id: Mapped[UUID] = mapped_column(
@@ -45,6 +46,14 @@ class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("businesses.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
+    )
+
+    branch_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("branches.id", ondelete="CASCADE"),
+        index=True,
+        nullable=True,
+        comment="If NULL, this is a Central Master Brand Item; if set, this is a local branch item/add-on.",
     )
 
     category_id: Mapped[UUID | None] = mapped_column(
@@ -218,5 +227,7 @@ class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     business: Mapped[Business] = relationship(
         back_populates="items",
     )
+
+    branch: Mapped[Branch | None] = relationship()
 
     organization: Mapped[Organization] = relationship()

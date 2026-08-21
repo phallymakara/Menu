@@ -62,6 +62,8 @@ class ReceiptData(BaseModel):
     payment_method: str | None = None
     items: list[ReceiptItem]
     financials: ReceiptFinancials
+    khqr_string: str | None = None
+    khqr_image_data_url: str | None = None
     notes: str | None = None
 
     model_config = ConfigDict(from_attributes=True)

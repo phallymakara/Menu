@@ -184,3 +184,115 @@ async def get_branch_published_menu_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+
+
+# ---------------------------------------------------------------------------
+# Branch-Specific Local Menu Items & Add-ons
+# ---------------------------------------------------------------------------
+
+from app.schemas.catalog_sync import (
+    BranchLocalItemCreate,
+    ResetBranchOverridesRequest,
+)
+from app.schemas.menu_item import MenuItemResponse
+from app.services.branch_menu_service import (
+    create_branch_local_item,
+    promote_local_item_to_master,
+    reset_branch_overrides_to_master,
+)
+
+
+@router.post(
+    "/local-items",
+    response_model=MenuItemResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a local-only menu item or add-on for this branch",
+)
+async def create_branch_local_item_endpoint(
+    business_id: UUID,
+    branch_id: UUID,
+    payload: BranchLocalItemCreate,
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> MenuItemResponse:
+    """
+    Creates a new branch-specific local item/add-on that only appears in this branch.
+    """
+    try:
+        item = await create_branch_local_item(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            payload=payload,
+        )
+        return MenuItemResponse.model_validate(item)
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/local-items/{item_id}/promote",
+    response_model=MenuItemResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Promote a local branch item to the Central Master Catalog",
+)
+async def promote_local_item_endpoint(
+    business_id: UUID,
+    branch_id: UUID,
+    item_id: UUID,
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> MenuItemResponse:
+    """
+    Converts a local branch item into a Central Master Brand Item (branch_id=None).
+    """
+    try:
+        item = await promote_local_item_to_master(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            item_id=item_id,
+        )
+        return MenuItemResponse.model_validate(item)
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/reset-to-master",
+    status_code=status.HTTP_200_OK,
+    summary="Reset branch overrides back to Central Master defaults",
+)
+async def reset_branch_overrides_endpoint(
+    business_id: UUID,
+    branch_id: UUID,
+    payload: ResetBranchOverridesRequest,
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """
+    Clears price and availability overrides for this branch.
+    """
+    try:
+        reset_count = await reset_branch_overrides_to_master(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            payload=payload,
+        )
+        return {"message": f"Successfully reset {reset_count} overrides to master defaults.", "reset_count": reset_count}
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+

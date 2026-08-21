@@ -22,6 +22,15 @@ from app.schemas.branch_menu import (
     BranchMenuItemDisplayResponse,
     BulkBranchItemOverrideRequest,
 )
+from app.schemas.catalog_sync import (
+    BranchLocalItemCreate,
+    BranchPriceDetail,
+    CatalogComparisonItem,
+    CatalogComparisonResponse,
+    CatalogSyncResult,
+    MasterCatalogSyncRequest,
+    ResetBranchOverridesRequest,
+)
 from app.schemas.item_variant import ItemVariantResponse
 from app.schemas.modifier import ModifierGroupDetailResponse, ModifierOptionResponse
 from app.services.audit_service import record_audit_log
@@ -307,6 +316,8 @@ async def get_branch_published_menu(
     )
     assigned_records = cat_assign_result.scalars().all()
 
+    from sqlalchemy import or_
+
     if assigned_records:
         cat_ids = [r.category_id for r in assigned_records]
         cat_result = await session.execute(
@@ -316,18 +327,20 @@ async def get_branch_published_menu(
                 Category.business_id == business_id,
                 Category.organization_id == tenant.organization_id,
                 Category.is_active.is_(True),
+                or_(Category.branch_id.is_(None), Category.branch_id == branch_id),
             )
             .order_by(Category.display_order.asc())
         )
         categories = cat_result.scalars().all()
     else:
-        # If no explicit category assignments, publish all active categories by default
+        # If no explicit category assignments, publish all active master & local categories
         cat_result = await session.execute(
             select(Category)
             .where(
                 Category.business_id == business_id,
                 Category.organization_id == tenant.organization_id,
                 Category.is_active.is_(True),
+                or_(Category.branch_id.is_(None), Category.branch_id == branch_id),
             )
             .order_by(Category.display_order.asc())
         )
@@ -343,7 +356,7 @@ async def get_branch_published_menu(
     )
     overrides = {o.menu_item_id: o for o in overrides_result.scalars().all()}
 
-    # 3. Fetch all active menu items for these categories
+    # 3. Fetch all active menu items (Central Master + Local Branch Items)
     cat_ids_list = [c.id for c in categories]
     items_result = await session.execute(
         select(MenuItem)
@@ -358,6 +371,7 @@ async def get_branch_published_menu(
             MenuItem.business_id == business_id,
             MenuItem.organization_id == tenant.organization_id,
             MenuItem.is_active.is_(True),
+            or_(MenuItem.branch_id.is_(None), MenuItem.branch_id == branch_id),
         )
         .order_by(MenuItem.display_order.asc(), MenuItem.name_en.asc())
     )
@@ -457,6 +471,8 @@ async def get_branch_published_menu(
                 display_order=item.display_order,
                 availability_status=availability,
                 is_available=(availability == "AVAILABLE"),
+                is_local_item=(item.branch_id is not None),
+                branch_id=item.branch_id,
                 variants=var_list,
                 modifier_groups=mod_groups,
             )
@@ -498,3 +514,358 @@ async def get_branch_published_menu(
         categories=category_responses,
         total_items=total_published_items,
     )
+
+
+# ---------------------------------------------------------------------------
+# Branch-Specific Local Menu Item / Add-on Management
+# ---------------------------------------------------------------------------
+
+async def create_branch_local_item(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+    payload: BranchLocalItemCreate,
+) -> MenuItem:
+    """
+    Creates a new local-only menu item or add-on bound specifically to this branch.
+    """
+    await _verify_branch_access(session, tenant, business_id, branch_id)
+
+    if payload.category_id:
+        cat_res = await session.execute(
+            select(Category).where(
+                Category.id == payload.category_id,
+                Category.business_id == business_id,
+                Category.organization_id == tenant.organization_id,
+            )
+        )
+        if cat_res.scalar_one_or_none() is None:
+            raise TenantNotFoundError("Category not found.")
+
+    item = MenuItem(
+        organization_id=tenant.organization_id,
+        business_id=business_id,
+        branch_id=branch_id,
+        category_id=payload.category_id,
+        sku=payload.sku,
+        name_en=payload.name_en,
+        name_km=payload.name_km,
+        description_en=payload.description_en,
+        description_km=payload.description_km,
+        base_price=payload.base_price,
+        currency=payload.currency,
+        image_url=payload.image_url,
+        prep_time_minutes=payload.prep_time_minutes or 15,
+        is_active=payload.is_active,
+        display_order=payload.display_order,
+    )
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+
+    await record_audit_log(
+        session=session,
+        action="BRANCH_LOCAL_ITEM_CREATED",
+        organization_id=tenant.organization_id,
+        user_id=tenant.user_id,
+        resource_type="menu_item",
+        resource_id=str(item.id),
+        details={"branch_id": str(branch_id), "name_en": item.name_en},
+    )
+    await session.commit()
+
+    loaded_res = await session.execute(
+        select(MenuItem)
+        .options(
+            selectinload(MenuItem.variants),
+            selectinload(MenuItem.modifier_group_links).selectinload(MenuItemModifierGroup.group),
+        )
+        .where(MenuItem.id == item.id)
+    )
+    return loaded_res.scalar_one()
+
+
+async def promote_local_item_to_master(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+    item_id: UUID,
+) -> MenuItem:
+    """
+    Promotes a local branch item/add-on into a Central Master Brand Item (branch_id=None),
+    making it available across all branches in the network.
+    """
+    await _verify_branch_access(session, tenant, business_id, branch_id)
+
+    res = await session.execute(
+        select(MenuItem).where(
+            MenuItem.id == item_id,
+            MenuItem.branch_id == branch_id,
+            MenuItem.business_id == business_id,
+            MenuItem.organization_id == tenant.organization_id,
+        )
+    )
+    item = res.scalar_one_or_none()
+    if item is None:
+        raise TenantNotFoundError("Branch local item not found.")
+
+    item.branch_id = None
+    await session.commit()
+
+    await record_audit_log(
+        session=session,
+        action="ITEM_PROMOTED_TO_MASTER",
+        organization_id=tenant.organization_id,
+        user_id=tenant.user_id,
+        resource_type="menu_item",
+        resource_id=str(item.id),
+        details={"origin_branch_id": str(branch_id), "name_en": item.name_en},
+    )
+    await session.commit()
+
+    loaded_res = await session.execute(
+        select(MenuItem)
+        .options(
+            selectinload(MenuItem.variants),
+            selectinload(MenuItem.modifier_group_links).selectinload(MenuItemModifierGroup.group),
+        )
+        .where(MenuItem.id == item.id)
+    )
+    return loaded_res.scalar_one()
+
+
+
+async def reset_branch_overrides_to_master(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+    payload: ResetBranchOverridesRequest,
+) -> int:
+    """
+    Resets branch price and availability overrides back to HQ Master Catalog defaults.
+    """
+    await _verify_branch_access(session, tenant, business_id, branch_id)
+
+    stmt = delete(BranchItemOverride).where(
+        BranchItemOverride.branch_id == branch_id,
+        BranchItemOverride.business_id == business_id,
+        BranchItemOverride.organization_id == tenant.organization_id,
+    )
+
+    if payload.category_id:
+        items_res = await session.execute(
+            select(MenuItem.id).where(
+                MenuItem.category_id == payload.category_id,
+                MenuItem.business_id == business_id,
+                MenuItem.organization_id == tenant.organization_id,
+            )
+        )
+        item_ids = items_res.scalars().all()
+        stmt = stmt.where(BranchItemOverride.menu_item_id.in_(item_ids))
+
+    result = await session.execute(stmt)
+    reset_count = result.rowcount
+    await session.commit()
+
+    await record_audit_log(
+        session=session,
+        action="BRANCH_OVERRIDES_RESET_TO_MASTER",
+        organization_id=tenant.organization_id,
+        user_id=tenant.user_id,
+        resource_type="branch",
+        resource_id=str(branch_id),
+        details={"reset_count": reset_count, "category_id": str(payload.category_id) if payload.category_id else None},
+    )
+    await session.commit()
+
+    return reset_count
+
+
+# ---------------------------------------------------------------------------
+# Central Master Catalog Synchronization & Comparison Matrix
+# ---------------------------------------------------------------------------
+
+async def sync_master_catalog_to_branches(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    payload: MasterCatalogSyncRequest,
+) -> CatalogSyncResult:
+    """
+    HQ pushes master catalog updates across all or selected target branches.
+    """
+    from app.models.branch import Branch
+
+    branch_query = select(Branch).where(
+        Branch.business_id == business_id,
+        Branch.organization_id == tenant.organization_id,
+        Branch.is_active.is_(True),
+    )
+    if payload.target_branch_ids:
+        branch_query = branch_query.where(Branch.id.in_(payload.target_branch_ids))
+
+    branch_res = await session.execute(branch_query)
+    branches = branch_res.scalars().all()
+
+    items_res = await session.execute(
+        select(MenuItem).where(
+            MenuItem.business_id == business_id,
+            MenuItem.organization_id == tenant.organization_id,
+            MenuItem.branch_id.is_(None),  # Master items only
+            MenuItem.is_active.is_(True),
+        )
+    )
+    master_items = items_res.scalars().all()
+
+    overrides_reset = 0
+    overrides_preserved = 0
+
+    if not payload.preserve_custom_prices:
+        # Reset all price overrides in target branches
+        target_ids = [b.id for b in branches]
+        del_stmt = delete(BranchItemOverride).where(
+            BranchItemOverride.branch_id.in_(target_ids),
+            BranchItemOverride.business_id == business_id,
+            BranchItemOverride.organization_id == tenant.organization_id,
+        )
+        del_res = await session.execute(del_stmt)
+        overrides_reset = del_res.rowcount
+        await session.commit()
+    else:
+        # Count existing overrides preserved
+        target_ids = [b.id for b in branches]
+        ov_res = await session.execute(
+            select(BranchItemOverride).where(
+                BranchItemOverride.branch_id.in_(target_ids),
+                BranchItemOverride.business_id == business_id,
+                BranchItemOverride.organization_id == tenant.organization_id,
+            )
+        )
+        overrides_preserved = len(ov_res.scalars().all())
+
+    await record_audit_log(
+        session=session,
+        action="MASTER_CATALOG_SYNCED",
+        organization_id=tenant.organization_id,
+        user_id=tenant.user_id,
+        resource_type="business",
+        resource_id=str(business_id),
+        details={
+            "branches_count": len(branches),
+            "items_count": len(master_items),
+            "preserve_custom_prices": payload.preserve_custom_prices,
+        },
+    )
+    await session.commit()
+
+    return CatalogSyncResult(
+        branches_affected_count=len(branches),
+        items_synced_count=len(master_items),
+        overrides_preserved_count=overrides_preserved,
+        overrides_reset_count=overrides_reset,
+        message=f"Master catalog synced successfully across {len(branches)} branches.",
+    )
+
+
+async def get_catalog_comparison_matrix(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+) -> CatalogComparisonResponse:
+    """
+    HQ endpoint generating a comparative matrix of prices and stock availability
+    across all branches in the network, including local branch add-ons.
+    """
+    from app.models.branch import Branch
+
+    branch_res = await session.execute(
+        select(Branch)
+        .where(
+            Branch.business_id == business_id,
+            Branch.organization_id == tenant.organization_id,
+            Branch.is_active.is_(True),
+        )
+        .order_by(Branch.name_en.asc())
+    )
+    branches = branch_res.scalars().all()
+
+    items_res = await session.execute(
+        select(MenuItem)
+        .options(selectinload(MenuItem.category))
+        .where(
+            MenuItem.business_id == business_id,
+            MenuItem.organization_id == tenant.organization_id,
+            MenuItem.is_active.is_(True),
+        )
+        .order_by(MenuItem.name_en.asc())
+    )
+    all_items = items_res.scalars().all()
+
+    overrides_res = await session.execute(
+        select(BranchItemOverride).where(
+            BranchItemOverride.business_id == business_id,
+            BranchItemOverride.organization_id == tenant.organization_id,
+        )
+    )
+    overrides_map: dict[tuple[UUID, UUID], BranchItemOverride] = {
+        (o.branch_id, o.menu_item_id): o for o in overrides_res.scalars().all()
+    }
+
+    comparison_items: list[CatalogComparisonItem] = []
+    total_master = 0
+    total_local = 0
+
+    for item in all_items:
+        is_global = item.branch_id is None
+        if is_global:
+            total_master += 1
+        else:
+            total_local += 1
+
+        branch_details: list[BranchPriceDetail] = []
+        for branch in branches:
+            # If item is branch-local and belongs to another branch, it's not present here
+            if not is_global and item.branch_id != branch.id:
+                continue
+
+            override = overrides_map.get((branch.id, item.id))
+            has_price_override = override is not None and override.price_override is not None
+            effective_price = (
+                override.price_override if has_price_override else item.base_price
+            )
+            is_available = override.availability_status == "AVAILABLE" if override else True
+
+            branch_details.append(
+                BranchPriceDetail(
+                    branch_id=branch.id,
+                    branch_name=branch.name_en,
+                    effective_price_usd=effective_price,
+                    master_price_usd=item.base_price,
+                    has_price_override=has_price_override,
+                    is_available=is_available,
+                    is_local_item=(not is_global),
+                )
+            )
+
+        comparison_items.append(
+            CatalogComparisonItem(
+                item_id=item.id,
+                item_name_en=item.name_en,
+                item_name_km=item.name_km,
+                category_name=item.category.name_en if item.category else None,
+                master_base_price_usd=item.base_price if is_global else None,
+                is_global_master=is_global,
+                origin_branch_id=item.branch_id,
+                branches=branch_details,
+            )
+        )
+
+    return CatalogComparisonResponse(
+        total_master_items=total_master,
+        total_local_items=total_local,
+        items=comparison_items,
+    )
+

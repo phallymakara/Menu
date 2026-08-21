@@ -5,12 +5,14 @@ from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.branch_menu import router as branch_menu_router
 from app.api.v1.endpoints.branches import router as branches_router
 from app.api.v1.endpoints.businesses import router as businesses_router
+from app.api.v1.endpoints.catalog_sync import router as catalog_sync_router
 from app.api.v1.endpoints.categories import router as categories_router
 from app.api.v1.endpoints.combos import router as combos_router
 from app.api.v1.endpoints.dining_areas import router as dining_areas_router
 from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.endpoints.item_variants import router as item_variants_router
 from app.api.v1.endpoints.kds import router as kds_router
+from app.api.v1.endpoints.khqr import router as khqr_router
 from app.api.v1.endpoints.kitchen_stations import router as kitchen_stations_router
 from app.api.v1.endpoints.media import router as media_router
 from app.api.v1.endpoints.members import router as members_router
@@ -44,8 +46,12 @@ api_router.include_router(orders_router)
 api_router.include_router(order_voids_router)
 api_router.include_router(promotions_router)
 api_router.include_router(branch_promo_router)
+api_router.include_router(khqr_router)
 api_router.include_router(payments_router)
 api_router.include_router(receipts_router)
+api_router.include_router(catalog_sync_router)
+
+
 api_router.include_router(kitchen_stations_router)
 api_router.include_router(kds_router)
 api_router.include_router(categories_router)

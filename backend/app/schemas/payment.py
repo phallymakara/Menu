@@ -58,6 +58,36 @@ class CashPaymentRequest(BaseModel):
     )
 
 
+class KHQRPaymentRequest(BaseModel):
+    """Payload submitted by cashier to settle a bill with KHQR (Bakong)."""
+
+    promo_code: str | None = Field(
+        default=None,
+        max_length=50,
+        description="Optional coupon code (e.g. WELCOME10)",
+    )
+    manual_discount_type: DiscountType | None = Field(
+        default=None,
+        description="Optional manual discount type: 'percentage' or 'fixed_amount'",
+    )
+    manual_discount_value: Decimal | None = Field(
+        default=None,
+        ge=0,
+        description="Manual discount value (e.g. 10.00 for 10% or 5.00 for $5)",
+    )
+    discount_reason: DiscountReason | str | None = Field(
+        default=None,
+        max_length=100,
+        description="Reason for manual discount (e.g. 'vip_customer', 'staff_meal')",
+    )
+    notes: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Optional cashier notes or external transaction reference",
+    )
+
+
+
 class PaymentResponse(BaseModel):
     """Financial settlement transaction response."""
 

@@ -111,6 +111,44 @@ class Branch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=None,
     )
 
+    # Bakong KHQR Settings (Branch override)
+    bakong_account_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Bakong Account ID (e.g. bistro_riverside@abab or phone@aclb)",
+    )
+    bakong_merchant_name: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Merchant Name to display on KHQR payment screens",
+    )
+    bakong_merchant_city: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        default="Phnom Penh",
+    )
+    bakong_acquiring_bank: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    # Telegram Bot Staff Notification Settings
+    telegram_bot_token: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Telegram Bot API Token (e.g. 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11)",
+    )
+    telegram_chat_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Telegram Chat / Group ID for real-time staff payment alerts",
+    )
+    telegram_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,

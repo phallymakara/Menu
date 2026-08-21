@@ -92,6 +92,41 @@ class Business(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
 
+    # Bakong KHQR Settings (Default fallback for all branches)
+    bakong_account_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Default Bakong Account ID for business",
+    )
+    bakong_merchant_name: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+    bakong_merchant_city: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+        default="Phnom Penh",
+    )
+    bakong_acquiring_bank: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    # Telegram Bot Settings (Default fallback)
+    telegram_bot_token: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    telegram_chat_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+    telegram_notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False,
+    )
+
     is_active: Mapped[bool] = mapped_column(
         Boolean,
         default=True,

@@ -262,9 +262,34 @@ async def build_session_precheck_receipt_data(
     )
 
     now_utc = datetime.now(timezone.utc)
+    from app.services.khqr_service import (
+        _resolve_bakong_merchant_info,
+        build_khqr_payload,
+        generate_qr_image_data_url,
+    )
+
+    account_id, m_name, m_city, bank = await _resolve_bakong_merchant_info(
+        session=session,
+        business_id=business_id,
+        branch_id=branch_id,
+    )
+    bill_ref = f"CHK-{table_sess.session_code}"
+    qr_str = build_khqr_payload(
+        bakong_account_id=account_id,
+        merchant_name=m_name,
+        merchant_city=m_city,
+        acquiring_bank=bank,
+        amount=bill.financials.grand_total_usd,
+        currency="USD",
+        bill_number=bill_ref,
+        terminal_label=f"T-{table.table_number}" if table else "POS",
+        is_dynamic=True,
+    )
+    qr_image = generate_qr_image_data_url(qr_str)
+
     return ReceiptData(
         receipt_type="PRE_CHECK_BILL",
-        receipt_number=f"CHK-{table_sess.session_code}",
+        receipt_number=bill_ref,
         business_name_en=business.name_en,
         business_name_km=business.name_km,
         branch_name_en=branch.name_en,
@@ -280,6 +305,8 @@ async def build_session_precheck_receipt_data(
         payment_method=None,
         items=items,
         financials=financials,
+        khqr_string=qr_str,
+        khqr_image_data_url=qr_image,
         notes="Please verify items before payment",
     )
 
@@ -356,9 +383,34 @@ async def build_order_precheck_receipt_data(
     )
 
     now_utc = datetime.now(timezone.utc)
+    from app.services.khqr_service import (
+        _resolve_bakong_merchant_info,
+        build_khqr_payload,
+        generate_qr_image_data_url,
+    )
+
+    account_id, m_name, m_city, bank = await _resolve_bakong_merchant_info(
+        session=session,
+        business_id=business_id,
+        branch_id=branch_id,
+    )
+    bill_ref = f"CHK-{order.order_number}"
+    qr_str = build_khqr_payload(
+        bakong_account_id=account_id,
+        merchant_name=m_name,
+        merchant_city=m_city,
+        acquiring_bank=bank,
+        amount=bill.financials.grand_total_usd,
+        currency="USD",
+        bill_number=bill_ref,
+        terminal_label="POS",
+        is_dynamic=True,
+    )
+    qr_image = generate_qr_image_data_url(qr_str)
+
     return ReceiptData(
         receipt_type="PRE_CHECK_BILL",
-        receipt_number=f"CHK-{order.order_number}",
+        receipt_number=bill_ref,
         business_name_en=business.name_en,
         business_name_km=business.name_km,
         branch_name_en=branch.name_en,
@@ -374,6 +426,8 @@ async def build_order_precheck_receipt_data(
         payment_method=None,
         items=items,
         financials=financials,
+        khqr_string=qr_str,
+        khqr_image_data_url=qr_image,
         notes="Takeaway Pre-Check",
     )
 
@@ -594,6 +648,15 @@ def render_html_receipt(
     </div>
 
     {payment_section}
+
+    {f"""
+    <div style="text-align: center; margin: 10px 0 6px 0; border: 1px dashed #000; padding: 8px; border-radius: 4px;">
+        <div style="font-weight: bold; font-size: 0.85em; margin-bottom: 4px; text-transform: uppercase;">SCAN TO PAY VIA KHQR</div>
+        <img src="{receipt.khqr_image_data_url}" alt="KHQR Payment" style="width: 140px; height: 140px; margin: 0 auto; display: block;" />
+        <div style="font-size: 0.75em; color: #444; margin-top: 4px;">Bakong / ABA / ACLEDA / Wing</div>
+        <div style="font-size: 0.85em; font-weight: bold; margin-top: 2px;">${receipt.financials.grand_total_usd:.2f} ({receipt.financials.grand_total_khr:,} KHR)</div>
+    </div>
+    """ if receipt.khqr_image_data_url else ""}
 
     <div class="divider"></div>
 

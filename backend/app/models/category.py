@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
+    from app.models.branch import Branch
     from app.models.business import Business
     from app.models.kitchen_station import KitchenStation
     from app.models.menu_item import MenuItem
@@ -30,6 +31,14 @@ class Category(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("businesses.id", ondelete="CASCADE"),
         index=True,
         nullable=False,
+    )
+
+    branch_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("branches.id", ondelete="CASCADE"),
+        index=True,
+        nullable=True,
+        comment="If NULL, this is a Central Master Category; if set, this is a local branch category.",
     )
 
     parent_id: Mapped[UUID | None] = mapped_column(
