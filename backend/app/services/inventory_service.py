@@ -29,10 +29,8 @@ from app.schemas.inventory import (
     BranchStockResponse,
     InventoryItemCreate,
     InventoryItemResponse,
-    InventoryItemUpdate,
     LowStockAlertItem,
     LowStockAlertResponse,
-    StockAdjustmentLogResponse,
     StockTransferCreateRequest,
     StockTransferItemResponse,
     StockTransferResponse,
@@ -60,7 +58,10 @@ def _enforce_inventory_branch_access(tenant: TenantContext, branch_id: UUID) -> 
     if tenant.membership.branch_id != branch_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. You do not have permission to manage inventory for this branch.",
+            detail=(
+                "Access denied. You do not have permission to manage "
+                "inventory for this branch."
+            ),
         )
 
 
@@ -71,7 +72,8 @@ async def create_inventory_item(
     payload: InventoryItemCreate,
 ) -> InventoryItemResponse:
     """
-    Creates a new inventory master item and initializes stock records (0 qty) for all branches.
+    Creates a new inventory master item and initializes stock records
+    (0 quantity) for all active branches.
     """
     item = InventoryItem(
         organization_id=tenant.organization_id,
@@ -147,7 +149,9 @@ async def get_branch_stock_levels(
 
     stmt = (
         select(BranchStock)
-        .options(selectinload(BranchStock.inventory_item), selectinload(BranchStock.branch))
+        .options(
+            selectinload(BranchStock.inventory_item), selectinload(BranchStock.branch)
+        )
         .where(
             BranchStock.business_id == business_id,
             BranchStock.branch_id == branch_id,
@@ -198,14 +202,17 @@ async def adjust_branch_stock(
     payload: BranchStockAdjustRequest,
 ) -> BranchStockResponse:
     """
-    Adjusts current stock level (manual audit, restock, waste/spoilage) and writes audit log.
+    Adjusts current stock level (manual audit, restock, waste/spoilage)
+    and writes audit log.
     """
     _enforce_inventory_branch_access(tenant, branch_id)
 
     # Fetch or initialize BranchStock
     stmt = (
         select(BranchStock)
-        .options(selectinload(BranchStock.inventory_item), selectinload(BranchStock.branch))
+        .options(
+            selectinload(BranchStock.inventory_item), selectinload(BranchStock.branch)
+        )
         .where(
             BranchStock.business_id == business_id,
             BranchStock.branch_id == branch_id,
@@ -316,11 +323,17 @@ async def create_stock_transfer(
             detail="Source and destination branches cannot be the same.",
         )
 
-    # Validate destination branch access (must be assigned to destination or have roaming access)
-    if not can_user_roam_branches(tenant.membership) and tenant.membership.branch_id != payload.destination_branch_id:
+    # Validate destination branch access (must be assigned or have roaming access)
+    if (
+        not can_user_roam_branches(tenant.membership)
+        and tenant.membership.branch_id != payload.destination_branch_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. You can only request transfers for your assigned branch.",
+            detail=(
+                "Access denied. You can only request transfers "
+                "for your assigned branch."
+            ),
         )
 
     # Verify branches
@@ -331,7 +344,10 @@ async def create_stock_transfer(
         )
     )
     branches_map = {b.id: b for b in branches_res.scalars().all()}
-    if payload.source_branch_id not in branches_map or payload.destination_branch_id not in branches_map:
+    if (
+        payload.source_branch_id not in branches_map
+        or payload.destination_branch_id not in branches_map
+    ):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="One or both branches not found.",
@@ -374,15 +390,22 @@ async def approve_stock_transfer(
     transfer_id: UUID,
 ) -> StockTransferResponse:
     """
-    Approves a stock transfer request. Only source branch staff, GM, or Owner can approve.
+    Approves a stock transfer request.
+    Only source branch staff, GM, or Owner can approve.
     """
     transfer = await _get_transfer_or_404(session, business_id, transfer_id)
 
     # Check approval permission (Source branch manager or Roaming GM/Owner)
-    if not can_user_roam_branches(tenant.membership) and tenant.membership.branch_id != transfer.source_branch_id:
+    if (
+        not can_user_roam_branches(tenant.membership)
+        and tenant.membership.branch_id != transfer.source_branch_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Only source branch staff or General Managers can approve this transfer.",
+            detail=(
+                "Access denied. Only source branch staff or General Managers "
+                "can approve this transfer."
+            ),
         )
 
     if transfer.status != StockTransferStatus.REQUESTED:
@@ -410,13 +433,21 @@ async def dispatch_stock_transfer(
     """
     transfer = await _get_transfer_or_404(session, business_id, transfer_id)
 
-    if not can_user_roam_branches(tenant.membership) and tenant.membership.branch_id != transfer.source_branch_id:
+    if (
+        not can_user_roam_branches(tenant.membership)
+        and tenant.membership.branch_id != transfer.source_branch_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Only source branch staff can dispatch this shipment.",
+            detail=(
+                "Access denied. Only source branch staff can dispatch this shipment."
+            ),
         )
 
-    if transfer.status not in (StockTransferStatus.REQUESTED, StockTransferStatus.APPROVED):
+    if transfer.status not in (
+        StockTransferStatus.REQUESTED,
+        StockTransferStatus.APPROVED,
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot dispatch transfer with status '{transfer.status.value}'.",
@@ -469,16 +500,25 @@ async def receive_stock_transfer(
     """
     transfer = await _get_transfer_or_404(session, business_id, transfer_id)
 
-    if not can_user_roam_branches(tenant.membership) and tenant.membership.branch_id != transfer.destination_branch_id:
+    if (
+        not can_user_roam_branches(tenant.membership)
+        and tenant.membership.branch_id != transfer.destination_branch_id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Only destination branch staff can receive this shipment.",
+            detail=(
+                "Access denied. Only destination branch staff "
+                "can receive this shipment."
+            ),
         )
 
     if transfer.status != StockTransferStatus.IN_TRANSIT:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot receive transfer with status '{transfer.status.value}'. Must be IN_TRANSIT.",
+            detail=(
+                f"Cannot receive transfer with status '{transfer.status.value}'. "
+                "Must be IN_TRANSIT."
+            ),
         )
 
     now_utc = datetime.now(timezone.utc)
@@ -526,7 +566,10 @@ async def receive_stock_transfer(
         session.add(audit)
 
     await session.commit()
-    logger.info("Stock transfer received and completed", transfer_number=transfer.transfer_number)
+    logger.info(
+        "Stock transfer received and completed",
+        transfer_number=transfer.transfer_number,
+    )
     return await _fetch_transfer_response(session, transfer.id)
 
 
@@ -546,7 +589,9 @@ async def get_stock_transfers(
             selectinload(StockTransfer.destination_branch),
             selectinload(StockTransfer.requested_by_user),
             selectinload(StockTransfer.approved_by_user),
-            selectinload(StockTransfer.items).selectinload(StockTransferItem.inventory_item),
+            selectinload(StockTransfer.items).selectinload(
+                StockTransferItem.inventory_item
+            ),
         )
         .where(
             StockTransfer.business_id == business_id,
@@ -557,12 +602,14 @@ async def get_stock_transfers(
 
     if branch_id:
         stmt = stmt.where(
-            (StockTransfer.source_branch_id == branch_id) | (StockTransfer.destination_branch_id == branch_id)
+            (StockTransfer.source_branch_id == branch_id)
+            | (StockTransfer.destination_branch_id == branch_id)
         )
     elif not can_user_roam_branches(tenant.membership):
         user_branch = tenant.membership.branch_id
         stmt = stmt.where(
-            (StockTransfer.source_branch_id == user_branch) | (StockTransfer.destination_branch_id == user_branch)
+            (StockTransfer.source_branch_id == user_branch)
+            | (StockTransfer.destination_branch_id == user_branch)
         )
 
     res = await session.execute(stmt)
@@ -582,7 +629,9 @@ async def get_low_stock_alerts(
     """
     stmt = (
         select(BranchStock)
-        .options(selectinload(BranchStock.inventory_item), selectinload(BranchStock.branch))
+        .options(
+            selectinload(BranchStock.inventory_item), selectinload(BranchStock.branch)
+        )
         .where(
             BranchStock.business_id == business_id,
             BranchStock.organization_id == tenant.organization_id,
@@ -627,7 +676,9 @@ async def get_low_stock_alerts(
 
 
 # Helper Functions
-async def _get_transfer_or_404(session: AsyncSession, business_id: UUID, transfer_id: UUID) -> StockTransfer:
+async def _get_transfer_or_404(
+    session: AsyncSession, business_id: UUID, transfer_id: UUID
+) -> StockTransfer:
     stmt = (
         select(StockTransfer)
         .options(
@@ -635,7 +686,9 @@ async def _get_transfer_or_404(session: AsyncSession, business_id: UUID, transfe
             selectinload(StockTransfer.destination_branch),
             selectinload(StockTransfer.requested_by_user),
             selectinload(StockTransfer.approved_by_user),
-            selectinload(StockTransfer.items).selectinload(StockTransferItem.inventory_item),
+            selectinload(StockTransfer.items).selectinload(
+                StockTransferItem.inventory_item
+            ),
         )
         .where(
             StockTransfer.id == transfer_id,
@@ -645,11 +698,15 @@ async def _get_transfer_or_404(session: AsyncSession, business_id: UUID, transfe
     res = await session.execute(stmt)
     transfer = res.scalar_one_or_none()
     if transfer is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Stock transfer not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Stock transfer not found."
+        )
     return transfer
 
 
-async def _fetch_transfer_response(session: AsyncSession, transfer_id: UUID) -> StockTransferResponse:
+async def _fetch_transfer_response(
+    session: AsyncSession, transfer_id: UUID
+) -> StockTransferResponse:
     stmt = (
         select(StockTransfer)
         .options(
@@ -657,7 +714,9 @@ async def _fetch_transfer_response(session: AsyncSession, transfer_id: UUID) -> 
             selectinload(StockTransfer.destination_branch),
             selectinload(StockTransfer.requested_by_user),
             selectinload(StockTransfer.approved_by_user),
-            selectinload(StockTransfer.items).selectinload(StockTransferItem.inventory_item),
+            selectinload(StockTransfer.items).selectinload(
+                StockTransferItem.inventory_item
+            ),
         )
         .where(StockTransfer.id == transfer_id)
     )
@@ -672,7 +731,9 @@ def _build_transfer_response_from_entity(t: StockTransfer) -> StockTransferRespo
             id=i.id,
             inventory_item_id=i.inventory_item_id,
             item_name_en=i.inventory_item.name_en if i.inventory_item else "Unknown",
-            unit_of_measure=i.inventory_item.unit_of_measure if i.inventory_item else "piece",
+            unit_of_measure=i.inventory_item.unit_of_measure
+            if i.inventory_item
+            else "piece",
             requested_quantity=i.requested_quantity,
             shipped_quantity=i.shipped_quantity,
             received_quantity=i.received_quantity,
@@ -686,10 +747,14 @@ def _build_transfer_response_from_entity(t: StockTransfer) -> StockTransferRespo
         source_branch_id=t.source_branch_id,
         source_branch_name=t.source_branch.name_en if t.source_branch else "Unknown",
         destination_branch_id=t.destination_branch_id,
-        destination_branch_name=t.destination_branch.name_en if t.destination_branch else "Unknown",
+        destination_branch_name=t.destination_branch.name_en
+        if t.destination_branch
+        else "Unknown",
         status=t.status,
         requested_by_user_id=t.requested_by_user_id,
-        requested_by_name=t.requested_by_user.full_name if t.requested_by_user else "Unknown",
+        requested_by_name=t.requested_by_user.full_name
+        if t.requested_by_user
+        else "Unknown",
         approved_by_user_id=t.approved_by_user_id,
         approved_by_name=t.approved_by_user.full_name if t.approved_by_user else None,
         dispatched_at=t.dispatched_at,

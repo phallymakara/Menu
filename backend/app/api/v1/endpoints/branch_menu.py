@@ -16,11 +16,19 @@ from app.schemas.branch_menu import (
     BranchMenuCatalogResponse,
     BulkBranchItemOverrideRequest,
 )
+from app.schemas.catalog_sync import (
+    BranchLocalItemCreate,
+    ResetBranchOverridesRequest,
+)
+from app.schemas.menu_item import MenuItemResponse
 from app.services.branch_menu_service import (
     assign_categories_to_branch,
     bulk_set_branch_item_overrides,
+    create_branch_local_item,
     delete_branch_item_override,
     get_branch_published_menu,
+    promote_local_item_to_master,
+    reset_branch_overrides_to_master,
     set_branch_item_override,
 )
 
@@ -189,17 +197,6 @@ async def get_branch_published_menu_endpoint(
 # ---------------------------------------------------------------------------
 # Branch-Specific Local Menu Items & Add-ons
 # ---------------------------------------------------------------------------
-
-from app.schemas.catalog_sync import (
-    BranchLocalItemCreate,
-    ResetBranchOverridesRequest,
-)
-from app.schemas.menu_item import MenuItemResponse
-from app.services.branch_menu_service import (
-    create_branch_local_item,
-    promote_local_item_to_master,
-    reset_branch_overrides_to_master,
-)
 
 
 @router.post(

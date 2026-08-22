@@ -29,6 +29,11 @@ from app.services.branch_roaming_service import can_user_roam_branches
 logger = structlog.get_logger("app.services.kds_service")
 
 
+# ==============================================================================
+# 1. KDS BRANCH ACCESS & SLA COMPUTATION HELPERS
+# ==============================================================================
+
+
 def _enforce_kds_branch_access(tenant: TenantContext, branch_id: UUID) -> None:
     """
     Validates branch access permissions for KDS endpoints.
@@ -40,7 +45,10 @@ def _enforce_kds_branch_access(tenant: TenantContext, branch_id: UUID) -> None:
     if tenant.membership.branch_id != branch_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. You do not have permission to view or manage KDS for this branch.",
+            detail=(
+                "Access denied. You do not have permission to view or "
+                "manage KDS for this branch."
+            ),
         )
 
 
@@ -54,7 +62,9 @@ def _calculate_elapsed_minutes(created_at: datetime) -> int:
 
 
 def _map_order_item_to_kds_item(item: OrderItem) -> KDSTicketItemResponse:
-    """Maps OrderItem ORM entity to KDSTicketItemResponse schema with SLA calculations."""
+    """
+    Maps OrderItem ORM entity to KDSTicketItemResponse schema with SLA calculations.
+    """
     station = item.station
     elapsed = _calculate_elapsed_minutes(item.created_at)
     target_prep = (
@@ -358,7 +368,9 @@ async def bump_item_status(
             "status": item.status.value,
             "order_status": parent_order.status.value,
             "item_name_en": item.item_name_en,
-            "station_id": str(item.kitchen_station_id) if item.kitchen_station_id else None,
+            "station_id": (
+                str(item.kitchen_station_id) if item.kitchen_station_id else None
+            ),
         },
         business_id=business_id,
         branch_id=branch_id,
@@ -540,7 +552,9 @@ async def undo_item_status(
             "status": item.status.value,
             "order_status": parent_order.status.value,
             "item_name_en": item.item_name_en,
-            "station_id": str(item.kitchen_station_id) if item.kitchen_station_id else None,
+            "station_id": (
+                str(item.kitchen_station_id) if item.kitchen_station_id else None
+            ),
         },
         business_id=business_id,
         branch_id=branch_id,
@@ -589,7 +603,9 @@ async def recall_station_tickets(
         .where(
             Order.branch_id == branch_id,
             OrderItem.kitchen_station_id == station_id,
-            OrderItem.status.in_([OrderItemStatus.READY_TO_SERVE, OrderItemStatus.SERVED]),
+            OrderItem.status.in_(
+                [OrderItemStatus.READY_TO_SERVE, OrderItemStatus.SERVED]
+            ),
             OrderItem.updated_at >= since_time,
         )
         .order_by(OrderItem.updated_at.desc())
@@ -622,7 +638,8 @@ async def get_station_metrics(
     station_id: UUID,
 ) -> StationMetricsResponse:
     """
-    Calculates live metrics for station header: active tickets, overdue tickets, avg prep time.
+    Calculates live metrics for station header:
+    active tickets, overdue tickets, avg prep time.
     """
     _enforce_kds_branch_access(tenant, branch_id)
 
@@ -737,7 +754,9 @@ async def fire_course(
             "order_id": str(order.id),
             "order_number": order.order_number,
             "fired_count": len(fired_items),
-            "course_stage": str(payload.course_stage) if payload.course_stage else "all",
+            "course_stage": (
+                str(payload.course_stage) if payload.course_stage else "all"
+            ),
         },
         business_id=business_id,
         branch_id=branch_id,
@@ -747,7 +766,9 @@ async def fire_course(
         "Course fired for order",
         order_number=order.order_number,
         fired_count=len(fired_items),
-        course_stage=str(payload.course_stage) if payload.course_stage else "all",
+        course_stage=(
+            str(payload.course_stage) if payload.course_stage else "all"
+        ),
     )
     return response_items
 

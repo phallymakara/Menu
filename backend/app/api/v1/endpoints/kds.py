@@ -4,11 +4,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
-from app.models.user import User
 from app.schemas.kds import (
     CourseFireRequest,
     ItemRerouteRequest,

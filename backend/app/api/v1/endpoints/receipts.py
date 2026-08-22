@@ -10,7 +10,6 @@ from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
 from app.models.user import User
-from app.schemas.receipt import ReceiptData
 from app.services.receipt_service import (
     build_order_precheck_receipt_data,
     build_payment_receipt_data,

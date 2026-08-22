@@ -333,7 +333,8 @@ async def get_branch_published_menu(
         )
         categories = cat_result.scalars().all()
     else:
-        # If no explicit category assignments, publish all active master & local categories
+        # If no explicit category assignments,
+        # publish all active master & local categories
         cat_result = await session.execute(
             select(Category)
             .where(
@@ -594,8 +595,8 @@ async def promote_local_item_to_master(
     item_id: UUID,
 ) -> MenuItem:
     """
-    Promotes a local branch item/add-on into a Central Master Brand Item (branch_id=None),
-    making it available across all branches in the network.
+    Promotes a local branch item/add-on into a Central Master Brand Item
+    (branch_id=None), making it available across all branches in the network.
     """
     await _verify_branch_access(session, tenant, business_id, branch_id)
 
@@ -629,7 +630,9 @@ async def promote_local_item_to_master(
         select(MenuItem)
         .options(
             selectinload(MenuItem.variants),
-            selectinload(MenuItem.modifier_group_links).selectinload(MenuItemModifierGroup.group),
+            selectinload(MenuItem.modifier_group_links).selectinload(
+                MenuItemModifierGroup.group
+            ),
         )
         .where(MenuItem.id == item.id)
     )
@@ -677,7 +680,12 @@ async def reset_branch_overrides_to_master(
         user_id=tenant.user_id,
         resource_type="branch",
         resource_id=str(branch_id),
-        details={"reset_count": reset_count, "category_id": str(payload.category_id) if payload.category_id else None},
+        details={
+            "reset_count": reset_count,
+            "category_id": (
+                str(payload.category_id) if payload.category_id else None
+            ),
+        },
     )
     await session.commit()
 
@@ -827,16 +835,20 @@ async def get_catalog_comparison_matrix(
 
         branch_details: list[BranchPriceDetail] = []
         for branch in branches:
-            # If item is branch-local and belongs to another branch, it's not present here
+            # Skip if item is branch-local and belongs to a different branch
             if not is_global and item.branch_id != branch.id:
                 continue
 
             override = overrides_map.get((branch.id, item.id))
-            has_price_override = override is not None and override.price_override is not None
+            has_price_override = (
+                override is not None and override.price_override is not None
+            )
             effective_price = (
                 override.price_override if has_price_override else item.base_price
             )
-            is_available = override.availability_status == "AVAILABLE" if override else True
+            is_available = (
+                override.availability_status == "AVAILABLE" if override else True
+            )
 
             branch_details.append(
                 BranchPriceDetail(

@@ -17,11 +17,9 @@ from app.models.enums import (
     OrderStatus,
     StaffRole,
     TableSessionStatus,
-    VoidReasonCode,
 )
 from app.models.order import Order, OrderItem
 from app.models.organization_membership import OrganizationMembership
-from app.models.table_session import TableSession
 from app.models.user import User
 from app.schemas.order_void import (
     CancelOrderRequest,

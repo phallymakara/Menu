@@ -10,7 +10,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
 from app.models.branch import Branch
 from app.models.business import Business
@@ -19,7 +18,6 @@ from app.models.enums import OrderItemStatus, OrderStatus
 from app.models.order import Order, OrderItem
 from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession
-from app.models.user import User
 from app.schemas.billing import (
     BillConsolidatedItemSummary,
     BillFinancialBreakdown,

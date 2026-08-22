@@ -9,7 +9,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
-    from app.models.branch import Branch
     from app.models.business import Business
     from app.models.kitchen_station import KitchenStation
     from app.models.menu_item import MenuItem

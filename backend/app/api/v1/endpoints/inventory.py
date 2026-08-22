@@ -125,7 +125,7 @@ async def list_stock_transfers_endpoint(
     business_id: UUID,
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    branch_id: UUID | None = Query(default=None),
+    branch_id: Annotated[UUID | None, Query()] = None,
 ) -> list[StockTransferResponse]:
     """Lists stock transfers filtered by branch or business."""
     return await get_stock_transfers(
@@ -226,7 +226,7 @@ async def get_low_stock_alerts_endpoint(
     business_id: UUID,
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    branch_id: UUID | None = Query(default=None),
+    branch_id: Annotated[UUID | None, Query()] = None,
 ) -> LowStockAlertResponse:
     """Identifies items where branch quantity is at or below the reorder threshold."""
     return await get_low_stock_alerts(

@@ -8,7 +8,6 @@ from uuid import UUID
 
 import qrcode
 import structlog
-from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

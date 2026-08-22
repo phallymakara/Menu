@@ -12,9 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.tenant import TenantContext
-from app.models.branch import Branch
-from app.models.business import Business
-from app.models.order import Order, OrderItem
+from app.models.order import Order
 from app.models.payment import Payment
 from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession
@@ -51,7 +49,9 @@ async def build_payment_receipt_data(
             selectinload(Payment.business),
             selectinload(Payment.branch),
             selectinload(Payment.received_by),
-            selectinload(Payment.table_session).selectinload(TableSession.table).selectinload(RestaurantTable.dining_area),
+            selectinload(Payment.table_session)
+            .selectinload(TableSession.table)
+            .selectinload(RestaurantTable.dining_area),
             selectinload(Payment.order).selectinload(Order.table),
         )
         .where(
@@ -212,7 +212,9 @@ async def build_session_precheck_receipt_data(
         )
     )
     if tenant:
-        sess_query = sess_query.where(TableSession.organization_id == tenant.organization_id)
+        sess_query = sess_query.where(
+            TableSession.organization_id == tenant.organization_id
+        )
 
     sess_res = await session.execute(sess_query)
     table_sess = sess_res.scalar_one_or_none()
@@ -233,7 +235,9 @@ async def build_session_precheck_receipt_data(
     business = table_sess.business
     branch = table_sess.branch
     table = table_sess.table
-    dining_area_name = table.dining_area.name_en if table and table.dining_area else None
+    dining_area_name = (
+        table.dining_area.name_en if table and table.dining_area else None
+    )
 
     items = [
         ReceiptItem(
@@ -436,6 +440,7 @@ async def build_order_precheck_receipt_data(
 # HTML & Monospace Text Receipt Renderers
 # ---------------------------------------------------------------------------
 
+
 def render_html_receipt(
     receipt: ReceiptData,
     width: Literal["80mm", "58mm"] = "80mm",
@@ -488,7 +493,9 @@ def render_html_receipt(
 
     items_html = ""
     for itm in receipt.items:
-        itm_display = itm.item_name_km if lang == "km" and itm.item_name_km else itm.item_name_en
+        itm_display = (
+            itm.item_name_km if lang == "km" and itm.item_name_km else itm.item_name_en
+        )
         if lang == "bilingual" and itm.item_name_km:
             itm_display = f"<strong>{itm.item_name_en}</strong><div style='font-size: 0.85em; color: #444;'>{itm.item_name_km}</div>"
 
@@ -507,7 +514,10 @@ def render_html_receipt(
 
     # Optional Payment details
     payment_section = ""
-    if receipt.receipt_type == "OFFICIAL_RECEIPT" and receipt.financials.amount_tendered_usd is not None:
+    if (
+        receipt.receipt_type == "OFFICIAL_RECEIPT"
+        and receipt.financials.amount_tendered_usd is not None
+    ):
         tendered_usd_val = receipt.financials.amount_tendered_usd or Decimal("0.00")
         tendered_khr_val = receipt.financials.amount_tendered_khr or 0
         change_usd_val = receipt.financials.change_usd or Decimal("0.00")
@@ -580,10 +590,20 @@ def render_html_receipt(
     <div class="text-center">
         <h2 style="margin: 0 0 2px 0; font-size: 1.25em;">{biz_name}</h2>
         <div style="font-size: 0.9em;">{branch_name}</div>
-        {f"<div style='font-size: 0.85em;'>{receipt.branch_address}</div>" if receipt.branch_address else ""}
-        {f"<div style='font-size: 0.85em;'>Tel: {receipt.branch_phone}</div>" if receipt.branch_phone else ""}
+        {
+        f"<div style='font-size: 0.85em;'>{receipt.branch_address}</div>"
+        if receipt.branch_address
+        else ""
+    }
+        {
+        f"<div style='font-size: 0.85em;'>Tel: {receipt.branch_phone}</div>"
+        if receipt.branch_phone
+        else ""
+    }
         <div class="divider"></div>
-        <div class="bold" style="font-size: 1.05em; text-transform: uppercase;">{title}</div>
+        <div class="bold" style="font-size: 1.05em; text-transform: uppercase;">{
+        title
+    }</div>
         <div class="divider"></div>
     </div>
 
@@ -609,9 +629,13 @@ def render_html_receipt(
         <thead>
             <tr style="border-bottom: 1px solid #000; font-size: 0.85em;">
                 <th style="text-align: left; padding-bottom: 4px;">{lbl_item}</th>
-                <th style="text-align: center; width: 30px; padding-bottom: 4px;">{lbl_qty}</th>
+                <th style="text-align: center; width: 30px; padding-bottom: 4px;">{
+        lbl_qty
+    }</th>
                 <th style="text-align: right; width: 50px; padding-bottom: 4px;">Price</th>
-                <th style="text-align: right; width: 55px; padding-bottom: 4px;">{lbl_total}</th>
+                <th style="text-align: right; width: 55px; padding-bottom: 4px;">{
+        lbl_total
+    }</th>
             </tr>
         </thead>
         <tbody>
@@ -626,8 +650,16 @@ def render_html_receipt(
             <span>{lbl_subtotal}:</span>
             <span>${receipt.financials.subtotal_usd:.2f}</span>
         </div>
-        {f"<div style='display: flex; justify-content: space-between;'><span>{lbl_sc} ({receipt.financials.service_charge_percent:.0f}%):</span><span>${receipt.financials.service_charge_amount_usd:.2f}</span></div>" if receipt.financials.service_charge_amount_usd > 0 else ""}
-        {f"<div style='display: flex; justify-content: space-between;'><span>{lbl_tax} ({receipt.financials.tax_percent:.0f}%):</span><span>${receipt.financials.tax_amount_usd:.2f}</span></div>" if receipt.financials.tax_amount_usd > 0 else ""}
+        {
+        f"<div style='display: flex; justify-content: space-between;'><span>{lbl_sc} ({receipt.financials.service_charge_percent:.0f}%):</span><span>${receipt.financials.service_charge_amount_usd:.2f}</span></div>"
+        if receipt.financials.service_charge_amount_usd > 0
+        else ""
+    }
+        {
+        f"<div style='display: flex; justify-content: space-between;'><span>{lbl_tax} ({receipt.financials.tax_percent:.0f}%):</span><span>${receipt.financials.tax_amount_usd:.2f}</span></div>"
+        if receipt.financials.tax_amount_usd > 0
+        else ""
+    }
     </div>
 
     <div class="double-divider"></div>
@@ -649,14 +681,18 @@ def render_html_receipt(
 
     {payment_section}
 
-    {f"""
+    {
+        f'''
     <div style="text-align: center; margin: 10px 0 6px 0; border: 1px dashed #000; padding: 8px; border-radius: 4px;">
         <div style="font-weight: bold; font-size: 0.85em; margin-bottom: 4px; text-transform: uppercase;">SCAN TO PAY VIA KHQR</div>
         <img src="{receipt.khqr_image_data_url}" alt="KHQR Payment" style="width: 140px; height: 140px; margin: 0 auto; display: block;" />
         <div style="font-size: 0.75em; color: #444; margin-top: 4px;">Bakong / ABA / ACLEDA / Wing</div>
         <div style="font-size: 0.85em; font-weight: bold; margin-top: 2px;">${receipt.financials.grand_total_usd:.2f} ({receipt.financials.grand_total_khr:,} KHR)</div>
     </div>
-    """ if receipt.khqr_image_data_url else ""}
+    '''
+        if receipt.khqr_image_data_url
+        else ""
+    }
 
     <div class="divider"></div>
 
@@ -697,9 +733,17 @@ def render_text_receipt(
         lines.append(center(f"Tel: {receipt.branch_phone}"))
     lines.append(dash_line)
 
-    title = "OFFICIAL RECEIPT" if receipt.receipt_type == "OFFICIAL_RECEIPT" else "PRE-CHECK BILL"
+    title = (
+        "OFFICIAL RECEIPT"
+        if receipt.receipt_type == "OFFICIAL_RECEIPT"
+        else "PRE-CHECK BILL"
+    )
     if lang == "km":
-        title = "វិក្កយបត្រផ្លូវការ" if receipt.receipt_type == "OFFICIAL_RECEIPT" else "វិក្កយបត្របណ្តោះអាសន្ន"
+        title = (
+            "វិក្កយបត្រផ្លូវការ"
+            if receipt.receipt_type == "OFFICIAL_RECEIPT"
+            else "វិក្កយបត្របណ្តោះអាសន្ន"
+        )
     lines.append(center(title))
     lines.append(dash_line)
 
@@ -715,7 +759,11 @@ def render_text_receipt(
     lines.append(dash_line)
 
     for item in receipt.items:
-        name = item.item_name_km if lang == "km" and item.item_name_km else item.item_name_en
+        name = (
+            item.item_name_km
+            if lang == "km" and item.item_name_km
+            else item.item_name_en
+        )
         right_str = f"{item.quantity:>3} ${item.total_price_usd:>6.2f}"
         lines.append(row(name, right_str))
         if item.modifier_names_en:
@@ -724,19 +772,42 @@ def render_text_receipt(
     lines.append(dash_line)
     lines.append(row("Subtotal:", f"${receipt.financials.subtotal_usd:.2f}"))
     if receipt.financials.service_charge_amount_usd > 0:
-        lines.append(row(f"Service Charge ({receipt.financials.service_charge_percent:.0f}%):", f"${receipt.financials.service_charge_amount_usd:.2f}"))
+        lines.append(
+            row(
+                f"Service Charge ({receipt.financials.service_charge_percent:.0f}%):",
+                f"${receipt.financials.service_charge_amount_usd:.2f}",
+            )
+        )
     if receipt.financials.tax_amount_usd > 0:
-        lines.append(row(f"VAT / Tax ({receipt.financials.tax_percent:.0f}%):", f"${receipt.financials.tax_amount_usd:.2f}"))
+        lines.append(
+            row(
+                f"VAT / Tax ({receipt.financials.tax_percent:.0f}%):",
+                f"${receipt.financials.tax_amount_usd:.2f}",
+            )
+        )
 
     lines.append(double_line)
-    lines.append(row("GRAND TOTAL (USD):", f"${receipt.financials.grand_total_usd:.2f}"))
-    lines.append(row("Exchange Rate:", f"1$ = {receipt.financials.exchange_rate:,.0f} KHR"))
-    lines.append(row("GRAND TOTAL (KHR):", f"{receipt.financials.grand_total_khr:,} KHR"))
+    lines.append(
+        row("GRAND TOTAL (USD):", f"${receipt.financials.grand_total_usd:.2f}")
+    )
+    lines.append(
+        row("Exchange Rate:", f"1$ = {receipt.financials.exchange_rate:,.0f} KHR")
+    )
+    lines.append(
+        row("GRAND TOTAL (KHR):", f"{receipt.financials.grand_total_khr:,} KHR")
+    )
 
-    if receipt.receipt_type == "OFFICIAL_RECEIPT" and receipt.financials.amount_tendered_usd is not None:
+    if (
+        receipt.receipt_type == "OFFICIAL_RECEIPT"
+        and receipt.financials.amount_tendered_usd is not None
+    ):
         lines.append(dash_line)
-        lines.append(row("Tendered USD:", f"${receipt.financials.amount_tendered_usd:.2f}"))
-        lines.append(row("Tendered KHR:", f"{receipt.financials.amount_tendered_khr:,} KHR"))
+        lines.append(
+            row("Tendered USD:", f"${receipt.financials.amount_tendered_usd:.2f}")
+        )
+        lines.append(
+            row("Tendered KHR:", f"{receipt.financials.amount_tendered_khr:,} KHR")
+        )
         lines.append(row("Change USD:", f"${receipt.financials.change_usd:.2f}"))
         lines.append(row("Change KHR:", f"{receipt.financials.change_khr:,} KHR"))
 

@@ -13,8 +13,11 @@ from sqlalchemy.orm import selectinload
 from app.core.tenant import TenantContext
 from app.models.branch import Branch
 from app.models.business import Business
-from app.models.category import Category
-from app.models.enums import OrderStatus, PaymentMethod, PaymentStatus, TableSessionStatus
+from app.models.enums import (
+    OrderStatus,
+    PaymentStatus,
+    TableSessionStatus,
+)
 from app.models.menu_item import MenuItem
 from app.models.order import Order, OrderItem
 from app.models.payment import Payment

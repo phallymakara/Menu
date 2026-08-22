@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_user
+from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.config import settings
 from app.core.exceptions import (
     InactiveAccountError,
@@ -14,6 +15,7 @@ from app.core.exceptions import (
     RegistrationConflictError,
 )
 from app.core.security import create_access_token
+from app.core.tenant import TenantContext
 from app.db.session import get_db_session
 from app.models.enums import MembershipStatus, OrganizationStatus
 from app.models.organization import Organization
@@ -27,7 +29,16 @@ from app.schemas.auth import (
     OwnerRegistrationRequest,
     OwnerRegistrationResponse,
 )
+from app.schemas.branch_roaming import (
+    MyBranchesResponse,
+    SwitchBranchRequest,
+    SwitchBranchResponse,
+)
 from app.services.auth_service import authenticate_user, register_owner
+from app.services.branch_roaming_service import (
+    get_user_accessible_branches,
+    switch_active_branch,
+)
 
 logger = structlog.get_logger("app.api.v1.endpoints.auth")
 
@@ -224,18 +235,6 @@ async def get_me(
 # ---------------------------------------------------------------------------
 # Multi-Branch Staff Roaming & Branch Switching
 # ---------------------------------------------------------------------------
-
-from app.api.dependencies.tenant import get_current_tenant_context
-from app.core.tenant import TenantContext
-from app.schemas.branch_roaming import (
-    MyBranchesResponse,
-    SwitchBranchRequest,
-    SwitchBranchResponse,
-)
-from app.services.branch_roaming_service import (
-    get_user_accessible_branches,
-    switch_active_branch,
-)
 
 
 @router.get(

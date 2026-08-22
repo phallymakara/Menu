@@ -25,6 +25,8 @@ from app.api.v1.endpoints.orders import router as orders_router
 from app.api.v1.endpoints.payments import router as payments_router
 from app.api.v1.endpoints.promotions import (
     branch_promo_router,
+)
+from app.api.v1.endpoints.promotions import (
     router as promotions_router,
 )
 from app.api.v1.endpoints.public_tables import router as public_tables_router

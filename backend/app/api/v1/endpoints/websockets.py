@@ -1,3 +1,4 @@
+from typing import Annotated
 from uuid import UUID
 
 import structlog
@@ -27,9 +28,9 @@ router = APIRouter(prefix="/ws", tags=["Real-Time WebSockets"])
 async def websocket_staff_endpoint(
     websocket: WebSocket,
     branch_id: UUID,
-    token: str = Query(...),
-    room_type: str = Query(default="pos"),
-    station_id: UUID | None = Query(default=None),
+    token: Annotated[str, Query()],
+    room_type: Annotated[str, Query()] = "pos",
+    station_id: Annotated[UUID | None, Query()] = None,
 ) -> None:
     """
     Staff WebSocket connection for real-time POS, Expo, and KDS updates.
@@ -101,7 +102,7 @@ async def websocket_staff_endpoint(
 async def websocket_guest_endpoint(
     websocket: WebSocket,
     table_session_id: UUID,
-    session_token: str = Query(...),
+    session_token: Annotated[str, Query()],
 ) -> None:
     """
     Guest WebSocket connection for live order tracking & payment receipt notifications.
