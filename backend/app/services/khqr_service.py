@@ -17,6 +17,7 @@ from app.models.business import Business
 from app.models.enums import DiscountType
 from app.schemas.khqr import KHQRResponse
 from app.services.billing_service import (
+    _resolve_financial_settings,
     calculate_financial_breakdown,
     get_order_bill_summary,
     get_table_session_bill_summary,
@@ -70,10 +71,10 @@ def build_khqr_payload(
 
     # Tag 29: Merchant Account Information (Bakong)
     merchant_account_subtags = [
-        format_tlv("00", bakong_account_id),
+        format_tlv("00", bakong_account_id.strip()),
     ]
     if acquiring_bank:
-        merchant_account_subtags.append(format_tlv("01", acquiring_bank))
+        merchant_account_subtags.append(format_tlv("01", acquiring_bank.strip()))
     merchant_account_str = "".join(merchant_account_subtags)
     payload_parts.append(format_tlv("29", merchant_account_str))
 
@@ -89,26 +90,26 @@ def build_khqr_payload(
         if currency == "USD":
             amount_str = f"{amount:.2f}"
         else:
-            amount_str = f"{int(amount)}"
+            amount_str = f"{int(round(float(amount)))}"
         payload_parts.append(format_tlv("54", amount_str))
 
     # Tag 58: Country Code (KH)
     payload_parts.append(format_tlv("58", "KH"))
 
     # Tag 59: Merchant Name (max 25 chars for standard EMVCo display)
-    safe_name = merchant_name[:25] if merchant_name else "Merchant"
+    safe_name = (merchant_name.strip()[:25]) if merchant_name else "Merchant"
     payload_parts.append(format_tlv("59", safe_name))
 
-    # Tag 60: Merchant City (default Phnom Penh)
-    safe_city = merchant_city[:15] if merchant_city else "Phnom Penh"
+    # Tag 60: Merchant City (default Phnom Penh, max 15 chars)
+    safe_city = (merchant_city.strip()[:15]) if merchant_city else "Phnom Penh"
     payload_parts.append(format_tlv("60", safe_city))
 
     # Tag 62: Additional Data Field Template (Bill/Invoice Reference)
     additional_subtags = []
     if bill_number:
-        additional_subtags.append(format_tlv("01", bill_number[:25]))
+        additional_subtags.append(format_tlv("01", bill_number.strip()[:25]))
     if terminal_label:
-        additional_subtags.append(format_tlv("07", terminal_label[:25]))
+        additional_subtags.append(format_tlv("07", terminal_label.strip()[:25]))
     if additional_subtags:
         payload_parts.append(format_tlv("62", "".join(additional_subtags)))
 
@@ -143,8 +144,8 @@ async def _resolve_bakong_merchant_info(
     branch_id: UUID,
 ) -> tuple[str, str, str, str | None]:
     """
-    Resolves Bakong merchant settings:
-    Branch override -> Business default -> Fallback default.
+    Resolves Bakong merchant settings using proper field-by-field cascading fallback:
+    Branch override -> Business configuration -> Clean default fallback.
     Returns: (bakong_account_id, merchant_name, merchant_city, acquiring_bank)
     """
     branch_res = await session.execute(select(Branch).where(Branch.id == branch_id))
@@ -153,30 +154,36 @@ async def _resolve_bakong_merchant_info(
     biz_res = await session.execute(select(Business).where(Business.id == business_id))
     biz = biz_res.scalar_one_or_none()
 
-    account_id = None
-    merchant_name = None
-    merchant_city = "Phnom Penh"
-    acquiring_bank = None
+    # 1. Bakong Account ID
+    account_id = (
+        (branch.bakong_account_id if branch and branch.bakong_account_id else None)
+        or (biz.bakong_account_id if biz and biz.bakong_account_id else None)
+        or f"merchant_{business_id.hex[:8]}@bkng"
+    )
 
-    if branch:
-        account_id = branch.bakong_account_id
-        merchant_name = branch.bakong_merchant_name or branch.name_en
-        merchant_city = branch.bakong_merchant_city or "Phnom Penh"
-        acquiring_bank = branch.bakong_acquiring_bank
+    # 2. Merchant Name
+    merchant_name = (
+        (branch.bakong_merchant_name if branch and branch.bakong_merchant_name else None)
+        or (biz.bakong_merchant_name if biz and biz.bakong_merchant_name else None)
+        or (branch.name_en if branch else None)
+        or (biz.name_en if biz else None)
+        or "Restaurant"
+    )
 
-    if not account_id and biz:
-        account_id = biz.bakong_account_id
-        merchant_name = biz.bakong_merchant_name or biz.name_en
-        merchant_city = biz.bakong_merchant_city or "Phnom Penh"
-        acquiring_bank = biz.bakong_acquiring_bank
+    # 3. Merchant City
+    merchant_city = (
+        (branch.bakong_merchant_city if branch and branch.bakong_merchant_city else None)
+        or (biz.bakong_merchant_city if biz and biz.bakong_merchant_city else None)
+        or "Phnom Penh"
+    )
 
-    if not account_id:
-        # Provide clean developer/store-owner fallback
-        account_id = f"merchant_{business_id.hex[:8]}@bkng"
-        if not merchant_name:
-            merchant_name = biz.name_en if biz else "Restaurant"
+    # 4. Acquiring Bank
+    acquiring_bank = (
+        (branch.bakong_acquiring_bank if branch and branch.bakong_acquiring_bank else None)
+        or (biz.bakong_acquiring_bank if biz and biz.bakong_acquiring_bank else None)
+    )
 
-    return account_id, merchant_name or "Restaurant", merchant_city, acquiring_bank
+    return account_id, merchant_name, merchant_city, acquiring_bank
 
 
 async def generate_dynamic_session_khqr(
@@ -215,12 +222,19 @@ async def generate_dynamic_session_khqr(
     )
 
     if eval_result.discount_usd > Decimal("0.00"):
+        tax_pct, sc_pct, ex_rate, is_tax_inc, is_sc_inc = await _resolve_financial_settings(
+            session=session,
+            branch_id=branch_id,
+            table_id=bill.table_id,
+        )
         financials = calculate_financial_breakdown(
             subtotal_usd=bill.financials.subtotal_usd,
-            tax_pct=bill.financials.tax_percent,
-            sc_pct=bill.financials.service_charge_percent,
-            exchange_rate=bill.financials.exchange_rate,
+            tax_pct=tax_pct,
+            sc_pct=sc_pct,
+            exchange_rate=ex_rate,
             discount_usd=eval_result.discount_usd,
+            is_tax_inclusive=is_tax_inc,
+            is_sc_inclusive=is_sc_inc,
         )
     else:
         financials = bill.financials
@@ -301,12 +315,19 @@ async def generate_dynamic_order_khqr(
     )
 
     if eval_result.discount_usd > Decimal("0.00"):
+        tax_pct, sc_pct, ex_rate, is_tax_inc, is_sc_inc = await _resolve_financial_settings(
+            session=session,
+            branch_id=branch_id,
+            table_id=None,
+        )
         financials = calculate_financial_breakdown(
             subtotal_usd=bill.financials.subtotal_usd,
-            tax_pct=bill.financials.tax_percent,
-            sc_pct=bill.financials.service_charge_percent,
-            exchange_rate=bill.financials.exchange_rate,
+            tax_pct=tax_pct,
+            sc_pct=sc_pct,
+            exchange_rate=ex_rate,
             discount_usd=eval_result.discount_usd,
+            is_tax_inclusive=is_tax_inc,
+            is_sc_inclusive=is_sc_inc,
         )
     else:
         financials = bill.financials
