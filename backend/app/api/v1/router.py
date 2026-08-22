@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.v1.endpoints.analytics import router as analytics_router
 from app.api.v1.endpoints.audit_logs import router as audit_logs_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.branch_menu import router as branch_menu_router
@@ -10,6 +11,7 @@ from app.api.v1.endpoints.categories import router as categories_router
 from app.api.v1.endpoints.combos import router as combos_router
 from app.api.v1.endpoints.dining_areas import router as dining_areas_router
 from app.api.v1.endpoints.health import router as health_router
+from app.api.v1.endpoints.inventory import router as inventory_router
 from app.api.v1.endpoints.item_variants import router as item_variants_router
 from app.api.v1.endpoints.kds import router as kds_router
 from app.api.v1.endpoints.khqr import router as khqr_router
@@ -31,8 +33,10 @@ from app.api.v1.endpoints.restaurant_tables import router as restaurant_tables_r
 from app.api.v1.endpoints.subscriptions import router as subscriptions_router
 from app.api.v1.endpoints.table_qr import router as table_qr_router
 from app.api.v1.endpoints.table_sessions import router as table_sessions_router
+from app.api.v1.endpoints.websockets import router as ws_router
 
 api_router = APIRouter()
+api_router.include_router(ws_router)
 api_router.include_router(auth_router)
 api_router.include_router(health_router)
 api_router.include_router(public_tables_router)
@@ -50,6 +54,9 @@ api_router.include_router(khqr_router)
 api_router.include_router(payments_router)
 api_router.include_router(receipts_router)
 api_router.include_router(catalog_sync_router)
+api_router.include_router(analytics_router)
+api_router.include_router(inventory_router)
+
 
 
 api_router.include_router(kitchen_stations_router)

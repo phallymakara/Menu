@@ -5,6 +5,13 @@ from app.models.business import Business
 from app.models.category import Category
 from app.models.combo import Combo, ComboGroup, ComboGroupItem
 from app.models.dining_area import DiningArea
+from app.models.inventory import (
+    BranchStock,
+    InventoryItem,
+    StockAdjustmentLog,
+    StockTransfer,
+    StockTransferItem,
+)
 from app.models.item_variant import ItemVariant
 from app.models.kitchen_station import KitchenStation
 from app.models.menu_item import MenuItem
@@ -25,12 +32,14 @@ __all__ = [
     "Branch",
     "BranchCategoryAssignment",
     "BranchItemOverride",
+    "BranchStock",
     "Business",
     "Category",
     "Combo",
     "ComboGroup",
     "ComboGroupItem",
     "DiningArea",
+    "InventoryItem",
     "ItemVariant",
     "KitchenStation",
     "MenuItem",
@@ -46,6 +55,9 @@ __all__ = [
     "Plan",
     "Promotion",
     "RestaurantTable",
+    "StockAdjustmentLog",
+    "StockTransfer",
+    "StockTransferItem",
     "Subscription",
     "TableSession",
     "User",

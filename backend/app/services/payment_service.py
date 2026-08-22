@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.tenant import TenantContext
+from app.core.ws_manager import ws_manager
 from app.models.enums import (
     ChangeCurrencyPreference,
     OrderStatus,
@@ -22,10 +23,13 @@ from app.models.enums import (
 )
 from app.models.order import Order
 from app.models.payment import Payment
-from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession
 from app.models.user import User
-from app.schemas.payment import CashPaymentRequest, PaymentResponse
+from app.schemas.payment import (
+    CashPaymentRequest,
+    KHQRPaymentRequest,
+    PaymentResponse,
+)
 from app.services.audit_service import record_audit_log
 from app.services.billing_service import (
     _round_khr_to_hundred,
@@ -63,12 +67,15 @@ def _calculate_cash_change(
     # Allow tiny precision difference (<= $0.005)
     if (total_tendered_usd + Decimal("0.005")) < grand_total_usd:
         grand_total_khr = _round_khr_to_hundred(grand_total_usd * exchange_rate)
-        total_tendered_khr = int(amount_tendered_usd * exchange_rate) + amount_tendered_khr
+        total_tendered_khr = (
+            int(amount_tendered_usd * exchange_rate) + amount_tendered_khr
+        )
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
-                f"Insufficient cash tendered. Grand total is ${grand_total_usd:.2f} ({grand_total_khr:,} KHR), "
-                f"but received ${total_tendered_usd:.2f} (approx {total_tendered_khr:,} KHR)."
+                f"Insufficient cash tendered. Grand total is ${grand_total_usd:.2f} "
+                f"({grand_total_khr:,} KHR), but received "
+                f"${total_tendered_usd:.2f} (approx {total_tendered_khr:,} KHR)."
             ),
         )
 
@@ -113,7 +120,9 @@ async def settle_table_session_cash_payment(
         )
     )
     if tenant:
-        sess_query = sess_query.where(TableSession.organization_id == tenant.organization_id)
+        sess_query = sess_query.where(
+            TableSession.organization_id == tenant.organization_id
+        )
 
     sess_res = await session.execute(sess_query)
     table_sess = sess_res.scalar_one_or_none()
@@ -270,9 +279,38 @@ async def settle_table_session_cash_payment(
 
     await session.commit()
 
+    # Real-time WebSocket Broadcast
+    notify_rooms = [f"branch:{branch_id}:pos"]
+    if table_session_id:
+        notify_rooms.append(f"session:{table_session_id}")
+
+    await ws_manager.broadcast_to_rooms(
+        rooms=notify_rooms,
+        event="payment.completed",
+        data={
+            "payment_id": str(payment.id),
+            "payment_number": payment.payment_number,
+            "payment_method": payment.payment_method.value,
+            "payment_status": payment.payment_status.value,
+            "grand_total_usd": str(payment.grand_total_usd),
+            "grand_total_khr": int(payment.grand_total_khr),
+            "table_session_id": str(payment.table_session_id)
+            if payment.table_session_id
+            else None,
+            "change_usd": str(change_usd),
+            "change_khr": int(change_khr),
+        },
+        business_id=business_id,
+        branch_id=branch_id,
+    )
+
     # 9. Send Real-Time Telegram Notification (Non-blocking)
     branch_name = table_sess.branch.name_en if table_sess.branch else "Branch"
-    table_ident = f"Table {table.table_number} (Session {table_sess.session_code})" if table else f"Session {table_sess.session_code}"
+    table_ident = (
+        f"Table {table.table_number} (Session {table_sess.session_code})"
+        if table
+        else f"Session {table_sess.session_code}"
+    )
     await send_payment_telegram_notification(
         session=session,
         payment=payment,
@@ -469,6 +507,7 @@ async def settle_single_order_cash_payment(
 
     # Send Real-Time Telegram Notification
     from app.services.telegram_service import send_payment_telegram_notification
+
     branch_name = order.branch.name_en if order.branch else "Branch"
     order_ident = f"Order #{order.order_number}"
     await send_payment_telegram_notification(
@@ -539,7 +578,9 @@ async def settle_table_session_khqr_payment(
         )
     )
     if tenant:
-        sess_query = sess_query.where(TableSession.organization_id == tenant.organization_id)
+        sess_query = sess_query.where(
+            TableSession.organization_id == tenant.organization_id
+        )
 
     sess_res = await session.execute(sess_query)
     table_sess = sess_res.scalar_one_or_none()
@@ -671,9 +712,36 @@ async def settle_table_session_khqr_payment(
 
     await session.commit()
 
+    # Real-time WebSocket Broadcast
+    notify_rooms = [f"branch:{branch_id}:pos"]
+    if table_session_id:
+        notify_rooms.append(f"session:{table_session_id}")
+
+    await ws_manager.broadcast_to_rooms(
+        rooms=notify_rooms,
+        event="payment.completed",
+        data={
+            "payment_id": str(payment.id),
+            "payment_number": payment.payment_number,
+            "payment_method": payment.payment_method.value,
+            "payment_status": payment.payment_status.value,
+            "grand_total_usd": str(payment.grand_total_usd),
+            "grand_total_khr": int(payment.grand_total_khr),
+            "table_session_id": str(payment.table_session_id)
+            if payment.table_session_id
+            else None,
+        },
+        business_id=business_id,
+        branch_id=branch_id,
+    )
+
     # Send Telegram alert
     branch_name = table_sess.branch.name_en if table_sess.branch else "Branch"
-    table_ident = f"Table {table.table_number} (Session {table_sess.session_code})" if table else f"Session {table_sess.session_code}"
+    table_ident = (
+        f"Table {table.table_number} (Session {table_sess.session_code})"
+        if table
+        else f"Session {table_sess.session_code}"
+    )
     await send_payment_telegram_notification(
         session=session,
         payment=payment,
@@ -733,7 +801,8 @@ async def settle_single_order_khqr_payment(
     tenant: TenantContext | None = None,
 ) -> PaymentResponse:
     """
-    Settles a single/takeaway order with KHQR payment confirmation and dispatches Telegram notification.
+    Settles a single/takeaway order with KHQR payment confirmation
+    and dispatches Telegram notification.
     """
     order_query = (
         select(Order)

@@ -170,4 +170,35 @@ class DiscountReason(StrEnum):
     OTHER = "other"
 
 
+class UnitOfMeasure(StrEnum):
+    KG = "kg"
+    G = "g"
+    LITER = "liter"
+    ML = "ml"
+    PIECE = "piece"
+    CAN = "can"
+    BOTTLE = "bottle"
+    PACK = "pack"
+
+
+class StockTransferStatus(StrEnum):
+    REQUESTED = "requested"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    IN_TRANSIT = "in_transit"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+
+class StockAdjustmentReason(StrEnum):
+    RESTOCK = "restock"
+    STOCK_TAKE_AUDIT = "stock_take_audit"
+    SPOILAGE_WASTE = "spoilage_waste"
+    DAMAGED = "damaged"
+    TRANSFER_OUT = "transfer_out"
+    TRANSFER_IN = "transfer_in"
+    OTHER = "other"
+
+
+
 

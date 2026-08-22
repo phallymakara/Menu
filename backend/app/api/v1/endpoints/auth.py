@@ -219,3 +219,69 @@ async def get_me(
         is_platform_admin=current_user.is_platform_admin,
         memberships=memberships,
     )
+
+
+# ---------------------------------------------------------------------------
+# Multi-Branch Staff Roaming & Branch Switching
+# ---------------------------------------------------------------------------
+
+from app.api.dependencies.tenant import get_current_tenant_context
+from app.core.tenant import TenantContext
+from app.schemas.branch_roaming import (
+    MyBranchesResponse,
+    SwitchBranchRequest,
+    SwitchBranchResponse,
+)
+from app.services.branch_roaming_service import (
+    get_user_accessible_branches,
+    switch_active_branch,
+)
+
+
+@router.get(
+    "/my-branches",
+    response_model=MyBranchesResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List all branches accessible to the authenticated staff member",
+)
+async def get_my_branches_endpoint(
+    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> MyBranchesResponse:
+    """
+    Returns list of accessible branches:
+    - Brand Owners and General Managers see all active organization branches.
+    - Branch Managers and local staff see only their single assigned home branch.
+    """
+    return await get_user_accessible_branches(
+        session=session,
+        user=current_user,
+        tenant=tenant,
+    )
+
+
+@router.post(
+    "/switch-branch",
+    response_model=SwitchBranchResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Switch active working branch context (Brand Owners & General Managers only)",
+)
+async def switch_branch_endpoint(
+    payload: SwitchBranchRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> SwitchBranchResponse:
+    """
+    Switches active working branch context for Brand Owners and General Managers.
+    Returns a refreshed JWT with the target active_branch_id.
+    Branch Managers and local staff attempting to switch outside their assigned branch will receive HTTP 403 Forbidden.
+    """
+    return await switch_active_branch(
+        session=session,
+        user=current_user,
+        tenant=tenant,
+        target_branch_id=payload.branch_id,
+    )
+

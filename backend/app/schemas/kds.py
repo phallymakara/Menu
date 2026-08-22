@@ -29,6 +29,9 @@ class KDSTicketItemResponse(BaseModel):
     ready_at: datetime | None = None
     served_at: datetime | None = None
     elapsed_minutes: int = 0
+    target_prep_time_minutes: int = 15
+    is_overdue: bool = False
+    urgency_level: str = "normal"  # "normal" (<50%), "warning" (50-100%), "critical" (>100%)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -45,6 +48,9 @@ class KDSTicketResponse(BaseModel):
     guest_notes: str | None = None
     created_at: datetime
     elapsed_minutes: int
+    max_target_prep_minutes: int = 15
+    is_ticket_overdue: bool = False
+    ticket_urgency: str = "normal"
     has_held_items: bool
     items: list[KDSTicketItemResponse] = Field(default_factory=list)
 
@@ -56,6 +62,10 @@ class ItemStatusBumpRequest(BaseModel):
     void_reason: str | None = Field(default=None, max_length=255)
 
 
+class StationTicketBumpRequest(BaseModel):
+    target_status: OrderItemStatus = OrderItemStatus.READY_TO_SERVE
+
+
 class CourseFireRequest(BaseModel):
     course_stage: CourseStage | None = None
     order_item_ids: list[UUID] = Field(default_factory=list)
@@ -63,3 +73,14 @@ class CourseFireRequest(BaseModel):
 
 class ItemRerouteRequest(BaseModel):
     target_kitchen_station_id: UUID
+
+
+class StationMetricsResponse(BaseModel):
+    station_id: UUID
+    station_name: str
+    station_code: str
+    branch_id: UUID
+    active_tickets: int
+    overdue_tickets: int
+    avg_prep_time_minutes: float
+

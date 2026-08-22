@@ -27,8 +27,11 @@ def verify_password(
     )
 
 
-def create_access_token(user_id: UUID) -> str:
-    """Create a short-lived JWT access token for a user."""
+def create_access_token(
+    user_id: UUID,
+    active_branch_id: UUID | None = None,
+) -> str:
+    """Create a short-lived JWT access token for a user with optional active branch context."""
     issued_at = datetime.now(UTC)
     expires_at = issued_at + timedelta(minutes=settings.access_token_expire_minutes)
 
@@ -38,6 +41,8 @@ def create_access_token(user_id: UUID) -> str:
         "iat": issued_at,
         "exp": expires_at,
     }
+    if active_branch_id is not None:
+        payload["active_branch_id"] = str(active_branch_id)
 
     return jwt.encode(
         payload,
@@ -47,26 +52,31 @@ def create_access_token(user_id: UUID) -> str:
 
 
 def decode_access_token(token: str) -> UUID:
-    """Decode and validate a JWT access token."""
+    """Decode and validate a JWT access token, returning the user_id."""
+    payload = decode_token_payload(token)
+    subject = payload.get("sub")
+    if not isinstance(subject, str):
+        raise InvalidTokenError("Invalid token subject.")
+    try:
+        return UUID(subject)
+    except ValueError as exc:
+        raise InvalidTokenError("Invalid token subject format.") from exc
+
+
+def decode_token_payload(token: str) -> dict:
+    """Decode and return the full JWT payload dictionary."""
     try:
         payload = jwt.decode(
             token,
             settings.secret_key,
             algorithms=[settings.jwt_algorithm],
         )
-
         if payload.get("type") != "access":
             raise InvalidTokenError("Invalid token type.")
-
-        subject = payload.get("sub")
-
-        if not isinstance(subject, str):
-            raise InvalidTokenError("Invalid token subject.")
-
-        return UUID(subject)
-
+        return payload
     except (
         PyJWTInvalidTokenError,
         ValueError,
     ) as exc:
         raise InvalidTokenError("Invalid or expired access token.") from exc
+

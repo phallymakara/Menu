@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.ws_manager import ws_manager
 from app.models.branch import Branch
 from app.models.branch_menu import BranchItemOverride
 from app.models.business import Business
@@ -420,6 +421,33 @@ async def place_guest_order(
         table_id=str(table_id),
         total_usd=float(total_amount_usd),
     )
+
+    # Real-time WebSocket Broadcast
+    notify_rooms = [f"branch:{branch_id}:pos", f"branch:{branch_id}:expo"]
+    for item in reloaded_order.items:
+        if item.kitchen_station_id:
+            notify_rooms.append(f"branch:{branch_id}:station:{item.kitchen_station_id}")
+    if reloaded_order.table_session_id:
+        notify_rooms.append(f"session:{reloaded_order.table_session_id}")
+
+    await ws_manager.broadcast_to_rooms(
+        rooms=notify_rooms,
+        event="order.created",
+        data={
+            "order_id": str(reloaded_order.id),
+            "order_number": reloaded_order.order_number,
+            "table_id": str(reloaded_order.table_id) if reloaded_order.table_id else None,
+            "table_session_id": str(reloaded_order.table_session_id) if reloaded_order.table_session_id else None,
+            "status": reloaded_order.status.value,
+            "round_number": reloaded_order.round_number,
+            "total_amount_usd": str(reloaded_order.total_amount_usd),
+            "total_amount_khr": int(reloaded_order.total_amount_khr),
+            "item_count": len(reloaded_order.items),
+        },
+        business_id=reloaded_order.business_id,
+        branch_id=branch_id,
+    )
+
     return reloaded_order
 
 
@@ -548,6 +576,33 @@ async def place_staff_order(
         order_number=reloaded_order.order_number,
         staff_id=str(current_user.id),
     )
+
+    # Real-time WebSocket Broadcast
+    notify_rooms = [f"branch:{branch_id}:pos", f"branch:{branch_id}:expo"]
+    for item in reloaded_order.items:
+        if item.kitchen_station_id:
+            notify_rooms.append(f"branch:{branch_id}:station:{item.kitchen_station_id}")
+    if reloaded_order.table_session_id:
+        notify_rooms.append(f"session:{reloaded_order.table_session_id}")
+
+    await ws_manager.broadcast_to_rooms(
+        rooms=notify_rooms,
+        event="order.created",
+        data={
+            "order_id": str(reloaded_order.id),
+            "order_number": reloaded_order.order_number,
+            "table_id": str(reloaded_order.table_id) if reloaded_order.table_id else None,
+            "table_session_id": str(reloaded_order.table_session_id) if reloaded_order.table_session_id else None,
+            "status": reloaded_order.status.value,
+            "round_number": reloaded_order.round_number,
+            "total_amount_usd": str(reloaded_order.total_amount_usd),
+            "total_amount_khr": int(reloaded_order.total_amount_khr),
+            "item_count": len(reloaded_order.items),
+        },
+        business_id=reloaded_order.business_id,
+        branch_id=branch_id,
+    )
+
     return reloaded_order
 
 
