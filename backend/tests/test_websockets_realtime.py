@@ -4,6 +4,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette.testclient import TestClient
 
 from app.core.security import create_access_token
@@ -14,7 +15,6 @@ from app.models.business import Business
 from app.models.category import Category
 from app.models.dining_area import DiningArea
 from app.models.enums import (
-    CourseStage,
     StaffRole,
     StationType,
     TableSessionStatus,
@@ -28,7 +28,6 @@ from app.models.organization_membership import OrganizationMembership
 from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession
 from app.models.user import User
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -210,8 +209,9 @@ async def test_unauthorized_websocket_rejection(ws_setup, monkeypatch):
     """
     Validates rejection of invalid tokens and inactive sessions.
     """
-    from app.api.v1.endpoints import websockets
     from starlette.websockets import WebSocketDisconnect
+
+    from app.api.v1.endpoints import websockets
 
     monkeypatch.setattr(websockets, "AsyncSessionFactory", ws_setup["sessionmaker"])
 

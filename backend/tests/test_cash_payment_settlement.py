@@ -22,8 +22,6 @@ from app.models.enums import (
     OrderItemStatus,
     OrderStatus,
     OrganizationStatus,
-    PaymentMethod,
-    PaymentStatus,
     TableSessionStatus,
     TableStatus,
     UserStatus,
@@ -32,7 +30,6 @@ from app.models.menu_item import MenuItem
 from app.models.order import Order, OrderItem
 from app.models.organization import Organization
 from app.models.organization_membership import OrganizationMembership
-from app.models.payment import Payment
 from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession
 from app.models.user import User

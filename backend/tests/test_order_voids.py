@@ -26,7 +26,6 @@ from app.models.enums import (
     TableSessionStatus,
     TableStatus,
     UserStatus,
-    VoidReasonCode,
 )
 from app.models.menu_item import MenuItem
 from app.models.order import Order, OrderItem

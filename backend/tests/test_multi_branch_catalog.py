@@ -4,7 +4,6 @@ from uuid import uuid4
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.security import create_access_token
@@ -12,11 +11,9 @@ from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import app
 from app.models.branch import Branch
-from app.models.branch_menu import BranchItemOverride
 from app.models.business import Business
 from app.models.category import Category
 from app.models.enums import (
-    ItemAvailabilityStatus,
     MembershipStatus,
     OrganizationStatus,
     StaffRole,

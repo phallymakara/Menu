@@ -4,7 +4,6 @@ from uuid import uuid4
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.security import create_access_token
@@ -16,15 +15,11 @@ from app.models.business import Business
 from app.models.category import Category
 from app.models.dining_area import DiningArea
 from app.models.enums import (
-    ChangeCurrencyPreference,
     CourseStage,
-    DiscountType,
     MembershipStatus,
     OrderItemStatus,
     OrderStatus,
     OrganizationStatus,
-    PaymentMethod,
-    PaymentStatus,
     StaffRole,
     TableSessionStatus,
     TableStatus,
@@ -34,7 +29,6 @@ from app.models.menu_item import MenuItem
 from app.models.order import Order, OrderItem
 from app.models.organization import Organization
 from app.models.organization_membership import OrganizationMembership
-from app.models.payment import Payment
 from app.models.promotion import Promotion
 from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession

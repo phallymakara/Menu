@@ -5,7 +5,6 @@ from uuid import uuid4
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.security import create_access_token
@@ -39,7 +38,6 @@ from app.models.table_session import TableSession
 from app.models.user import User
 from app.services.khqr_service import (
     build_khqr_payload,
-    calculate_crc16,
     generate_qr_image_data_url,
 )
 from app.services.telegram_service import send_payment_telegram_notification

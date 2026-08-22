@@ -16,20 +16,15 @@ from app.models.category import Category
 from app.models.dining_area import DiningArea
 from app.models.enums import (
     CourseStage,
-    ItemAvailabilityStatus,
     MembershipStatus,
     OrderItemStatus,
     OrderStatus,
     OrganizationStatus,
     TableSessionStatus,
-    TableShape,
-    TableStatus,
     UserStatus,
 )
-from app.models.item_variant import ItemVariant
 from app.models.menu_item import MenuItem
-from app.models.modifier import MenuItemModifierGroup, ModifierGroup, ModifierOption
-from app.models.order import Order, OrderItem, OrderItemModifier
+from app.models.order import Order, OrderItem
 from app.models.organization import Organization
 from app.models.organization_membership import OrganizationMembership
 from app.models.restaurant_table import RestaurantTable

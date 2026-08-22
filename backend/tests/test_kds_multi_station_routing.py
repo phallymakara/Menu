@@ -4,9 +4,11 @@ from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from starlette import status
 
 from app.core.security import create_access_token
+from app.db.base import Base
 from app.db.session import get_db_session
 from app.main import app
 from app.models.branch import Branch
@@ -33,9 +35,6 @@ from app.models.organization_membership import OrganizationMembership
 from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession
 from app.models.user import User
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-
-from app.db.base import Base
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 

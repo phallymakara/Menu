@@ -1,5 +1,14 @@
 from fastapi import APIRouter
 
+from app.api.v1.endpoints.admin_audit_logs import (
+    router as admin_audit_logs_router,
+)
+from app.api.v1.endpoints.admin_organizations import (
+    router as admin_organizations_router,
+)
+from app.api.v1.endpoints.admin_plans import router as admin_plans_router
+from app.api.v1.endpoints.admin_stats import router as admin_stats_router
+from app.api.v1.endpoints.admin_users import router as admin_users_router
 from app.api.v1.endpoints.analytics import router as analytics_router
 from app.api.v1.endpoints.audit_logs import router as audit_logs_router
 from app.api.v1.endpoints.auth import router as auth_router
@@ -38,6 +47,11 @@ from app.api.v1.endpoints.table_sessions import router as table_sessions_router
 from app.api.v1.endpoints.websockets import router as ws_router
 
 api_router = APIRouter()
+api_router.include_router(admin_audit_logs_router)
+api_router.include_router(admin_organizations_router)
+api_router.include_router(admin_plans_router)
+api_router.include_router(admin_stats_router)
+api_router.include_router(admin_users_router)
 api_router.include_router(ws_router)
 api_router.include_router(auth_router)
 api_router.include_router(health_router)
