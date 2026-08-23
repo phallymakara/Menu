@@ -172,4 +172,21 @@ export const en = {
     recallDrawer: 'Recall Bumped Tickets',
     slaWarning: 'Delayed SLA',
   },
+
+  // Marketing Landing Page
+  landing: {
+    heroHeadline: 'Modern QR Menu, POS & KDS for Restaurants',
+    heroSubheadline: 'Bilingual QR digital menu (Khmer-English), Kitchen Display System (KDS), and modern Bakong KHQR payments for Cambodian restaurants & cafés.',
+    getStarted: 'Get Started',
+    bookDemo: 'Book Demo',
+    howItWorksTitle: 'How it works in 4 simple steps',
+    howItWorksSubtitle: 'Get started in minutes with zero complicated hardware',
+    coreFeaturesTitle: 'Everything your restaurant needs to operate efficiently',
+    coreFeaturesSubtitle: 'A complete end-to-end hospitality operating system tailored for Cambodian businesses.',
+    pricingTitle: 'Simple, Transparent Pricing',
+    pricingSubtitle: 'Start free, upgrade as you grow. No hidden fees.',
+    emailSignupTitle: 'Ready to modernize your restaurant operations?',
+    emailSignupSubtitle: 'Enter your email or phone to get started with a 14-day free trial or book a live product walkthrough.',
+    enterEmail: 'dara@restaurant.com or 012 345 678',
+  },
 }

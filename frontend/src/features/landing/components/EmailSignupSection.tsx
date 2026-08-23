@@ -38,7 +38,7 @@ export const EmailSignupSection: FC = () => {
               : 'Thank you! We received your request. Our team will reach out shortly.'}
           </p>
         ) : (
-          <form onSubmit={handleSubmit} className="flex gap-2.5">
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2.5">
             <div className="relative flex-1">
               <Mail className="w-5 h-5 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
@@ -50,7 +50,7 @@ export const EmailSignupSection: FC = () => {
                 className="w-full pl-11 pr-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
               />
             </div>
-            <Button type="submit" variant="primary" size="lg" className="h-12 px-6 text-base font-semibold">
+            <Button type="submit" variant="primary" size="lg" className="h-12 px-6 text-base font-semibold justify-center">
               {language === 'km' ? 'ផ្ញើព័ត៌មាន' : 'Submit'}
             </Button>
           </form>

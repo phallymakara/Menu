@@ -3,11 +3,11 @@ import { create } from 'zustand'
 export interface AuthUser {
   id: string
   email: string | null
-  phone: string | null
+  phone?: string | null
   full_name: string
-  preferred_language: string
-  is_platform_admin: boolean
-  status: string
+  preferred_language?: string
+  is_platform_admin?: boolean
+  status?: string
 }
 
 interface AuthState {

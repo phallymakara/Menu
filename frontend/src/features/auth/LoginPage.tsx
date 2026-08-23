@@ -27,31 +27,37 @@ export const LoginPage: FC = () => {
     try {
       const isEmail = emailOrPhone.includes('@')
       const payload = {
-        username: isEmail ? emailOrPhone.trim().toLowerCase() : emailOrPhone.trim().replace(/\s+/g, ''),
+        identifier: isEmail ? emailOrPhone.trim().toLowerCase() : emailOrPhone.trim(),
         password: password,
       }
 
-      const response = await api.post('/auth/login', payload).catch(() => {
-        // Fallback simulation for live testing if local DB is cold
-        return {
-          data: {
-            access_token: 'demo_jwt_token_' + Date.now(),
-            user: {
-              id: 'usr_demo_owner',
-              full_name: 'Dara Sok',
-              email: isEmail ? emailOrPhone : 'dara@restaurant.com',
-              role: 'OWNER',
-              created_at: new Date().toISOString(),
-            },
-          },
-        }
-      })
+      const response = await api.post('/auth/login', payload)
 
       if (response?.data?.access_token) {
-        setAuth(response.data.access_token, response.data.user)
+        const token = response.data.access_token
+        // Fetch current user details
+        const meRes = await api.get('/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(() => null)
+
+        const user = meRes?.data ? {
+          id: meRes.data.user_id,
+          full_name: meRes.data.full_name,
+          email: meRes.data.email,
+          role: 'OWNER' as const,
+          created_at: new Date().toISOString(),
+        } : {
+          id: 'usr_owner',
+          full_name: emailOrPhone.split('@')[0],
+          email: isEmail ? emailOrPhone : 'owner@restaurant.com',
+          role: 'OWNER' as const,
+          created_at: new Date().toISOString(),
+        }
+
+        setAuth(token, user)
       }
 
-      // Route to admin portal or onboarding
+      // Route to onboarding or dashboard
       navigate('/onboarding')
     } catch (err: any) {
       const msg =

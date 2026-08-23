@@ -42,8 +42,8 @@ export function getTranslation(lang: Language, key: string): string {
     if (typeof enCurrent === 'string') return enCurrent
   }
 
-  // 2. Search across common namespaces if given flat key e.g. "appName", "pricing"
-  const namespaces = ['common', 'auth', 'onboarding', 'guest', 'pos', 'kds'] as const
+  // 2. Search across common namespaces if given flat key e.g. "appName", "pricing", "heroHeadline"
+  const namespaces = ['common', 'landing', 'auth', 'onboarding', 'guest', 'pos', 'kds'] as const
   for (const ns of namespaces) {
     if ((dict as any)[ns] && (dict as any)[ns][key]) {
       return (dict as any)[ns][key]

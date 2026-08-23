@@ -30,31 +30,31 @@ export const LanguageSwitcher: FC<LanguageSwitcherProps> = ({ className }) => {
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Select Language"
         className={cn(
-          'px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1.5 text-sm font-medium',
-          isOpen && 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+          'px-2.5 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors flex items-center gap-2 text-base font-semibold',
+          isOpen && 'bg-zinc-100 dark:bg-zinc-800 text-zinc-950 dark:text-zinc-100'
         )}
       >
-        <Globe className="w-4 h-4" />
-        <span className="text-sm font-semibold uppercase font-mono">{language}</span>
+        <Globe className="w-5 h-5" />
+        <span className="text-base font-bold uppercase font-mono">{language}</span>
       </button>
 
       {/* Popover Options */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-44 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+        <div className="absolute right-0 mt-2 w-48 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-2 z-50 animate-in fade-in zoom-in-95 duration-100">
           <button
             onClick={() => {
               setLanguage('km')
               setIsOpen(false)
             }}
             className={cn(
-              'w-full flex items-center justify-between px-3.5 py-2.5 text-sm rounded-lg text-left transition-colors',
+              'w-full flex items-center justify-between px-4 py-3 text-base rounded-lg text-left transition-colors',
               language === 'km'
-                ? 'bg-zinc-100 dark:bg-zinc-800 font-semibold text-emerald-600 dark:text-emerald-400'
+                ? 'bg-zinc-100 dark:bg-zinc-800 font-bold text-emerald-600 dark:text-emerald-400'
                 : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/60'
             )}
           >
             <span>ភាសាខ្មែរ</span>
-            {language === 'km' && <Check className="w-4 h-4" />}
+            {language === 'km' && <Check className="w-5 h-5" />}
           </button>
 
           <button
@@ -63,14 +63,14 @@ export const LanguageSwitcher: FC<LanguageSwitcherProps> = ({ className }) => {
               setIsOpen(false)
             }}
             className={cn(
-              'w-full flex items-center justify-between px-3.5 py-2.5 text-sm rounded-lg text-left transition-colors mt-1',
+              'w-full flex items-center justify-between px-4 py-3 text-base rounded-lg text-left transition-colors',
               language === 'en'
-                ? 'bg-zinc-100 dark:bg-zinc-800 font-semibold text-emerald-600 dark:text-emerald-400'
+                ? 'bg-zinc-100 dark:bg-zinc-800 font-bold text-emerald-600 dark:text-emerald-400'
                 : 'text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/60'
             )}
           >
             <span>English</span>
-            {language === 'en' && <Check className="w-4 h-4" />}
+            {language === 'en' && <Check className="w-5 h-5" />}
           </button>
         </div>
       )}

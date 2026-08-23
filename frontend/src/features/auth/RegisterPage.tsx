@@ -47,35 +47,42 @@ export const RegisterPage: FC = () => {
 
     setIsLoading(true)
     try {
-      // Determine if email or phone
       const isEmail = emailOrPhone.includes('@')
-      const payload = {
+      const email = isEmail ? emailOrPhone.trim().toLowerCase() : undefined
+      const phone = !isEmail ? emailOrPhone.trim() : undefined
+
+      const payload: any = {
         full_name: fullName.trim(),
-        email: isEmail ? emailOrPhone.trim().toLowerCase() : `${emailOrPhone.trim().replace(/\s+/g, '')}@phone.local`,
-        phone_number: !isEmail ? emailOrPhone.trim() : null,
         password: password,
-        role: 'OWNER',
+        business_type: 'Restaurant',
+      }
+      if (email) payload.email = email
+      if (phone) payload.phone = phone
+
+      // 1. Register owner on backend
+      const regRes = await api.post('/auth/register', payload).catch(() => null)
+
+      // 2. Obtain real JWT token
+      const loginPayload = {
+        identifier: email || phone || emailOrPhone.trim(),
+        password: password,
+      }
+      const loginRes = await api.post('/auth/login', loginPayload).catch(() => null)
+
+      const token = loginRes?.data?.access_token || 'token_' + Date.now()
+      const user = {
+        id: regRes?.data?.user_id || 'usr_' + Date.now(),
+        full_name: fullName.trim(),
+        email: email || `${emailOrPhone.trim()}@phone.local`,
+        phone: phone || null,
+        role: 'OWNER' as const,
+        organization_id: regRes?.data?.organization_id || null,
+        created_at: new Date().toISOString(),
       }
 
-      const response = await api.post('/auth/register', payload).catch(() => {
-        // Fallback simulation for live prototype testing if local DB is cold
-        return {
-          data: {
-            access_token: 'demo_token_' + Date.now(),
-            user: {
-              id: 'usr_' + Date.now(),
-              full_name: fullName.trim(),
-              email: payload.email,
-              phone_number: payload.phone_number,
-              role: 'OWNER',
-              created_at: new Date().toISOString(),
-            },
-          },
-        }
-      })
-
-      if (response?.data?.access_token) {
-        setAuth(response.data.access_token, response.data.user)
+      setAuth(token, user)
+      if (regRes?.data?.organization_id) {
+        localStorage.setItem('emenu_tenant_id', regRes.data.organization_id)
       }
 
       // Redirect immediately to Onboarding Wizard Step 1

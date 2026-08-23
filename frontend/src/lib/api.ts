@@ -15,7 +15,9 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
 
-    const tenantId = localStorage.getItem('emenu_tenant_id')
+    const tenantId =
+      localStorage.getItem('emenu_tenant_id') ||
+      localStorage.getItem('emenu_organization_id')
     if (tenantId && config.headers) {
       config.headers['X-Tenant-ID'] = tenantId
     }
