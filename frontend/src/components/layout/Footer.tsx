@@ -6,7 +6,7 @@ export const Footer: FC = () => {
   const { t, language } = useLanguageStore()
 
   return (
-    <footer className="border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/30 py-12">
+    <footer className="bg-zinc-50/50 dark:bg-zinc-900/30 py-12">
       <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white">

@@ -95,31 +95,34 @@ export const PricingTable: FC = () => {
   ]
 
   return (
-    <section id="pricing" className="py-16 border-t border-zinc-200 dark:border-zinc-800 space-y-12">
-      <div className="text-center max-w-2xl mx-auto space-y-3">
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
+    <section id="pricing" className="py-20 space-y-14">
+      <div className="text-center max-w-3xl mx-auto space-y-4">
+        <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
           {t('pricing')}
         </h2>
-        <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400">
+        <p className="text-base sm:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
           {language === 'km' ? 'តម្លៃសមរម្យ គ្មានការលាក់បាំង ចាប់ផ្តើមដោយឥតគិតថ្លៃ' : 'Simple, transparent pricing. Start free, upgrade as you grow.'}
         </p>
 
         {/* Billing Toggle */}
-        <div className="pt-4 flex items-center justify-center gap-3 text-xs font-medium">
-          <span className={!isAnnual ? 'text-zinc-900 dark:text-zinc-100 font-semibold' : 'text-zinc-500'}>
+        <div className="pt-4 flex items-center justify-center gap-3 text-sm sm:text-base font-medium">
+          <span className={!isAnnual ? 'text-zinc-900 dark:text-zinc-100 font-bold' : 'text-zinc-400 dark:text-zinc-500'}>
             {language === 'km' ? 'បង់ប្រចាំខែ' : 'Monthly'}
           </span>
           <button
             onClick={() => setIsAnnual(!isAnnual)}
-            className="w-12 h-6 rounded-full bg-zinc-200 dark:bg-zinc-800 p-0.5 transition-colors relative"
+            aria-label="Toggle annual billing"
+            className={`w-14 h-7 rounded-full p-0.5 transition-colors relative ${
+              isAnnual ? 'bg-emerald-600' : 'bg-zinc-300 dark:bg-zinc-700'
+            }`}
           >
             <div
-              className={`w-5 h-5 rounded-full bg-white dark:bg-zinc-100 transition-transform ${
-                isAnnual ? 'translate-x-6 bg-emerald-600' : 'translate-x-0'
+              className={`w-6 h-6 rounded-full bg-white transition-transform ${
+                isAnnual ? 'translate-x-7' : 'translate-x-0'
               }`}
             />
           </button>
-          <span className={isAnnual ? 'text-zinc-900 dark:text-zinc-100 font-semibold' : 'text-zinc-500'}>
+          <span className={isAnnual ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-zinc-400 dark:text-zinc-500'}>
             {language === 'km' ? 'បង់ប្រចាំឆ្នាំ (សន្សំ ២ ខែ)' : 'Annually (Save 2 Months)'}
           </span>
         </div>
@@ -133,34 +136,34 @@ export const PricingTable: FC = () => {
           return (
             <Card
               key={i}
-              className={`p-6 flex flex-col justify-between space-y-6 ${
+              className={`p-7 sm:p-8 flex flex-col justify-between space-y-6 ${
                 p.isPopular ? 'border-emerald-600 dark:border-emerald-500 ring-1 ring-emerald-600/20' : ''
               }`}
             >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100">
+                  <h3 className="font-bold text-xl sm:text-2xl text-zinc-900 dark:text-zinc-100 leading-snug">
                     {language === 'km' ? p.name_km : p.name_en}
                   </h3>
-                  {p.badge && <Badge variant="brand" size="sm">{p.badge}</Badge>}
+                  {p.badge && <Badge variant="brand" size="md">{p.badge}</Badge>}
                 </div>
 
-                <p className="text-xs text-zinc-500 leading-relaxed">
+                <p className="text-base sm:text-lg text-zinc-600 dark:text-zinc-300 leading-relaxed">
                   {language === 'km' ? p.desc_km : p.desc_en}
                 </p>
 
                 <div className="pt-2 pb-1 font-mono">
-                  <span className="text-3xl font-extrabold text-zinc-950 dark:text-zinc-50">
+                  <span className="text-4xl font-black text-zinc-950 dark:text-zinc-50">
                     ${price}
                   </span>
-                  <span className="text-xs text-zinc-500 font-sans ml-1">{period}</span>
+                  <span className="text-base text-zinc-500 font-sans ml-1.5">{period}</span>
                 </div>
 
                 {/* Feature List */}
-                <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 space-y-2.5">
+                <div className="pt-4 space-y-3.5">
                   {(language === 'km' ? p.features_km : p.features_en).map((f, fi) => (
-                    <div key={fi} className="flex items-center gap-2 text-xs text-zinc-700 dark:text-zinc-300">
-                      <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <div key={fi} className="flex items-center gap-3 text-base sm:text-lg text-zinc-800 dark:text-zinc-100 font-medium">
+                      <Check className="w-5 h-5 text-emerald-600 shrink-0" />
                       <span>{f}</span>
                     </div>
                   ))}
@@ -169,8 +172,8 @@ export const PricingTable: FC = () => {
 
               <Button
                 variant={p.isPopular ? 'primary' : 'outline'}
-                className="w-full"
-                size="md"
+                className="w-full h-12 text-base font-semibold"
+                size="lg"
               >
                 {language === 'km' ? p.cta_km : p.cta_en}
               </Button>

@@ -10,7 +10,7 @@ export const Navbar: FC = () => {
   const { t, language } = useLanguageStore()
 
   return (
-    <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white/95 dark:bg-zinc-950/95 sticky top-0 z-40 backdrop-blur-md">
+    <header className="bg-white/95 dark:bg-zinc-950/95 sticky top-0 z-40 backdrop-blur-md">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Brand Logo */}
         <Link to="/" className="flex items-center gap-3 group">
@@ -38,16 +38,19 @@ export const Navbar: FC = () => {
           <a href="#pricing" className="hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors">
             {t('pricing')}
           </a>
-          <Link to="/t/demo-table-08" className="hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors">
-            {language === 'km' ? 'សាកល្បងកុម្ម៉ង់' : 'Live Demo'}
-          </Link>
         </nav>
 
         {/* Right Actions */}
         <div className="flex items-center gap-3">
           <LanguageSwitcher />
           <ThemeToggle />
-          <Link to="/t/demo-table-08">
+          <Link
+            to="/login"
+            className="text-sm font-semibold text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors px-2 py-1"
+          >
+            {language === 'km' ? 'ចូលប្រើប្រាស់' : 'Sign In'}
+          </Link>
+          <Link to="/register">
             <Button size="sm" variant="primary">
               {t('getStartedFree')}
             </Button>

@@ -25,13 +25,13 @@ export const LanguageSwitcher: FC<LanguageSwitcherProps> = ({ className }) => {
 
   return (
     <div className={cn('relative inline-block', className)} ref={dropdownRef}>
-      {/* Globe Icon Button */}
+      {/* Globe Icon Button without container */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Select Language"
         className={cn(
-          'px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors flex items-center gap-1.5 text-sm font-medium',
-          isOpen && 'bg-zinc-100 dark:bg-zinc-800'
+          'px-2 py-1.5 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1.5 text-sm font-medium',
+          isOpen && 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
         )}
       >
         <Globe className="w-4 h-4" />

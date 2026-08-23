@@ -2,11 +2,10 @@ import { type FC } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
 import { Footer } from '@/components/layout/Footer'
 import { HeroSection } from './components/HeroSection'
-import { PartnerLogos } from './components/PartnerLogos'
-import { LiveDemoQRSection } from './components/LiveDemoQRSection'
-import { FeatureGrid } from './components/FeatureGrid'
 import { HowItWorksSection } from './components/HowItWorksSection'
+import { FeatureGrid } from './components/FeatureGrid'
 import { PricingTable } from './components/PricingTable'
+import { EmailSignupSection } from './components/EmailSignupSection'
 
 export const LandingPage: FC = () => {
   return (
@@ -15,11 +14,10 @@ export const LandingPage: FC = () => {
 
       <main className="max-w-6xl mx-auto px-6 flex-1 w-full">
         <HeroSection />
-        <PartnerLogos />
-        <FeatureGrid />
         <HowItWorksSection />
-        <LiveDemoQRSection />
+        <FeatureGrid />
         <PricingTable />
+        <EmailSignupSection />
       </main>
 
       <Footer />

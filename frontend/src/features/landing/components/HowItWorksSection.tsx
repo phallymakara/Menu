@@ -36,26 +36,26 @@ export const HowItWorksSection: FC = () => {
   ]
 
   return (
-    <section id="how-it-works" className="py-16 border-t border-zinc-200 dark:border-zinc-800 space-y-12">
-      <div className="text-center max-w-2xl mx-auto space-y-3">
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
+    <section id="how-it-works" className="py-20 space-y-14">
+      <div className="text-center max-w-3xl mx-auto space-y-4">
+        <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
           {language === 'km' ? 'ដំណើរការងាយស្រួលត្រឹម ៤ ជំហាន' : 'How it works in 4 simple steps'}
         </h2>
-        <p className="text-sm sm:text-base text-zinc-600 dark:text-zinc-400">
+        <p className="text-base sm:text-xl text-zinc-600 dark:text-zinc-300 leading-relaxed">
           {language === 'km' ? 'ចាប់ផ្តើមប្រើប្រាស់បានក្នុងរយៈពេលត្រឹមតែប៉ុន្មាននាទី' : 'Get started in minutes with zero complicated hardware'}
         </p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {steps.map((s, i) => (
-          <div key={i} className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 space-y-3">
-            <span className="font-mono text-2xl font-bold text-emerald-600 dark:text-emerald-400 block">
+          <div key={i} className="p-6 sm:p-8 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 space-y-4">
+            <span className="font-mono text-5xl font-black text-emerald-600 dark:text-emerald-400 block">
               {s.num}
             </span>
-            <h3 className="font-semibold text-base text-zinc-900 dark:text-zinc-100">
+            <h3 className="font-bold text-2xl text-zinc-900 dark:text-zinc-100 leading-snug">
               {language === 'km' ? s.title_km : s.title_en}
             </h3>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+            <p className="text-lg text-zinc-600 dark:text-zinc-300 leading-relaxed">
               {language === 'km' ? s.desc_km : s.desc_en}
             </p>
           </div>
