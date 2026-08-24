@@ -52,7 +52,7 @@ class MenuItemBase(BaseModel):
     )
     image_url: str | None = Field(
         default=None,
-        max_length=500,
+        max_length=2048,
         description="Primary item image URL",
     )
     gallery_images: list[str] = Field(
@@ -116,7 +116,7 @@ class MenuItemUpdate(BaseModel):
     sku: str | None = Field(default=None, max_length=50)
     base_price: Decimal | None = Field(default=None, ge=0)
     currency: str | None = Field(default=None, pattern=r"^(USD|KHR)$")
-    image_url: str | None = Field(default=None, max_length=500)
+    image_url: str | None = Field(default=None, max_length=2048)
     gallery_images: list[str] | None = None
     prep_time_minutes: int | None = Field(default=None, ge=0, le=180)
     kitchen_station: str | None = Field(default=None, max_length=50)

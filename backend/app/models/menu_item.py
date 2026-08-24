@@ -101,7 +101,7 @@ class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     image_url: Mapped[str | None] = mapped_column(
-        String(500),
+        String(2048),
         nullable=True,
     )
 
