@@ -1,6 +1,6 @@
 import { useState, type FC, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { AuthLayout } from './components/AuthLayout'
 import { Button } from '@/components/ui/Button'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -55,16 +55,21 @@ export const LoginPage: FC = () => {
         }
 
         setAuth(token, user)
+        if (meRes?.data?.memberships?.[0]?.organization_id) {
+          const orgId = meRes.data.memberships[0].organization_id
+          localStorage.setItem('emenu_tenant_id', orgId)
+          localStorage.setItem('emenu_organization_id', orgId)
+        }
+        localStorage.setItem('emenu_onboarding_completed', 'true')
       }
 
-      // Route to onboarding or dashboard
-      navigate('/onboarding')
-    } catch (err: any) {
+      // Existing user: direct directly to dashboard page
+      navigate('/admin')
+    } catch {
       const msg =
-        err?.response?.data?.detail ||
-        (language === 'km'
+        language === 'km'
           ? 'អ៊ីមែល ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ'
-          : 'Invalid email or password. Please try again.')
+          : 'Invalid email or password. Please try again.'
       setErrorMessage(msg)
     } finally {
       setIsLoading(false)
@@ -81,14 +86,6 @@ export const LoginPage: FC = () => {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Error Alert */}
-        {errorMessage && (
-          <div className="p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
         {/* 1. Email or Phone */}
         <div className="space-y-1.5">
           <label className="text-sm sm:text-base font-semibold text-zinc-800 dark:text-zinc-200 block">
@@ -100,9 +97,16 @@ export const LoginPage: FC = () => {
               type="text"
               required
               value={emailOrPhone}
-              onChange={(e) => setEmailOrPhone(e.target.value)}
+              onChange={(e) => {
+                setEmailOrPhone(e.target.value)
+                if (errorMessage) setErrorMessage(null)
+              }}
               placeholder={language === 'km' ? 'dara@restaurant.com ឬ 012 345 678' : 'dara@restaurant.com or 012 345 678'}
-              className="w-full pl-11 pr-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
+              className={`w-full pl-11 pr-4 py-3 rounded-lg border ${
+                errorMessage
+                  ? 'border-red-500 focus:border-red-500'
+                  : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-300'
+              } bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base outline-none transition-colors`}
             />
           </div>
         </div>
@@ -127,9 +131,16 @@ export const LoginPage: FC = () => {
               type={showPassword ? 'text' : 'password'}
               required
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value)
+                if (errorMessage) setErrorMessage(null)
+              }}
               placeholder="••••••••"
-              className="w-full pl-11 pr-11 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
+              className={`w-full pl-11 pr-11 py-3 rounded-lg border ${
+                errorMessage
+                  ? 'border-red-500 focus:border-red-500'
+                  : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-300'
+              } bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base outline-none transition-colors`}
             />
             <button
               type="button"
@@ -139,6 +150,11 @@ export const LoginPage: FC = () => {
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+          {errorMessage && (
+            <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+              {errorMessage}
+            </p>
+          )}
         </div>
 
         {/* 3. Remember Me */}

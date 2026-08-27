@@ -83,42 +83,18 @@ export const DiningTablesTab: FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
-      {/* Header & Primary Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-950 dark:text-zinc-50 tracking-tight">
-            {language === 'km' ? 'ប្លង់តុ & QR កូដ' : 'Dining Tables & QR Codes'}
-          </h1>
-          <p className="text-sm text-zinc-500">
-            {language === 'km'
-              ? 'បង្កើត និងគ្រប់គ្រងតំបន់អង្គុយ ចំនួនតុ និងបោះពុម្ព QR កូដសម្រាប់ភ្ញៀវស្កេន'
-              : 'Configure dining zones, batch-generate tables, and print customer QR cards.'}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() => setIsPrintModalOpen(true)}
-            className="text-xs font-semibold"
-          >
-            <Printer className="w-3.5 h-3.5 mr-1.5" />
-            {language === 'km' ? 'បោះពុម្ព QR ទាំងអស់' : 'Print All QR Cards'}
-          </Button>
-
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setIsBatchModalOpen(true)}
-            className="text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            {language === 'km' ? 'បង្កើតតុជាបាច់ (Batch)' : 'Batch Generate Tables'}
-          </Button>
-        </div>
+      {/* Primary Actions */}
+      <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={() => setIsBatchModalOpen(true)}
+          className="h-10 px-4 text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          {language === 'km' ? 'បង្កើតតុជាបាច់' : 'Batch Generate Tables'}
+        </Button>
       </div>
 
       {/* Zone Filter Pills */}

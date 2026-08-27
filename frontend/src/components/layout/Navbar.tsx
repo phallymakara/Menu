@@ -18,7 +18,7 @@ export const Navbar: FC = () => {
           <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white transition-transform group-hover:scale-105">
             <Utensils className="w-5 h-5" />
           </div>
-          <div>
+          <div className="hidden sm:block">
             <span className="font-bold text-base sm:text-lg tracking-tight block leading-tight">
               {t('appName')}
             </span>

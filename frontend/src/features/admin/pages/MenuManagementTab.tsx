@@ -8,11 +8,12 @@ import {
   Loader2,
   Camera,
   MoreVertical,
+  Check,
 } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
-import type { Category, MenuItem } from '../types/admin.types'
+import type { Category, MenuItem, ModifierGroup, ModifierOption } from '../types/admin.types'
 
 export const MenuManagementTab: FC = () => {
   const { language } = useLanguageStore()
@@ -52,7 +53,17 @@ export const MenuManagementTab: FC = () => {
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
 
   // Item Form State
-  const [itemForm, setItemForm] = useState({
+  const [itemForm, setItemForm] = useState<{
+    name_en: string
+    name_km: string
+    category_id: string
+    price_usd: number
+    description_en: string
+    description_km: string
+    image_url: string
+    kitchen_station: 'KITCHEN' | 'BAR'
+    modifier_groups: ModifierGroup[]
+  }>({
     name_en: '',
     name_km: '',
     category_id: 'cat-1',
@@ -60,8 +71,17 @@ export const MenuManagementTab: FC = () => {
     description_en: '',
     description_km: '',
     image_url: '',
-    kitchen_station: 'KITCHEN' as 'KITCHEN' | 'BAR',
+    kitchen_station: 'KITCHEN',
+    modifier_groups: [],
   })
+
+  // Option Draft state for adding options with Check/X icons
+  const [isAddingOption, setIsAddingOption] = useState(false)
+  const [newOptionDraft, setNewOptionDraft] = useState<{
+    name_en: string
+    name_km: string
+    price_usd: string
+  }>({ name_en: '', name_km: '', price_usd: '' })
 
   // Category Form State
   const [categoryForm, setCategoryForm] = useState({
@@ -118,19 +138,50 @@ export const MenuManagementTab: FC = () => {
         : itemsRes.data?.items || []
 
       if (rawItems.length > 0) {
-        const fetchedItems: MenuItem[] = rawItems.map((it: any) => ({
-          id: it.id,
-          category_id: it.category_id,
-          name_en: it.name_en,
-          name_km: it.name_km || it.name_en,
-          description_en: it.description_en || '',
-          description_km: it.description_km || '',
-          image_url: it.image_url || null,
-          price_usd: parseFloat(it.base_price || it.price_usd || 0),
-          price_khr: Math.round(parseFloat(it.base_price || it.price_usd || 0) * 4100),
-          is_available: it.is_active ?? it.is_available ?? true,
-          kitchen_station: it.kitchen_station || 'KITCHEN',
-        }))
+        const fetchedItems: MenuItem[] = await Promise.all(
+          rawItems.map(async (it: any) => {
+            let modifier_groups: ModifierGroup[] = []
+            if (isUuid(it.id)) {
+              try {
+                const mgRes = await api.get(`/businesses/${currentBizId}/items/${it.id}/modifier-groups`)
+                if (Array.isArray(mgRes.data)) {
+                  modifier_groups = mgRes.data.map((g: any) => ({
+                    id: g.id,
+                    name_en: g.name_en,
+                    name_km: g.name_km || g.name_en,
+                    is_required: (g.min_selections || 0) > 0,
+                    min_selections: g.min_selections || 0,
+                    max_selections: g.max_selections || 1,
+                    options: (g.options || []).map((o: any) => ({
+                      id: o.id,
+                      name_en: o.name_en,
+                      name_km: o.name_km || o.name_en,
+                      price_usd: parseFloat(o.price || 0),
+                      is_default: o.is_default || false,
+                    })),
+                  }))
+                }
+              } catch {
+                // Ignore fallback
+              }
+            }
+
+            return {
+              id: it.id,
+              category_id: it.category_id,
+              name_en: it.name_en,
+              name_km: it.name_km || it.name_en,
+              description_en: it.description_en || '',
+              description_km: it.description_km || '',
+              image_url: it.image_url || null,
+              price_usd: parseFloat(it.base_price || it.price_usd || 0),
+              price_khr: Math.round(parseFloat(it.base_price || it.price_usd || 0) * 4100),
+              is_available: it.is_active ?? it.is_available ?? true,
+              kitchen_station: it.kitchen_station || 'KITCHEN',
+              modifier_groups,
+            }
+          })
+        )
         setItems(fetchedItems)
       }
     } catch {
@@ -343,6 +394,74 @@ export const MenuManagementTab: FC = () => {
     }
   }
 
+  // --- Direct Option Handlers with Tick/Check Save & Cross/X Cancel ---
+  const handleOpenAddOption = () => {
+    setIsAddingOption(true)
+    setNewOptionDraft({ name_en: '', name_km: '', price_usd: '' })
+  }
+
+  const handleCancelNewOption = () => {
+    setIsAddingOption(false)
+    setNewOptionDraft({ name_en: '', name_km: '', price_usd: '' })
+  }
+
+  const handleSaveNewOption = () => {
+    const nameEn = newOptionDraft.name_en.trim()
+    const nameKm = newOptionDraft.name_km.trim()
+    if (!nameEn && !nameKm) return
+
+    const newOption: ModifierOption = {
+      id: `opt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name_en: nameEn || nameKm,
+      name_km: nameKm || nameEn,
+      price_usd: parseFloat(newOptionDraft.price_usd) || 0,
+      is_default: false,
+    }
+
+    setItemForm((prev) => {
+      if (prev.modifier_groups.length === 0) {
+        return {
+          ...prev,
+          modifier_groups: [
+            {
+              id: `mg_${Date.now()}`,
+              name_en: 'Options',
+              name_km: 'ជម្រើសបន្ថែម',
+              is_required: false,
+              min_selections: 0,
+              max_selections: 20,
+              options: [newOption],
+            },
+          ],
+        }
+      }
+      const firstGroup = prev.modifier_groups[0]
+      const updatedFirst = {
+        ...firstGroup,
+        options: [...firstGroup.options, newOption],
+      }
+      return {
+        ...prev,
+        modifier_groups: [updatedFirst, ...prev.modifier_groups.slice(1)],
+      }
+    })
+
+    setIsAddingOption(false)
+    setNewOptionDraft({ name_en: '', name_km: '', price_usd: '' })
+  }
+
+  const handleRemoveDirectOption = (optId: string) => {
+    setItemForm((prev) => ({
+      ...prev,
+      modifier_groups: prev.modifier_groups
+        .map((g) => ({
+          ...g,
+          options: g.options.filter((o) => o.id !== optId),
+        }))
+        .filter((g) => g.options.length > 0),
+    }))
+  }
+
   const handleSaveItem = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!itemForm.name_en.trim() || itemForm.price_usd <= 0) return
@@ -353,6 +472,9 @@ export const MenuManagementTab: FC = () => {
 
     try {
       if (businessId && token) {
+        let savedItemId: string | null = null
+        let savedItemPayload: any = null
+
         if (editingItem && isUuid(editingItem.id)) {
           const res = await api.patch(
             `/businesses/${businessId}/items/${editingItem.id}`,
@@ -366,24 +488,20 @@ export const MenuManagementTab: FC = () => {
               image_url: itemForm.image_url || null,
             }
           )
-          setItems((prev) =>
-            prev.map((it) =>
-              it.id === editingItem.id
-                ? {
-                  ...it,
-                  name_en: res.data.name_en,
-                  name_km: res.data.name_km,
-                  category_id: res.data.category_id,
-                  price_usd: parseFloat(res.data.base_price),
-                  price_khr: Math.round(parseFloat(res.data.base_price) * 4100),
-                  description_en: res.data.description_en,
-                  description_km: res.data.description_km,
-                  image_url: itemForm.image_url || res.data.image_url,
-                  kitchen_station: itemForm.kitchen_station,
-                }
-                : it
-            )
-          )
+          savedItemId = editingItem.id
+          savedItemPayload = {
+            ...editingItem,
+            name_en: res.data.name_en,
+            name_km: res.data.name_km,
+            category_id: res.data.category_id,
+            price_usd: parseFloat(res.data.base_price),
+            price_khr: Math.round(parseFloat(res.data.base_price) * 4100),
+            description_en: res.data.description_en,
+            description_km: res.data.description_km,
+            image_url: itemForm.image_url || res.data.image_url,
+            kitchen_station: itemForm.kitchen_station,
+            modifier_groups: itemForm.modifier_groups,
+          }
         } else if (!editingItem) {
           const res = await api.post(`/businesses/${businessId}/items`, {
             category_id: isUuid(itemForm.category_id) ? itemForm.category_id : null,
@@ -395,8 +513,8 @@ export const MenuManagementTab: FC = () => {
             image_url: itemForm.image_url || null,
             is_active: true,
           })
-
-          const createdItem: MenuItem = {
+          savedItemId = res.data.id
+          savedItemPayload = {
             id: res.data.id,
             category_id: res.data.category_id || itemForm.category_id,
             name_en: res.data.name_en,
@@ -408,28 +526,67 @@ export const MenuManagementTab: FC = () => {
             price_khr: Math.round(parseFloat(res.data.base_price || itemForm.price_usd) * 4100),
             is_available: true,
             kitchen_station: itemForm.kitchen_station,
+            modifier_groups: itemForm.modifier_groups,
           }
-          setItems((prev) => [createdItem, ...prev])
-        } else {
-          // Editing local mock item
-          setItems((prev) =>
-            prev.map((it) =>
-              it.id === editingItem.id
-                ? {
-                  ...it,
-                  name_en: itemForm.name_en,
-                  name_km: itemForm.name_km || itemForm.name_en,
-                  category_id: itemForm.category_id,
-                  price_usd: itemForm.price_usd,
-                  price_khr: Math.round(itemForm.price_usd * 4100),
-                  description_en: itemForm.description_en,
-                  description_km: itemForm.description_km,
-                  image_url: itemForm.image_url || it.image_url,
-                  kitchen_station: itemForm.kitchen_station,
+        }
+
+        // --- Database Persistence for Options / Modifier Groups ---
+        if (savedItemId && isUuid(savedItemId)) {
+          const allOptions = itemForm.modifier_groups.flatMap((g) => g.options)
+          if (allOptions.length > 0) {
+            let targetGroupId: string | null = null
+            const existingMgRes = await api
+              .get(`/businesses/${businessId}/items/${savedItemId}/modifier-groups`)
+              .catch(() => null)
+
+            if (existingMgRes?.data && Array.isArray(existingMgRes.data) && existingMgRes.data.length > 0) {
+              targetGroupId = existingMgRes.data[0].id
+            } else {
+              const newMgRes = await api
+                .post(`/businesses/${businessId}/modifier-groups`, {
+                  name_en: 'Options',
+                  name_km: 'ជម្រើសបន្ថែម',
+                  min_selections: 0,
+                  max_selections: 20,
+                  display_order: 0,
+                  is_active: true,
+                })
+                .catch(() => null)
+
+              if (newMgRes?.data?.id) {
+                targetGroupId = newMgRes.data.id
+                await api
+                  .post(`/businesses/${businessId}/items/${savedItemId}/modifier-groups`, {
+                    modifier_group_ids: [targetGroupId],
+                  })
+                  .catch(() => null)
+              }
+            }
+
+            if (targetGroupId) {
+              for (const opt of allOptions) {
+                if (opt.id.startsWith('opt_')) {
+                  await api
+                    .post(`/businesses/${businessId}/modifier-groups/${targetGroupId}/options`, {
+                      name_en: opt.name_en,
+                      name_km: opt.name_km || opt.name_en,
+                      price: opt.price_usd,
+                      is_default: opt.is_default || false,
+                      is_active: true,
+                    })
+                    .catch(() => null)
                 }
-                : it
-            )
+              }
+            }
+          }
+        }
+
+        if (editingItem && savedItemPayload) {
+          setItems((prev) =>
+            prev.map((it) => (it.id === editingItem.id ? savedItemPayload : it))
           )
+        } else if (savedItemPayload) {
+          setItems((prev) => [savedItemPayload, ...prev])
         }
       } else {
         // Fallback local update
@@ -448,6 +605,7 @@ export const MenuManagementTab: FC = () => {
                   description_km: itemForm.description_km,
                   image_url: itemForm.image_url || it.image_url,
                   kitchen_station: itemForm.kitchen_station,
+                  modifier_groups: itemForm.modifier_groups,
                 }
                 : it
             )
@@ -465,6 +623,7 @@ export const MenuManagementTab: FC = () => {
             price_khr: Math.round(itemForm.price_usd * 4100),
             is_available: true,
             kitchen_station: itemForm.kitchen_station,
+            modifier_groups: itemForm.modifier_groups,
           }
           setItems((prev) => [createdItem, ...prev])
         }
@@ -479,6 +638,7 @@ export const MenuManagementTab: FC = () => {
         description_km: '',
         image_url: '',
         kitchen_station: 'KITCHEN',
+        modifier_groups: [],
       })
       setEditingItem(null)
       setIsAddItemModalOpen(false)
@@ -550,7 +710,7 @@ export const MenuManagementTab: FC = () => {
     setItems((prev) => prev.filter((it) => it.id !== itemId))
   }
 
-  const openEditItemModal = (item: MenuItem) => {
+  const openEditItemModal = async (item: MenuItem) => {
     setEditingItem(item)
     setItemForm({
       name_en: item.name_en,
@@ -560,9 +720,37 @@ export const MenuManagementTab: FC = () => {
       description_en: item.description_en || '',
       description_km: item.description_km || '',
       image_url: item.image_url || '',
-      kitchen_station: (item.kitchen_station === 'BAR' ? 'BAR' : 'KITCHEN'),
+      kitchen_station: item.kitchen_station === 'BAR' ? 'BAR' : 'KITCHEN',
+      modifier_groups: item.modifier_groups || [],
     })
     setIsAddItemModalOpen(true)
+
+    // If backend item with valid UUID, fetch latest modifier groups
+    if (businessId && isUuid(item.id)) {
+      try {
+        const mgRes = await api.get(`/businesses/${businessId}/items/${item.id}/modifier-groups`)
+        if (Array.isArray(mgRes.data) && mgRes.data.length > 0) {
+          const fetchedGroups: ModifierGroup[] = mgRes.data.map((g: any) => ({
+            id: g.id,
+            name_en: g.name_en,
+            name_km: g.name_km || g.name_en,
+            is_required: (g.min_selections || 0) > 0,
+            min_selections: g.min_selections || 0,
+            max_selections: g.max_selections || 1,
+            options: (g.options || []).map((o: any) => ({
+              id: o.id,
+              name_en: o.name_en,
+              name_km: o.name_km || o.name_en,
+              price_usd: parseFloat(o.price || 0),
+              is_default: o.is_default || false,
+            })),
+          }))
+          setItemForm((prev) => ({ ...prev, modifier_groups: fetchedGroups }))
+        }
+      } catch {
+        // Keep existing
+      }
+    }
   }
 
   const openEditCategoryModal = (cat: Category) => {
@@ -616,6 +804,7 @@ export const MenuManagementTab: FC = () => {
               description_km: '',
               image_url: '',
               kitchen_station: 'KITCHEN',
+              modifier_groups: [],
             })
             setIsAddItemModalOpen(true)
           }}
@@ -801,6 +990,17 @@ export const MenuManagementTab: FC = () => {
                         : item.description_en || (language === 'km' ? 'គ្មានការពិពណ៌នា' : 'No description provided.')}
                     </p>
                   </div>
+
+                  {/* 4. Options / Modifiers Badge if configured */}
+                  {item.modifier_groups && item.modifier_groups.length > 0 && (
+                    <div className="pt-1 flex flex-wrap gap-1.5">
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                        {language === 'km'
+                          ? `មានជម្រើស (${item.modifier_groups.length})`
+                          : `${item.modifier_groups.length} Option Groups`}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1009,6 +1209,149 @@ export const MenuManagementTab: FC = () => {
                   placeholder="ឧ. សាច់គោឆាម្រេចកំពត..."
                   className="w-full px-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-base outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
                 />
+              </div>
+
+              {/* Custom Options & Add-ons Section at Bottom */}
+              <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
+                    <span>{language === 'km' ? 'ជម្រើសបន្ថែម' : 'Options'}</span>
+                  </h4>
+
+                  {/* Add Option Button */}
+                  {!isAddingOption && (
+                    <button
+                      type="button"
+                      onClick={handleOpenAddOption}
+                      className="px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 transition-colors shrink-0"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>{language === 'km' ? 'បន្ថែមជម្រើស' : 'Add Option'}</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Display Saved Options (Not inside input fields) */}
+                {itemForm.modifier_groups.flatMap((g) => g.options).length > 0 && (
+                  <div className="space-y-1.5">
+                    {itemForm.modifier_groups
+                      .flatMap((g) => g.options)
+                      .map((opt) => (
+                        <div
+                          key={opt.id}
+                          className="flex items-center justify-between py-2 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-semibold text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 truncate">
+                              {language === 'km' && opt.name_km ? opt.name_km : opt.name_en}
+                            </span>
+                            {opt.name_km && opt.name_en && opt.name_km !== opt.name_en && (
+                              <span className="text-xs text-zinc-400 truncate">
+                                ({language === 'km' ? opt.name_en : opt.name_km})
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-mono font-semibold text-xs sm:text-sm text-emerald-600 dark:text-emerald-400">
+                              {opt.price_usd > 0 ? `+$${opt.price_usd.toFixed(2)}` : '+$0.00'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveDirectOption(opt.id)}
+                              title={language === 'km' ? 'លុបជម្រើសនេះ' : 'Delete Option'}
+                              className="w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {/* Adding Option Draft Row with Tick & Cross icons */}
+                {isAddingOption && (
+                  <div className="grid grid-cols-[1fr_1fr_80px_28px_28px] sm:grid-cols-[1fr_1fr_90px_32px_32px] gap-1.5 sm:gap-2 items-center w-full pt-1">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newOptionDraft.name_en}
+                      onChange={(e) =>
+                        setNewOptionDraft((prev) => ({ ...prev, name_en: e.target.value }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleSaveNewOption()
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault()
+                          handleCancelNewOption()
+                        }
+                      }}
+                      placeholder="Choice (EN)"
+                      className="w-full min-w-0 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs sm:text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
+                    />
+                    <input
+                      type="text"
+                      value={newOptionDraft.name_km}
+                      onChange={(e) =>
+                        setNewOptionDraft((prev) => ({ ...prev, name_km: e.target.value }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleSaveNewOption()
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault()
+                          handleCancelNewOption()
+                        }
+                      }}
+                      placeholder="ជម្រើស (KM)"
+                      className="w-full min-w-0 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs sm:text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
+                    />
+                    <div className="relative w-full min-w-0">
+                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-zinc-400">+$</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={newOptionDraft.price_usd}
+                        onChange={(e) =>
+                          setNewOptionDraft((prev) => ({ ...prev, price_usd: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleSaveNewOption()
+                          } else if (e.key === 'Escape') {
+                            e.preventDefault()
+                            handleCancelNewOption()
+                          }
+                        }}
+                        placeholder="0.00"
+                        className="w-full pl-5 sm:pl-6 pr-2 py-1.5 sm:py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs sm:text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors text-right"
+                      />
+                    </div>
+                    {/* Tick Icon to Save */}
+                    <button
+                      type="button"
+                      onClick={handleSaveNewOption}
+                      title={language === 'km' ? 'រក្សាទុកជម្រើស' : 'Save Option'}
+                      className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                    {/* Cross Icon to Cancel */}
+                    <button
+                      type="button"
+                      onClick={handleCancelNewOption}
+                      title={language === 'km' ? 'បោះបង់' : 'Cancel'}
+                      className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">

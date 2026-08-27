@@ -1,6 +1,6 @@
 import { useState, type FC, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { User, Mail, Lock, Eye, EyeOff, Check, AlertCircle } from 'lucide-react'
+import { User, Mail, Lock, Eye, EyeOff, Check } from 'lucide-react'
 import { AuthLayout } from './components/AuthLayout'
 import { Button } from '@/components/ui/Button'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -18,30 +18,46 @@ export const RegisterPage: FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<{
+    fullName?: string
+    emailOrPhone?: string
+    password?: string
+    confirmPassword?: string
+  }>({})
 
   const isPasswordValid = password.length >= 8
   const doPasswordsMatch = password === confirmPassword && confirmPassword.length > 0
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setErrorMessage(null)
+    setFieldErrors({})
+
+    const errors: typeof fieldErrors = {}
+
+    if (!fullName.trim()) {
+      errors.fullName = language === 'km' ? 'សូមបញ្ចូលឈ្មោះពេញ' : 'Please enter your full name.'
+    }
+
+    if (!emailOrPhone.trim()) {
+      errors.emailOrPhone = language === 'km' ? 'សូមបញ្ចូលអ៊ីមែល ឬលេខទូរស័ព្ទ' : 'Please enter email or phone number.'
+    }
 
     if (!isPasswordValid) {
-      setErrorMessage(
+      errors.password =
         language === 'km'
           ? 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងហោចណាស់ ៨ តួអក្សរ'
           : 'Password must be at least 8 characters long.'
-      )
-      return
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage(
+      errors.confirmPassword =
         language === 'km'
           ? 'ពាក្យសម្ងាត់ទាំងពីរមិនដូចគ្នាទេ'
           : 'Passwords do not match.'
-      )
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors)
       return
     }
 
@@ -87,13 +103,13 @@ export const RegisterPage: FC = () => {
 
       // Redirect immediately to Onboarding Wizard Step 1
       navigate('/onboarding')
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.detail ||
-        (language === 'km'
-          ? 'មានបញ្ហាក្នុងការបង្កើតគណនី សូមព្យាយាមម្តងទៀត'
-          : 'Failed to create account. Please try again.')
-      setErrorMessage(msg)
+    } catch {
+      setFieldErrors({
+        emailOrPhone:
+          language === 'km'
+            ? 'អ៊ីមែល ឬលេខទូរស័ព្ទនេះមានក្នុងប្រព័ន្ធរួចហើយ'
+            : 'This email or phone number is already in use.',
+      })
     } finally {
       setIsLoading(false)
     }
@@ -109,14 +125,6 @@ export const RegisterPage: FC = () => {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Error Alert */}
-        {errorMessage && (
-          <div className="p-3 rounded-lg border border-red-200 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20 text-red-600 dark:text-red-400 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
         {/* 1. Full Name */}
         <div className="space-y-1.5">
           <label className="text-sm sm:text-base font-semibold text-zinc-800 dark:text-zinc-200 block">
@@ -128,11 +136,23 @@ export const RegisterPage: FC = () => {
               type="text"
               required
               value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+              onChange={(e) => {
+                setFullName(e.target.value)
+                if (fieldErrors.fullName) setFieldErrors((prev) => ({ ...prev, fullName: undefined }))
+              }}
               placeholder={language === 'km' ? 'ឧ. សុខ ដារ៉ា' : 'e.g. Sok Dara'}
-              className="w-full pl-11 pr-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
+              className={`w-full pl-11 pr-4 py-3 rounded-lg border ${
+                fieldErrors.fullName
+                  ? 'border-red-500 focus:border-red-500'
+                  : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-300'
+              } bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base outline-none transition-colors`}
             />
           </div>
+          {fieldErrors.fullName && (
+            <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+              {fieldErrors.fullName}
+            </p>
+          )}
         </div>
 
         {/* 2. Email or Phone */}
@@ -146,11 +166,23 @@ export const RegisterPage: FC = () => {
               type="text"
               required
               value={emailOrPhone}
-              onChange={(e) => setEmailOrPhone(e.target.value)}
+              onChange={(e) => {
+                setEmailOrPhone(e.target.value)
+                if (fieldErrors.emailOrPhone) setFieldErrors((prev) => ({ ...prev, emailOrPhone: undefined }))
+              }}
               placeholder={language === 'km' ? 'dara@restaurant.com ឬ 012 345 678' : 'dara@restaurant.com or 012 345 678'}
-              className="w-full pl-11 pr-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
+              className={`w-full pl-11 pr-4 py-3 rounded-lg border ${
+                fieldErrors.emailOrPhone
+                  ? 'border-red-500 focus:border-red-500'
+                  : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-300'
+              } bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base outline-none transition-colors`}
             />
           </div>
+          {fieldErrors.emailOrPhone && (
+            <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+              {fieldErrors.emailOrPhone}
+            </p>
+          )}
         </div>
 
         {/* 3. Password */}
@@ -164,9 +196,16 @@ export const RegisterPage: FC = () => {
               type={showPassword ? 'text' : 'password'}
               required
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value)
+                if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: undefined }))
+              }}
               placeholder="••••••••"
-              className="w-full pl-11 pr-11 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
+              className={`w-full pl-11 pr-11 py-3 rounded-lg border ${
+                fieldErrors.password
+                  ? 'border-red-500 focus:border-red-500'
+                  : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-300'
+              } bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base outline-none transition-colors`}
             />
             <button
               type="button"
@@ -176,6 +215,11 @@ export const RegisterPage: FC = () => {
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
+          {fieldErrors.password && (
+            <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+              {fieldErrors.password}
+            </p>
+          )}
         </div>
 
         {/* 4. Confirm Password */}
@@ -197,11 +241,23 @@ export const RegisterPage: FC = () => {
               type={showPassword ? 'text' : 'password'}
               required
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value)
+                if (fieldErrors.confirmPassword) setFieldErrors((prev) => ({ ...prev, confirmPassword: undefined }))
+              }}
               placeholder="••••••••"
-              className="w-full pl-11 pr-4 py-3 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
+              className={`w-full pl-11 pr-4 py-3 rounded-lg border ${
+                fieldErrors.confirmPassword
+                  ? 'border-red-500 focus:border-red-500'
+                  : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-300'
+              } bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 text-base outline-none transition-colors`}
             />
           </div>
+          {fieldErrors.confirmPassword && (
+            <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+              {fieldErrors.confirmPassword}
+            </p>
+          )}
         </div>
 
         {/* Submit Button */}

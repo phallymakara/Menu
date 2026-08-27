@@ -1,4 +1,4 @@
-import { useState, type FC } from 'react'
+import { useState, useEffect, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check } from 'lucide-react'
 import { OnboardingHeader } from './components/OnboardingHeader'
@@ -14,6 +14,15 @@ export const OnboardingWizardPage: FC = () => {
   const { currentStep, nextStep, prevStep, businessProfile, branch } = useOnboardingStore()
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Redirect existing user who already finished onboarding or has an active store session
+  useEffect(() => {
+    const isCompleted = localStorage.getItem('emenu_onboarding_completed') === 'true'
+    const token = localStorage.getItem('emenu_access_token')
+    if (token && isCompleted) {
+      navigate('/admin', { replace: true })
+    }
+  }, [navigate])
 
   const stepTitles = [
     {
@@ -57,6 +66,8 @@ export const OnboardingWizardPage: FC = () => {
         opening_time: branch.opening_time,
         closing_time: branch.closing_time,
       }).catch(() => null)
+
+      localStorage.setItem('emenu_onboarding_completed', 'true')
 
       // Navigate to Store Admin HQ
       navigate('/admin')

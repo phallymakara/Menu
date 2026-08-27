@@ -44,7 +44,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                 <Utensils className="w-5 h-5" />
               )}
             </div>
-            <div>
+            <div className="hidden sm:block">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-base sm:text-lg tracking-tight text-zinc-950 dark:text-zinc-50 block leading-tight">
                   {language === 'km' && businessProfile.name_km ? businessProfile.name_km : businessProfile.name_en}

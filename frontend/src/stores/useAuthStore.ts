@@ -48,9 +48,11 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     localStorage.removeItem('emenu_access_token')
+    localStorage.removeItem('emenu_tenant_id')
     localStorage.removeItem('emenu_organization_id')
     localStorage.removeItem('emenu_business_id')
     localStorage.removeItem('emenu_branch_id')
+    localStorage.removeItem('emenu_onboarding_completed')
     set({
       token: null,
       user: null,

@@ -281,7 +281,7 @@ export const GuestOrderPage: FC = () => {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased pb-24">
       {/* Toast Notification Banner */}
       {notificationMsg && (
-        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-semibold shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-semibold border border-zinc-800 dark:border-zinc-200 flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
           <Bell className="w-3.5 h-3.5 text-emerald-400" />
           <span>{notificationMsg}</span>
         </div>

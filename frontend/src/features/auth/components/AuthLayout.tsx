@@ -22,7 +22,7 @@ export const AuthLayout: FC<AuthLayoutProps> = ({ children, title, subtitle }) =
           <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white transition-transform group-hover:scale-105">
             <Utensils className="w-4 h-4" />
           </div>
-          <div>
+          <div className="hidden sm:block">
             <span className="font-bold text-sm tracking-tight block leading-tight">
               {t('appName')}
             </span>

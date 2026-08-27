@@ -31,7 +31,7 @@ export const GuestHeader: FC<GuestHeaderProps> = ({
           <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shrink-0">
             <Utensils className="w-4 h-4" />
           </div>
-          <div className="min-w-0">
+          <div className="hidden sm:block min-w-0">
             <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100 block truncate leading-tight">
               {table?.business_name || (language === 'km' ? 'ភោជនីយដ្ឋាន' : 'Restaurant')}
             </span>

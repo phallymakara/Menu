@@ -16,7 +16,7 @@ export const OnboardingHeader: FC = () => {
           <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white transition-transform group-hover:scale-105">
             <Utensils className="w-5 h-5" />
           </div>
-          <div>
+          <div className="hidden sm:block">
             <span className="font-bold text-lg tracking-tight block leading-tight">
               {t('appName')}
             </span>
@@ -28,6 +28,12 @@ export const OnboardingHeader: FC = () => {
 
         {/* Right Action Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
+          <Link
+            to="/admin"
+            className="text-xs sm:text-sm font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline px-2 py-1"
+          >
+            {language === 'km' ? 'ទៅកាន់ផ្ទាំងគ្រប់គ្រង' : 'Go to Dashboard'}
+          </Link>
           <LanguageSwitcher />
           <ThemeToggle />
         </div>
