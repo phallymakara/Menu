@@ -62,6 +62,7 @@ export interface StaffMember {
   full_name: string
   phone: string
   email?: string | null
+  avatar_url?: string | null
   role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'CHEF'
   pin_code: string
   is_active: boolean

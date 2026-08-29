@@ -48,6 +48,21 @@ const StaffManagementTab = lazy(() =>
     default: m.StaffManagementTab,
   }))
 )
+const InventoryManagementTab = lazy(() =>
+  import('@/features/admin/pages/InventoryManagementTab').then((m) => ({
+    default: m.InventoryTab,
+  }))
+)
+const KDSPage = lazy(() =>
+  import('@/features/kds/KDSPage').then((m) => ({
+    default: m.KDSPage,
+  }))
+)
+const POSPage = lazy(() =>
+  import('@/features/pos/POSPage').then((m) => ({
+    default: m.POSPage,
+  }))
+)
 
 // Helper wrapper for Suspense
 const withSuspense = (children: ReactNode) => (
@@ -88,6 +103,14 @@ export const router = createBrowserRouter([
         element: withSuspense(<DiningTablesTab />),
       },
       {
+        path: 'inventory',
+        element: withSuspense(<InventoryManagementTab />),
+      },
+      {
+        path: 'inventory/transfers',
+        element: withSuspense(<InventoryManagementTab defaultSection="transfers" />),
+      },
+      {
         path: 'settings',
         element: withSuspense(<StoreSettingsTab />),
       },
@@ -95,10 +118,30 @@ export const router = createBrowserRouter([
         path: 'staff',
         element: withSuspense(<StaffManagementTab />),
       },
+      {
+        path: 'kds',
+        element: withSuspense(<KDSPage />),
+      },
+      {
+        path: 'pos',
+        element: withSuspense(<POSPage />),
+      },
     ],
   },
   {
+    path: '/pos',
+    element: withSuspense(<POSPage />),
+  },
+  {
+    path: '/kds',
+    element: withSuspense(<KDSPage />),
+  },
+  {
     path: '/t/:qr_token',
+    element: withSuspense(<GuestOrderPage />),
+  },
+  {
+    path: '/order/:branch_id',
     element: withSuspense(<GuestOrderPage />),
   },
   {

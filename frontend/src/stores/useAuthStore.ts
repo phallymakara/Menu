@@ -5,6 +5,7 @@ export interface AuthUser {
   email: string | null
   phone?: string | null
   full_name: string
+  avatar_url?: string | null
   preferred_language?: string
   is_platform_admin?: boolean
   status?: string
@@ -18,6 +19,7 @@ interface AuthState {
   branchId: string | null
   isAuthenticated: boolean
   setAuth: (token: string, user: AuthUser) => void
+  updateUser: (updates: Partial<AuthUser>) => void
   setContext: (orgId?: string | null, bizId?: string | null, branchId?: string | null) => void
   logout: () => void
 }
@@ -33,6 +35,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAuth: (token: string, user: AuthUser) => {
     localStorage.setItem('emenu_access_token', token)
     set({ token, user, isAuthenticated: true })
+  },
+
+  updateUser: (updates: Partial<AuthUser>) => {
+    set((state) => ({
+      user: state.user ? { ...state.user, ...updates } : null,
+    }))
   },
 
   setContext: (orgId, bizId, branchId) => {

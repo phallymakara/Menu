@@ -24,10 +24,10 @@ export const AdminLayout: FC = () => {
               className="fixed inset-0 bg-black/50 backdrop-blur-xs"
               onClick={() => setMobileSidebarOpen(false)}
             />
-            <div className="relative w-64 max-w-[80vw] bg-white dark:bg-zinc-950 h-full z-50 flex flex-col">
+            <div className="relative w-64 max-w-[80vw] bg-white dark:bg-zinc-950 h-full z-50 flex flex-col border-r border-zinc-200 dark:border-zinc-800">
               <div className="p-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800">
                 <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
-                  Menu
+                  Menu Admin
                 </span>
                 <button
                   type="button"

@@ -48,12 +48,29 @@ export const DiningTablesTab: FC = () => {
   const [batchCapacity, setBatchCapacity] = useState(4)
   const [batchZoneId, setBatchZoneId] = useState('zone-1')
 
+  // Inline Validation Errors
+  const [batchErrors, setBatchErrors] = useState<Record<string, string>>({})
+
   const handleDeleteTable = (tableId: string) => {
     setTables(tables.filter((t) => t.id !== tableId))
   }
 
+  const validateBatchForm = () => {
+    const errs: Record<string, string> = {}
+    if (!batchPrefix.trim()) {
+      errs.batchPrefix = language === 'km' ? 'សូមបញ្ចូលបុព្វបទតុ' : 'Table prefix is required'
+    }
+    if (!batchCount || batchCount < 1 || batchCount > 50) {
+      errs.batchCount = language === 'km' ? 'ចំនួនតុត្រូវនៅចន្លោះពី ១ ដល់ ៥០' : 'Table count must be between 1 and 50'
+    }
+    setBatchErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
   const handleGenerateBatch = (e: React.FormEvent) => {
     e.preventDefault()
+    if (!validateBatchForm()) return
+
     const targetZone = zones.find((z) => z.id === batchZoneId)
     const newTables: DiningTable[] = []
     const startIdx = tables.length + 1
@@ -72,6 +89,7 @@ export const DiningTablesTab: FC = () => {
     }
 
     setTables([...tables, ...newTables])
+    setBatchErrors({})
     setIsBatchModalOpen(false)
   }
 
@@ -82,30 +100,44 @@ export const DiningTablesTab: FC = () => {
   const filteredTables = tables.filter((t) => activeZone === 'all' || t.zone_id === activeZone)
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150">
-      {/* Primary Actions */}
-      <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+    <div className="space-y-6">
+      {/* Header & Primary Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-zinc-950 dark:text-zinc-50 tracking-tight">
+            {language === 'km' ? 'ប្លង់តុ & QR កូដ' : 'Dining Tables & QR Stands'}
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
+            {language === 'km'
+              ? 'គ្រប់គ្រងតុអាហារ បង្កើត QR កូដជាក្រុម និងបោះពុម្ពកាតដាក់លើតុ'
+              : 'Manage dining layout, batch generate QR codes, and print table stands.'}
+          </p>
+        </div>
+
         <Button
           type="button"
           variant="primary"
           size="md"
-          onClick={() => setIsBatchModalOpen(true)}
-          className="h-10 px-4 text-sm font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+          onClick={() => {
+            setBatchErrors({})
+            setIsBatchModalOpen(true)
+          }}
+          className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
         >
-          <Plus className="w-4 h-4 mr-1.5" />
-          {language === 'km' ? 'បង្កើតតុជាបាច់' : 'Batch Generate Tables'}
+          <Plus className="w-4 h-4 mr-2" />
+          {language === 'km' ? 'បង្កើតជាក្រុម' : 'Batch Generate Tables'}
         </Button>
       </div>
 
-      {/* Zone Filter Pills */}
+      {/* Zone Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
         <button
           type="button"
           onClick={() => setActiveZone('all')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
             activeZone === 'all'
               ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-              : 'border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+              : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'
           }`}
         >
           {language === 'km' ? 'តំបន់ទាំងអស់' : 'All Zones'} ({tables.length})
@@ -117,10 +149,10 @@ export const DiningTablesTab: FC = () => {
               key={z.id}
               type="button"
               onClick={() => setActiveZone(z.id)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
                 activeZone === z.id
                   ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                  : 'border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'
               }`}
             >
               {language === 'km' ? z.name_km : z.name_en} ({count})
@@ -129,7 +161,7 @@ export const DiningTablesTab: FC = () => {
         })}
       </div>
 
-      {/* Tables Grid (Zero Shadows, Crisp Flat Border) */}
+      {/* Tables Grid (Zero Shadows, Flat Border) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {filteredTables.map((tbl) => {
           const qrSvgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
@@ -139,43 +171,35 @@ export const DiningTablesTab: FC = () => {
           return (
             <div
               key={tbl.id}
-              className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col justify-between space-y-4"
+              className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between space-y-3"
             >
               <div className="space-y-3">
                 {/* Header: Table Number & Status */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl font-bold text-zinc-950 dark:text-zinc-50 font-mono">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-lg font-bold text-zinc-950 dark:text-zinc-50 font-mono">
                       {tbl.table_number}
                     </span>
                     <span className="text-xs text-zinc-400 font-medium">({tbl.zone_name})</span>
                   </div>
 
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      tbl.status === 'AVAILABLE'
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                        : tbl.status === 'OCCUPIED'
-                        ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-                        : 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
-                    }`}
-                  >
+                  <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400">
                     {tbl.status}
                   </span>
                 </div>
 
                 {/* Seating Capacity */}
                 <div className="flex items-center gap-1.5 text-xs text-zinc-500 font-medium">
-                  <Users className="w-3.5 h-3.5" />
+                  <Users className="w-3.5 h-3.5 text-zinc-400" />
                   <span>{tbl.capacity} {language === 'km' ? 'កៅអី' : 'Seats'}</span>
                 </div>
 
                 {/* QR Code Preview Box */}
-                <div className="p-3 rounded-xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center space-y-1.5">
+                <div className="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center justify-center space-y-1">
                   <img
                     src={qrSvgUrl}
                     alt={`QR for ${tbl.table_number}`}
-                    className="w-24 h-24 rounded-lg bg-white p-1"
+                    className="w-20 h-20 rounded bg-white p-1"
                   />
                   <span className="text-[10px] font-mono text-zinc-400">
                     /t/{tbl.qr_token}
@@ -189,7 +213,7 @@ export const DiningTablesTab: FC = () => {
                   href={`/t/${tbl.qr_token}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                  className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   <span>{language === 'km' ? 'មើលមីនុយ' : 'Preview'}</span>
@@ -212,7 +236,7 @@ export const DiningTablesTab: FC = () => {
                     type="button"
                     onClick={() => handleDeleteTable(tbl.id)}
                     title="Delete Table"
-                    className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                    className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -230,10 +254,10 @@ export const DiningTablesTab: FC = () => {
             className="fixed inset-0 bg-black/50 backdrop-blur-xs"
             onClick={() => setIsBatchModalOpen(false)}
           />
-          <div className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-4 z-10">
+          <div className="relative w-full max-w-md bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 space-y-4 z-10">
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              <h3 className="font-bold text-lg text-zinc-950 dark:text-zinc-50">
-                {language === 'km' ? 'បង្កើតតុជាបាច់ (Batch Generate)' : 'Batch Generate Tables'}
+              <h3 className="font-bold text-base text-zinc-950 dark:text-zinc-50">
+                {language === 'km' ? 'បង្កើតតុជាក្រុម' : 'Batch Generate Tables'}
               </h3>
               <button
                 type="button"
@@ -244,47 +268,69 @@ export const DiningTablesTab: FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleGenerateBatch} className="space-y-4">
+            <form onSubmit={handleGenerateBatch} className="space-y-3.5">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
                     {language === 'km' ? 'បុព្វបទកូដតុ (Prefix)' : 'Table Prefix'} *
                   </label>
                   <input
                     type="text"
-                    required
                     value={batchPrefix}
-                    onChange={(e) => setBatchPrefix(e.target.value)}
+                    onChange={(e) => {
+                      setBatchPrefix(e.target.value)
+                      if (batchErrors.batchPrefix) setBatchErrors((prev) => ({ ...prev, batchPrefix: '' }))
+                    }}
                     placeholder="T-"
-                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm font-mono outline-none"
+                    className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm font-mono outline-none ${
+                      batchErrors.batchPrefix
+                        ? 'border-red-500 focus:border-red-500'
+                        : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
+                    }`}
                   />
+                  {batchErrors.batchPrefix && (
+                    <div className="text-red-600 dark:text-red-400 text-xs font-medium mt-1">
+                      {batchErrors.batchPrefix}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
                     {language === 'km' ? 'ចំនួនតុ (Count)' : 'Number of Tables'} *
                   </label>
                   <input
                     type="number"
                     min="1"
                     max="50"
-                    required
                     value={batchCount}
-                    onChange={(e) => setBatchCount(parseInt(e.target.value) || 1)}
-                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none"
+                    onChange={(e) => {
+                      setBatchCount(parseInt(e.target.value) || 0)
+                      if (batchErrors.batchCount) setBatchErrors((prev) => ({ ...prev, batchCount: '' }))
+                    }}
+                    className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm outline-none ${
+                      batchErrors.batchCount
+                        ? 'border-red-500 focus:border-red-500'
+                        : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
+                    }`}
                   />
+                  {batchErrors.batchCount && (
+                    <div className="text-red-600 dark:text-red-400 text-xs font-medium mt-1">
+                      {batchErrors.batchCount}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
                     {language === 'km' ? 'តំបន់អង្គុយ' : 'Dining Zone'} *
                   </label>
                   <select
                     value={batchZoneId}
                     onChange={(e) => setBatchZoneId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none"
+                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
                   >
                     {zones.map((z) => (
                       <option key={z.id} value={z.id}>
@@ -295,13 +341,13 @@ export const DiningTablesTab: FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
                     {language === 'km' ? 'ចំនួនកៅអី (Seats)' : 'Seats / Capacity'} *
                   </label>
                   <select
                     value={batchCapacity}
                     onChange={(e) => setBatchCapacity(parseInt(e.target.value) || 4)}
-                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none"
+                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
                   >
                     <option value={2}>2 Seats</option>
                     <option value={4}>4 Seats</option>
@@ -312,7 +358,7 @@ export const DiningTablesTab: FC = () => {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                 <Button
                   type="button"
                   variant="outline"
@@ -345,10 +391,10 @@ export const DiningTablesTab: FC = () => {
               setSelectedTableForPrint(null)
             }}
           />
-          <div className="relative w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-6 z-10 max-h-[90vh] overflow-y-auto">
+          <div className="relative w-full max-w-2xl bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 space-y-5 z-10 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
               <div>
-                <h3 className="font-bold text-lg text-zinc-950 dark:text-zinc-50">
+                <h3 className="font-bold text-base text-zinc-950 dark:text-zinc-50">
                   {language === 'km' ? 'កាត QR កូដសម្រាប់ដាក់លើតុ' : 'Printable Table QR Stand Cards'}
                 </h3>
                 <p className="text-xs text-zinc-500">
@@ -378,7 +424,7 @@ export const DiningTablesTab: FC = () => {
                 return (
                   <div
                     key={t.id}
-                    className="p-6 rounded-2xl border-2 border-zinc-900 dark:border-zinc-100 bg-white text-zinc-900 flex flex-col items-center text-center space-y-3 print:border-black"
+                    className="p-5 rounded-xl border border-zinc-900 dark:border-zinc-100 bg-white text-zinc-900 flex flex-col items-center text-center space-y-3 print:border-black"
                   >
                     <div className="space-y-0.5">
                       <h4 className="font-bold text-sm text-zinc-800">
@@ -389,10 +435,10 @@ export const DiningTablesTab: FC = () => {
                       </div>
                     </div>
 
-                    <img src={qrSvg} alt="QR" className="w-32 h-32 rounded-lg" />
+                    <img src={qrSvg} alt="QR" className="w-28 h-28 rounded bg-white" />
 
                     <div className="space-y-0.5 text-xs text-zinc-600">
-                      <p className="font-bold font-khmer">ស្កេនដើម្បីមើលមីនុយ & កុម្ម៉ង់ម្ហូប</p>
+                      <p className="font-bold">ស្កេនដើម្បីមើលមីនុយ & កុម្ម៉ង់ម្ហូប</p>
                       <p className="text-[10px] text-zinc-400">Scan to View Menu & Order</p>
                     </div>
                   </div>

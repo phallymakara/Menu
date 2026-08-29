@@ -10,6 +10,7 @@ interface OnboardingState {
   currentStep: number // 1, 2, 3, 4
   businessProfile: BusinessProfileForm
   branch: BranchForm
+  branches: BranchForm[]
   diningAreas: DiningAreaItem[]
   generatedTables: GeneratedTable[]
   isLoading: boolean
@@ -20,6 +21,8 @@ interface OnboardingState {
   prevStep: () => void
   updateBusinessProfile: (updates: Partial<BusinessProfileForm>) => void
   updateBranch: (updates: Partial<BranchForm>) => void
+  switchBranch: (branchCode: string) => void
+  addBranch: (newBranch: BranchForm) => void
   setDiningAreas: (areas: DiningAreaItem[]) => void
   addDiningArea: (area: DiningAreaItem) => void
   removeDiningArea: (id: string) => void
@@ -57,6 +60,45 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     bakong_merchant_name: 'SIEM REAP BISTRO BKK',
     bakong_acquiring_bank: 'ABA Bank',
   },
+
+  branches: [
+    {
+      name_en: 'BKK Flagship Branch',
+      name_km: 'សាខាបឹងកេងកង',
+      branch_code: 'BKK-01',
+      phone: '012 345 678',
+      address: 'St 214, Boeung Keng Kang 1, Phnom Penh',
+      opening_time: '07:00',
+      closing_time: '22:00',
+      bakong_account_id: 'bistro_sr@aclb',
+      bakong_merchant_name: 'SIEM REAP BISTRO BKK',
+      bakong_acquiring_bank: 'ABA Bank',
+    },
+    {
+      name_en: 'Toul Kork Branch',
+      name_km: 'សាខាទួលគោក',
+      branch_code: 'TK-02',
+      phone: '098 765 432',
+      address: 'St 315, Toul Kork, Phnom Penh',
+      opening_time: '07:00',
+      closing_time: '22:00',
+      bakong_account_id: 'bistro_tk@aclb',
+      bakong_merchant_name: 'SIEM REAP BISTRO TK',
+      bakong_acquiring_bank: 'ABA Bank',
+    },
+    {
+      name_en: 'Siem Reap Heritage',
+      name_km: 'សាខាសៀមរាប',
+      branch_code: 'SR-03',
+      phone: '063 998 877',
+      address: 'Pub Street Area, Siem Reap',
+      opening_time: '08:00',
+      closing_time: '23:00',
+      bakong_account_id: 'bistro_sr@aclb',
+      bakong_merchant_name: 'SIEM REAP BISTRO SR',
+      bakong_acquiring_bank: 'ACLEDA Bank',
+    },
+  ],
 
   diningAreas: [
     {
@@ -108,6 +150,20 @@ export const useOnboardingStore = create<OnboardingState>((set, get) => ({
     set((state) => ({
       branch: { ...state.branch, ...updates },
     })),
+
+  switchBranch: (branchCode) => {
+    const found = get().branches.find((b) => b.branch_code === branchCode)
+    if (found) {
+      set({ branch: found })
+    }
+  },
+
+  addBranch: (newBranch) => {
+    set((state) => ({
+      branches: [...state.branches, newBranch],
+      branch: newBranch,
+    }))
+  },
 
   setDiningAreas: (diningAreas) => set({ diningAreas }),
 
