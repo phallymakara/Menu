@@ -11,9 +11,11 @@ from app.core.ws_manager import ws_manager
 from app.db.session import AsyncSessionFactory
 from app.models.enums import (
     MembershipStatus,
+    StaffRole,
     TableSessionStatus,
     UserStatus,
 )
+
 from app.models.organization_membership import OrganizationMembership
 from app.models.table_session import TableSession
 from app.models.user import User
@@ -56,16 +58,28 @@ async def websocket_staff_endpoint(
 
         mem_stmt = select(OrganizationMembership).where(
             OrganizationMembership.user_id == user_id,
-            OrganizationMembership.status.in_([MembershipStatus.ACTIVE, "active"]),
         )
         mem_res = await session.execute(mem_stmt)
-        memberships = mem_res.scalars().all()
+        all_memberships = mem_res.scalars().all()
+        memberships = [
+            m for m in all_memberships
+            if str(getattr(m, "status", "")).lower() in ["active", "membershipstatus.active"]
+        ]
+
 
         has_access = False
+        req_branch_clean = str(branch_id).replace("-", "").lower()
         for mem in memberships:
-            if can_user_roam_branches(mem) or mem.branch_id == branch_id:
+            mem_branch_clean = str(mem.branch_id).replace("-", "").lower() if mem.branch_id else None
+            if (
+                mem.is_owner
+                or mem.role in [StaffRole.OWNER, "owner", StaffRole.MANAGER, "manager"]
+                or can_user_roam_branches(mem)
+                or (mem_branch_clean is not None and mem_branch_clean == req_branch_clean)
+            ):
                 has_access = True
                 break
+
 
         if not has_access:
             logger.warning(
@@ -75,6 +89,8 @@ async def websocket_staff_endpoint(
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Branch access denied")
             return
+
+
 
     # 3. Determine Room
     if room_type == "expo":

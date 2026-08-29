@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, type FC } from 'react'
 import { Utensils, RefreshCw, AlertCircle } from 'lucide-react'
 import {
-  KitchenStation,
   KDSTicket,
   OrderItemStatus,
 } from './types/kds.types'
@@ -15,143 +14,8 @@ import { api } from '@/lib/api'
 import { useWebSocket } from '@/lib/websocket'
 import { playChime } from '@/lib/audio'
 
-// Default Demonstration / Fallback Tickets for Live Testing
-const DEMO_STATIONS: KitchenStation[] = [
-  { id: 'st-grill', name: 'Grill & BBQ', station_code: 'GRILL', is_active: true, display_order: 1 },
-  { id: 'st-wok', name: 'Hot Wok', station_code: 'WOK', is_active: true, display_order: 2 },
-  { id: 'st-bar', name: 'Bar & Drinks', station_code: 'BAR', is_active: true, display_order: 3 },
-  { id: 'st-pantry', name: 'Appetizers & Salad', station_code: 'PANTRY', is_active: true, display_order: 4 },
-  { id: 'st-dessert', name: 'Desserts', station_code: 'DESSERT', is_active: true, display_order: 5 },
-]
-
-const DEMO_TICKETS: KDSTicket[] = [
-  {
-    order_id: 'ord-demo-1',
-    order_number: 'ORD-1048',
-    order_type: 'dine_in',
-    round_number: 1,
-    table_id: 'tbl-4',
-    table_number: 'T-04',
-    guest_notes: 'Allergy to peanuts, please keep clean',
-    created_at: new Date(Date.now() - 4 * 60 * 1000).toISOString(), // 4 mins ago (Normal)
-    elapsed_minutes: 4,
-    max_target_prep_minutes: 15,
-    is_ticket_overdue: false,
-    ticket_urgency: 'normal',
-    has_held_items: false,
-    items: [
-      {
-        id: 'item-d1',
-        menu_item_id: 'm1',
-        item_name_en: 'Lok Lak Beef with Kampot Pepper',
-        item_name_km: 'ឡុកឡាក់សាច់គោម្រេចកំពត',
-        variant_name_en: 'Large',
-        quantity: 2,
-        course_stage: 'MAINS',
-        status: 'cooking',
-        kitchen_station_id: 'st-wok',
-        modifiers: [{ id: 'mod1', modifier_option_id: 'o1', name_en: 'Add Fried Egg', quantity: 2 }],
-        special_instructions: 'Less black pepper please',
-        elapsed_minutes: 4,
-        target_prep_time_minutes: 15,
-        is_overdue: false,
-        urgency_level: 'normal',
-      },
-      {
-        id: 'item-d2',
-        menu_item_id: 'm2',
-        item_name_en: 'Traditional Tonle Sap Fish Amok',
-        item_name_km: 'អាម៉ុកត្រីទន្លេសាបបុរាណ',
-        quantity: 1,
-        course_stage: 'MAINS',
-        status: 'pending',
-        kitchen_station_id: 'st-wok',
-        modifiers: [],
-        elapsed_minutes: 4,
-        target_prep_time_minutes: 15,
-        is_overdue: false,
-        urgency_level: 'normal',
-      },
-    ],
-  },
-  {
-    order_id: 'ord-demo-2',
-    order_number: 'ORD-1047',
-    order_type: 'dine_in',
-    round_number: 2,
-    table_id: 'tbl-2',
-    table_number: 'T-02',
-    created_at: new Date(Date.now() - 11 * 60 * 1000).toISOString(), // 11 mins ago (Warning)
-    elapsed_minutes: 11,
-    max_target_prep_minutes: 15,
-    is_ticket_overdue: false,
-    ticket_urgency: 'warning',
-    has_held_items: false,
-    items: [
-      {
-        id: 'item-d3',
-        menu_item_id: 'm3',
-        item_name_en: 'Crispy Deep-Fried Spring Rolls',
-        item_name_km: 'ចៃយ៉របំពងស្រួយ (៦ ដុំ)',
-        quantity: 1,
-        course_stage: 'APPETIZERS',
-        status: 'ready_to_serve',
-        kitchen_station_id: 'st-pantry',
-        modifiers: [],
-        elapsed_minutes: 11,
-        target_prep_time_minutes: 10,
-        is_overdue: true,
-        urgency_level: 'warning',
-      },
-      {
-        id: 'item-d4',
-        menu_item_id: 'm4',
-        item_name_en: 'Iced Condensed Milk Coffee',
-        item_name_km: 'កាហ្វេទឹកដោះគោទឹកកក',
-        quantity: 2,
-        course_stage: 'DRINKS',
-        status: 'ready_to_serve',
-        kitchen_station_id: 'st-bar',
-        modifiers: [{ id: 'mod2', modifier_option_id: 'o2', name_en: '50% Sweet', quantity: 2 }],
-        elapsed_minutes: 11,
-        target_prep_time_minutes: 5,
-        is_overdue: true,
-        urgency_level: 'warning',
-      },
-    ],
-  },
-  {
-    order_id: 'ord-demo-3',
-    order_number: 'ORD-1045',
-    order_type: 'takeaway',
-    round_number: 1,
-    guest_notes: 'Pack disposable utensils',
-    created_at: new Date(Date.now() - 21 * 60 * 1000).toISOString(), // 21 mins ago (Critical / Overdue)
-    elapsed_minutes: 21,
-    max_target_prep_minutes: 15,
-    is_ticket_overdue: true,
-    ticket_urgency: 'critical',
-    has_held_items: false,
-    items: [
-      {
-        id: 'item-d5',
-        menu_item_id: 'm5',
-        item_name_en: 'Khmer Red Chicken Curry',
-        item_name_km: 'ការីក្រហមសាច់មាន់នំបុ័ង',
-        quantity: 3,
-        course_stage: 'MAINS',
-        status: 'cooking',
-        kitchen_station_id: 'st-wok',
-        modifiers: [],
-        special_instructions: 'Extra baguette',
-        elapsed_minutes: 21,
-        target_prep_time_minutes: 15,
-        is_overdue: true,
-        urgency_level: 'critical',
-      },
-    ],
-  },
-]
+const isUuid = (id?: string | null): boolean =>
+  !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 
 export const KDSPage: FC = () => {
   const { language } = useLanguageStore()
@@ -177,47 +41,88 @@ export const KDSPage: FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null)
 
   // Context identifiers
-  const tenantBizId = localStorage.getItem('emenu_business_id') || 'demo-biz'
-  const tenantBranchId = localStorage.getItem('emenu_branch_id') || 'demo-branch'
+  const [tenantBizId, setTenantBizId] = useState<string | null>(
+    localStorage.getItem('emenu_business_id')
+  )
+  const [tenantBranchId, setTenantBranchId] = useState<string | null>(
+    localStorage.getItem('emenu_branch_id')
+  )
   const accessToken = localStorage.getItem('emenu_access_token') || ''
-  const isDemoMode = !accessToken || tenantBizId === 'demo-biz'
 
-  // 1. Fetch Kitchen Stations and Live Tickets
+  // 1. Resolve Active Business and Branch IDs dynamically
+  const resolveTenantContext = useCallback(async () => {
+    let bizId = tenantBizId
+    let branchId = tenantBranchId
+
+    if (!isUuid(bizId)) {
+      try {
+        const bizRes = await api.get('/businesses')
+        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
+          bizId = bizRes.data[0].id
+          setTenantBizId(bizId)
+          localStorage.setItem('emenu_business_id', bizId!)
+        }
+      } catch {
+        // Handled in catch
+      }
+    }
+
+    if (isUuid(bizId) && !isUuid(branchId)) {
+      try {
+        const branchRes = await api.get(`/businesses/${bizId}/branches`)
+        if (Array.isArray(branchRes.data) && branchRes.data.length > 0) {
+          branchId = branchRes.data[0].id
+          setTenantBranchId(branchId)
+          localStorage.setItem('emenu_branch_id', branchId!)
+        }
+      } catch {
+        // Handled in catch
+      }
+    }
+
+    return { bizId, branchId }
+  }, [tenantBizId, tenantBranchId])
+
+  // 2. Fetch Kitchen Stations and Live Tickets for the Isolated Tenant
   const fetchKDSData = useCallback(async () => {
     setIsRefreshing(true)
     setLoadError(null)
 
-    if (isDemoMode) {
-      setStations(DEMO_STATIONS)
-      setTickets(DEMO_TICKETS)
-      setIsLoading(false)
-      setIsRefreshing(false)
-      return
-    }
-
     try {
-      // Fetch stations
-      const stationsRes = await api.get(
-        `/businesses/${tenantBizId}/branches/${tenantBranchId}/kitchen-stations`
-      ).catch(() => null)
+      const { bizId, branchId } = await resolveTenantContext()
 
-      if (stationsRes?.data && stationsRes.data.length > 0) {
-        setStations(stationsRes.data)
-      } else {
-        setStations(DEMO_STATIONS)
+      if (!isUuid(bizId) || !isUuid(branchId)) {
+        setIsLoading(false)
+        setIsRefreshing(false)
+        return
       }
 
-      // Fetch tickets
+      // Fetch kitchen stations
+      const stationsRes = await api.get(
+        `/businesses/${bizId}/branches/${branchId}/kitchen-stations`
+      ).catch(() => ({ data: [] }))
+
+      if (Array.isArray(stationsRes.data)) {
+        setStations(stationsRes.data)
+      } else {
+        setStations([])
+      }
+
+      // Fetch live KDS tickets
       const ticketUrl =
         selectedStationId === 'expo'
-          ? `/businesses/${tenantBizId}/branches/${tenantBranchId}/kds/expo/tickets`
-          : `/businesses/${tenantBizId}/branches/${tenantBranchId}/kds/stations/${selectedStationId}/tickets`
+          ? `/businesses/${bizId}/branches/${branchId}/kds/expo/tickets`
+          : selectedStationId && isUuid(selectedStationId)
+          ? `/businesses/${bizId}/branches/${branchId}/kds/stations/${selectedStationId}/tickets`
+          : `/businesses/${bizId}/branches/${branchId}/kds/expo/tickets`
 
-      const ticketsRes = await api.get(ticketUrl).catch(() => null)
-      if (ticketsRes?.data) {
+      const ticketsRes = await api.get(ticketUrl).catch(() => ({ data: [] }))
+      if (Array.isArray(ticketsRes.data)) {
         setTickets(ticketsRes.data)
+      } else if (ticketsRes.data?.tickets && Array.isArray(ticketsRes.data.tickets)) {
+        setTickets(ticketsRes.data.tickets)
       } else {
-        setTickets(DEMO_TICKETS)
+        setTickets([])
       }
     } catch {
       setLoadError(
@@ -229,18 +134,18 @@ export const KDSPage: FC = () => {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }, [isDemoMode, language, selectedStationId, setStations, setTickets, tenantBizId, tenantBranchId])
+  }, [language, resolveTenantContext, selectedStationId, setStations, setTickets])
 
   useEffect(() => {
     fetchKDSData()
   }, [fetchKDSData])
 
-  // 2. Real-Time WebSocket Connection for Staff Room
+  // 3. Real-Time WebSocket Connection for Staff Room
   const wsRoomType = selectedStationId === 'expo' ? 'expo' : 'station'
   const wsUrl =
-    !isDemoMode && accessToken
+    accessToken && isUuid(tenantBranchId)
       ? `/ws/branches/${tenantBranchId}?token=${accessToken}&room_type=${wsRoomType}${
-          selectedStationId !== 'expo' ? `&station_id=${selectedStationId}` : ''
+          selectedStationId !== 'expo' && isUuid(selectedStationId) ? `&station_id=${selectedStationId}` : ''
         }`
       : null
 
@@ -259,152 +164,156 @@ export const KDSPage: FC = () => {
         } else if (data.event === 'TICKET_BUMPED' && data.order_id) {
           removeTicket(data.order_id)
         }
-      } catch (err) {
-        console.warn('KDS WS message error', err)
+      } catch {
+        // Ignore parse error
       }
     },
   })
 
-  // 3. 1-Tap Item Status Bump Action
-  const handleBumpItem = async (orderItemId: string, targetStatus: OrderItemStatus) => {
-    // Optimistic UI update
+  // Filter tickets by selected station tab
+  const filteredTickets = useMemo(() => {
+    if (!tickets || tickets.length === 0) return []
+    if (selectedStationId === 'expo') {
+      return tickets
+    }
+    return tickets
+      .map((t) => ({
+        ...t,
+        items: t.items.filter((item) => item.kitchen_station_id === selectedStationId),
+      }))
+      .filter((t) => t.items.length > 0)
+  }, [tickets, selectedStationId])
+
+  // Handlers for Bumping and Recalling Items/Tickets
+  const handleItemStatusBump = async (
+    orderItemId: string,
+    targetStatus: OrderItemStatus
+  ) => {
     bumpItemStatus(orderItemId, targetStatus)
 
-    if (!isDemoMode) {
-      await api.post(
-        `/businesses/${tenantBizId}/branches/${tenantBranchId}/kds/items/${orderItemId}/bump`,
-        { target_status: targetStatus }
-      )
-    }
-  }
-
-  // 4. 1-Tap Ticket Bump Action
-  const handleBumpTicket = async (orderId: string) => {
-    // Optimistic removal from active screen
-    removeTicket(orderId)
-
-    if (!isDemoMode) {
-      if (selectedStationId === 'expo') {
-        // Expo bump all items
-        await api.post(
-          `/businesses/${tenantBizId}/branches/${tenantBranchId}/kds/orders/${orderId}/bump-all`
-        ).catch(() => null)
-      } else {
-        await api.post(
-          `/businesses/${tenantBizId}/branches/${tenantBranchId}/kds/orders/${orderId}/station/${selectedStationId}/bump`,
-          { target_status: 'ready_to_serve' }
-        ).catch(() => null)
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      try {
+        await api.patch(
+          `/businesses/${tenantBizId}/branches/${tenantBranchId}/kds/items/${orderItemId}/status`,
+          { status: targetStatus }
+        )
+      } catch {
+        // Ignore non-blocking error
       }
     }
   }
 
-  // 5. Recall Ticket to Active Screen
-  const handleRecallTicket = (ticket: KDSTicket) => {
-    addTicket(ticket)
-    setRecalledTickets(recalledTickets.filter((t) => t.order_id !== ticket.order_id))
+  const handleTicketBump = async (orderId: string) => {
+    const targetTicket = tickets.find((t) => t.order_id === orderId)
+    if (targetTicket) {
+      setRecalledTickets([targetTicket, ...recalledTickets])
+    }
+    removeTicket(orderId)
+
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      try {
+        await api.post(
+          `/businesses/${tenantBizId}/branches/${tenantBranchId}/kds/orders/${orderId}/bump`
+        ).catch(() => null)
+      } catch {
+        // Non-blocking
+      }
+    }
   }
 
-  // Filter tickets by station if in individual station tab
-  const filteredTickets = useMemo(() => {
-    if (selectedStationId === 'expo') {
-      return tickets
-    }
-    return tickets.map((t) => ({
-      ...t,
-      items: t.items.filter((i) => !i.kitchen_station_id || i.kitchen_station_id === selectedStationId),
-    })).filter((t) => t.items.length > 0)
-  }, [tickets, selectedStationId])
-
-  // Count tickets by station
-  const ticketCountByStation = useMemo(() => {
-    const counts: Record<string, number> = {}
-    stations.forEach((st) => {
-      counts[st.id] = tickets.filter((t) =>
-        t.items.some((i) => i.kitchen_station_id === st.id)
-      ).length
-    })
-    return counts
-  }, [stations, tickets])
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 text-center space-y-3">
-        <RefreshCw className="w-6 h-6 text-zinc-400 animate-spin" />
-        <p className="text-xs text-zinc-500">
-          {language === 'km' ? 'កំពុងបើកប្រព័ន្ធផ្ទះបាយ...' : 'Connecting to Kitchen Station...'}
-        </p>
-      </div>
-    )
+  const handleTicketRecall = (ticket: KDSTicket) => {
+    setRecalledTickets(recalledTickets.filter((t) => t.order_id !== ticket.order_id))
+    addTicket(ticket)
   }
 
   return (
-    <div className="min-h-screen bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased flex flex-col justify-between">
-      <div>
-        {/* Sticky Header */}
-        <KDSHeader
-          branchName="Siem Reap Bistro"
-          isConnected={isConnected || isDemoMode}
-          onRefresh={fetchKDSData}
-          isRefreshing={isRefreshing}
-        />
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col selection:bg-amber-500 selection:text-black">
+      {/* 1. Header */}
+      <KDSHeader
+        branchName="Kitchen Display System"
+        isConnected={isConnected}
+        onRefresh={fetchKDSData}
+        isRefreshing={isRefreshing}
+      />
 
-        {/* Station Tabs */}
+      {/* 2. Station Switcher Tabs */}
+      <div className="border-b border-zinc-800 bg-zinc-900/60 px-4 py-2.5 flex items-center justify-between gap-4">
         <KDSStationTabs
           stations={stations}
           selectedStationId={selectedStationId}
           onSelectStation={setSelectedStation}
-          ticketCountByStation={ticketCountByStation}
         />
 
-        {/* Main Ticket Grid */}
-        <main className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
-          {/* Inline Error (Zero Shadows, Plain Red Text, No Outer Container) */}
-          {loadError && (
-            <div className="flex items-center gap-1.5 text-xs text-red-500 justify-center">
-              <AlertCircle className="w-4 h-4" />
-              <span>{loadError}</span>
-            </div>
-          )}
-
-          {filteredTickets.length === 0 ? (
-            /* Empty Queue State */
-            <div className="py-24 text-center space-y-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 max-w-md mx-auto p-8">
-              <div className="w-12 h-12 rounded-xl border border-zinc-200 dark:border-zinc-800 flex items-center justify-center mx-auto text-zinc-400">
-                <Utensils className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-bold text-sm text-zinc-950 dark:text-zinc-50">
-                  {language === 'km' ? 'គ្មានការកុម្ម៉ង់កំពុងរង់ចាំទេ' : 'All Clear! No Pending Tickets'}
-                </h3>
-                <p className="text-xs text-zinc-500 leading-relaxed">
-                  {language === 'km'
-                    ? 'ការកុម្ម៉ង់ថ្មីពីភ្ញៀវនឹងបង្ហាញនៅលើអេក្រង់នេះដោយស្វ័យប្រវត្តិ។'
-                    : 'New orders from table QR scans and waiter POS will appear here instantly.'}
-                </p>
-              </div>
-            </div>
-          ) : (
-            /* Responsive Multi-Column Tickets Grid */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
-              {filteredTickets.map((ticket) => (
-                <KDSTicketCard
-                  key={ticket.order_id}
-                  ticket={ticket}
-                  onBumpItem={handleBumpItem}
-                  onBumpTicket={handleBumpTicket}
-                />
-              ))}
-            </div>
-          )}
-        </main>
+        <button
+          type="button"
+          onClick={fetchKDSData}
+          disabled={isRefreshing}
+          className="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors flex items-center gap-1.5 text-xs font-semibold shrink-0"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+          <span className="hidden sm:inline">
+            {language === 'km' ? 'ផ្ទុកឡើងវិញ' : 'Refresh'}
+          </span>
+        </button>
       </div>
 
-      {/* Recall Drawer */}
+      {/* 3. Main Stage: Ticket Grid Viewport */}
+      <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+        {isLoading ? (
+          <div className="h-96 flex flex-col items-center justify-center gap-3 text-zinc-500">
+            <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
+            <p className="text-sm font-medium">
+              {language === 'km' ? 'កំពុងទាញយកសំបុត្រពីផ្ទះបាយ...' : 'Loading kitchen tickets...'}
+            </p>
+          </div>
+        ) : loadError ? (
+          <div className="h-96 flex flex-col items-center justify-center gap-3 text-center max-w-md mx-auto">
+            <AlertCircle className="w-10 h-10 text-rose-500" />
+            <p className="text-sm text-zinc-300">{loadError}</p>
+            <button
+              type="button"
+              onClick={fetchKDSData}
+              className="px-4 py-2 rounded-lg bg-amber-500 text-black font-bold text-xs uppercase tracking-wider hover:bg-amber-400"
+            >
+              {language === 'km' ? 'ព្យាយាមម្តងទៀត' : 'Try Again'}
+            </button>
+          </div>
+        ) : filteredTickets.length === 0 ? (
+          <div className="h-96 flex flex-col items-center justify-center gap-3 text-center text-zinc-600">
+            <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500">
+              <Utensils className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-base font-bold text-zinc-400">
+                {language === 'km' ? 'គ្មានការកុម្ម៉ង់សកម្មក្នុងផ្ទះបាយទេ' : 'No Active Kitchen Orders'}
+              </p>
+              <p className="text-xs text-zinc-600 mt-1 max-w-sm">
+                {language === 'km'
+                  ? 'ការកុម្ម៉ង់ថ្មីដែលបានដាក់ពីតុ ឬពីផ្នែក POS នឹងបង្ហាញនៅទីនេះដោយស្វ័យប្រវត្តិ។'
+                  : 'New orders placed from customer QR codes or POS will appear here automatically.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
+            {filteredTickets.map((ticket) => (
+              <KDSTicketCard
+                key={ticket.order_id}
+                ticket={ticket}
+                onBumpItem={handleItemStatusBump}
+                onBumpTicket={handleTicketBump}
+              />
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* 4. Recalled Orders Bottom Drawer */}
       <KDSRecallDrawer
         isOpen={isRecallOpen}
-        onClose={() => setIsRecallOpen(false)}
         recalledTickets={recalledTickets}
-        onRecallTicket={handleRecallTicket}
+        onClose={() => setIsRecallOpen(false)}
+        onRecallTicket={handleTicketRecall}
       />
     </div>
   )

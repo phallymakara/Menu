@@ -459,8 +459,8 @@ async def test_inventory_multi_branch_security_boundaries(inventory_setup):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         biz_id = inventory_setup["business_id"]
-        br_a_id = inventory_setup["branch_a_id"]
         br_b_id = inventory_setup["branch_b_id"]
+
 
         # Create Item
         res_create = await client.post(

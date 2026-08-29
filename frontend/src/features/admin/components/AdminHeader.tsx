@@ -1,77 +1,186 @@
-import { useState, type FC } from 'react'
+import { useState, useEffect, useCallback, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Utensils, LogOut, Menu as MenuIcon, Camera, ChevronDown, Plus, Check, X } from 'lucide-react'
+import {
+  Utensils,
+  LogOut,
+  Menu as MenuIcon,
+  Camera,
+  ChevronDown,
+  Plus,
+  Check,
+  X,
+  Loader2,
+  Building2,
+} from 'lucide-react'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { useOnboardingStore } from '@/features/onboarding/stores/useOnboardingStore'
-import type { BranchForm } from '@/features/onboarding/types/onboarding.types'
+import { api } from '@/lib/api'
+
+const isUuid = (id?: string | null): boolean =>
+  !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+
+export interface RealBranch {
+  id: string
+  business_id: string
+  name_en: string
+  name_km?: string | null
+  code: string
+  phone?: string | null
+  address?: string | null
+  is_active: boolean
+}
 
 export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSidebar }) => {
   const { language } = useLanguageStore()
   const { user, logout } = useAuthStore()
-  const { businessProfile, branch, branches, switchBranch, addBranch } = useOnboardingStore()
   const navigate = useNavigate()
 
+  const [businessId, setBusinessId] = useState<string | null>(
+    localStorage.getItem('emenu_business_id')
+  )
+  const [businessName, setBusinessName] = useState({
+    en: 'Restaurant Menu',
+    km: 'ម៉ឺនុយភោជនីយដ្ឋាន',
+  })
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+
+  const [branches, setBranches] = useState<RealBranch[]>([])
+  const [activeBranchId, setActiveBranchId] = useState<string | null>(
+    localStorage.getItem('emenu_branch_id')
+  )
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false)
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false)
   const [isCreateBranchModalOpen, setIsCreateBranchModalOpen] = useState(false)
+  const [isCreatingBranch, setIsCreatingBranch] = useState(false)
 
-  const [newBranchForm, setNewBranchForm] = useState<BranchForm>({
+  const [newBranchForm, setNewBranchForm] = useState({
     name_en: '',
     name_km: '',
-    branch_code: '',
+    code: '',
     phone: '',
     address: '',
-    opening_time: '07:00',
-    closing_time: '22:00',
-    bakong_account_id: branch.bakong_account_id || '',
-    bakong_merchant_name: branch.bakong_merchant_name || '',
-    bakong_acquiring_bank: branch.bakong_acquiring_bank || 'ABA Bank',
   })
   const [branchErrors, setBranchErrors] = useState<Record<string, string>>({})
 
+  // 1. Fetch Real Business and Branches from PostgreSQL Database
+  const fetchBranches = useCallback(async () => {
+    setIsLoadingBranches(true)
+    try {
+      let bizId = businessId
+
+      if (!isUuid(bizId)) {
+        const bizRes = await api.get('/businesses').catch(() => ({ data: [] }))
+        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
+          bizId = bizRes.data[0].id
+          setBusinessId(bizId)
+          localStorage.setItem('emenu_business_id', bizId!)
+          if (bizRes.data[0].name_en) {
+            setBusinessName({
+              en: bizRes.data[0].name_en,
+              km: bizRes.data[0].name_km || bizRes.data[0].name_en,
+            })
+          }
+          if (bizRes.data[0].logo_url) {
+            setLogoUrl(bizRes.data[0].logo_url)
+          }
+        }
+      }
+
+      if (isUuid(bizId)) {
+        const branchRes = await api.get(`/businesses/${bizId}/branches`)
+        if (Array.isArray(branchRes.data)) {
+          setBranches(branchRes.data)
+
+          const savedBranchId = localStorage.getItem('emenu_branch_id')
+          const exists = branchRes.data.some((b: RealBranch) => b.id === savedBranchId)
+
+          if (!savedBranchId || !exists) {
+            if (branchRes.data.length > 0) {
+              const defaultBranch = branchRes.data[0].id
+              setActiveBranchId(defaultBranch)
+              localStorage.setItem('emenu_branch_id', defaultBranch)
+            }
+          } else {
+            setActiveBranchId(savedBranchId)
+          }
+        }
+      }
+    } catch {
+      // Handled cleanly
+    } finally {
+      setIsLoadingBranches(false)
+    }
+  }, [businessId])
+
+  useEffect(() => {
+    fetchBranches()
+  }, [fetchBranches])
+
+  const currentBranch = branches.find((b) => b.id === activeBranchId) || branches[0]
+
+  const handleSwitchBranch = (branchId: string) => {
+    setActiveBranchId(branchId)
+    localStorage.setItem('emenu_branch_id', branchId)
+    setIsBranchDropdownOpen(false)
+    // Dispatch a custom event so other components refresh their data for the new branch
+    window.dispatchEvent(new CustomEvent('emenu:branch-changed', { detail: { branchId } }))
+  }
+
   const validateNewBranch = () => {
     const errs: Record<string, string> = {}
-    if (!newBranchForm.name_km.trim()) {
-      errs.name_km = language === 'km' ? 'សូមបញ្ចូលឈ្មោះសាខាជាភាសាខ្មែរ' : 'Branch Khmer name is required'
-    }
     if (!newBranchForm.name_en.trim()) {
       errs.name_en = language === 'km' ? 'សូមបញ្ចូលឈ្មោះសាខាជាភាសាអង់គ្លេស' : 'Branch English name is required'
     }
-    if (!newBranchForm.branch_code.trim()) {
-      errs.branch_code = language === 'km' ? 'សូមបញ្ចូលកូដសម្គាល់សាខា' : 'Branch code is required'
+    if (!newBranchForm.name_km.trim()) {
+      errs.name_km = language === 'km' ? 'សូមបញ្ចូលឈ្មោះសាខាជាភាសាខ្មែរ' : 'Branch Khmer name is required'
     }
-    if (!newBranchForm.phone.trim()) {
-      errs.phone = language === 'km' ? 'សូមបញ្ចូលលេខទូរស័ព្ទ' : 'Phone number is required'
+    if (!newBranchForm.code.trim()) {
+      errs.code = language === 'km' ? 'សូមបញ្ចូលកូដសម្គាល់សាខា' : 'Branch code is required'
     }
     setBranchErrors(errs)
     return Object.keys(errs).length === 0
   }
 
-  const handleCreateNewBranch = (e: React.FormEvent) => {
+  // 2. Create Real Branch in Database
+  const handleCreateNewBranch = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateNewBranch()) return
 
-    addBranch({
-      ...newBranchForm,
-      bakong_merchant_name: newBranchForm.bakong_merchant_name || newBranchForm.name_en.toUpperCase(),
-    })
+    if (!isUuid(businessId)) {
+      alert('Business not found. Please reload.')
+      return
+    }
 
-    setNewBranchForm({
-      name_en: '',
-      name_km: '',
-      branch_code: '',
-      phone: '',
-      address: '',
-      opening_time: '07:00',
-      closing_time: '22:00',
-      bakong_account_id: branch.bakong_account_id || '',
-      bakong_merchant_name: '',
-      bakong_acquiring_bank: 'ABA Bank',
-    })
-    setBranchErrors({})
-    setIsCreateBranchModalOpen(false)
+    setIsCreatingBranch(true)
+    try {
+      const res = await api.post(`/businesses/${businessId}/branches`, {
+        name_en: newBranchForm.name_en.trim(),
+        name_km: newBranchForm.name_km.trim() || newBranchForm.name_en.trim(),
+        code: newBranchForm.code.trim().toUpperCase(),
+        phone: newBranchForm.phone.trim() || null,
+        address: newBranchForm.address.trim() || null,
+      })
+
+      if (res.data?.id) {
+        setNewBranchForm({
+          name_en: '',
+          name_km: '',
+          code: '',
+          phone: '',
+          address: '',
+        })
+        setBranchErrors({})
+        setIsCreateBranchModalOpen(false)
+        await fetchBranches()
+        handleSwitchBranch(res.data.id)
+      }
+    } catch {
+      alert(language === 'km' ? 'មិនអាចបង្កើតសាខាបានទេ' : 'Failed to create branch')
+    } finally {
+      setIsCreatingBranch(false)
+    }
   }
 
   const handleLogout = () => {
@@ -79,7 +188,18 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
     navigate('/login')
   }
 
-  const branchName = language === 'km' && branch.name_km ? branch.name_km : branch.name_en
+  const displayBranchName =
+    activeBranchId === 'all'
+      ? language === 'km'
+        ? 'សាខាទាំងអស់'
+        : 'All Branches'
+      : currentBranch
+      ? language === 'km' && currentBranch.name_km
+        ? currentBranch.name_km
+        : currentBranch.name_en
+      : language === 'km'
+      ? 'ជ្រើសរើសសាខា'
+      : 'Select Branch'
 
   return (
     <header className="bg-white dark:bg-zinc-950 sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800">
@@ -97,12 +217,8 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
 
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center text-white overflow-hidden shrink-0">
-              {businessProfile.logo_url ? (
-                <img
-                  src={businessProfile.logo_url}
-                  alt="Logo"
-                  className="w-full h-full object-cover"
-                />
+              {logoUrl ? (
+                <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
               ) : (
                 <Utensils className="w-4 h-4" />
               )}
@@ -110,7 +226,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-sm sm:text-base tracking-tight text-zinc-950 dark:text-zinc-50 block leading-tight">
-                  {language === 'km' && businessProfile.name_km ? businessProfile.name_km : businessProfile.name_en}
+                  {language === 'km' ? businessName.km : businessName.en}
                 </span>
 
                 {/* Branch Switcher Button */}
@@ -120,7 +236,8 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                     onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
                     className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-semibold border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer"
                   >
-                    <span>{branchName}</span>
+                    <Building2 className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>{displayBranchName}</span>
                     <ChevronDown className="w-4 h-4 text-zinc-400" />
                   </button>
 
@@ -131,34 +248,65 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                         className="fixed inset-0 z-40"
                         onClick={() => setIsBranchDropdownOpen(false)}
                       />
-                      <div className="absolute left-0 mt-1.5 w-72 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-2 z-50 space-y-1">
+                      <div className="absolute left-0 mt-1.5 w-72 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-2 z-50 space-y-1 shadow-lg">
                         <div className="px-3 py-1.5 text-xs font-bold text-zinc-500 uppercase tracking-wider">
                           {language === 'km' ? 'ជ្រើសរើសសាខា' : 'Select Branch'}
                         </div>
-                        {branches.map((b) => {
-                          const isCurrent = b.branch_code === branch.branch_code
-                          return (
-                            <button
-                              key={b.branch_code}
-                              type="button"
-                              onClick={() => {
-                                switchBranch(b.branch_code)
-                                setIsBranchDropdownOpen(false)
-                              }}
-                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold text-left transition-colors ${
-                                isCurrent
-                                  ? 'bg-zinc-100 dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400'
-                                  : 'text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900'
-                              }`}
-                            >
-                              <div>
-                                <div className="leading-tight">{language === 'km' && b.name_km ? b.name_km : b.name_en}</div>
-                                <div className="text-xs text-zinc-400 font-normal font-mono mt-0.5">{b.branch_code}</div>
-                              </div>
-                              {isCurrent && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
-                            </button>
-                          )
-                        })}
+
+                        {/* Option: All Branches */}
+                        <button
+                          type="button"
+                          onClick={() => handleSwitchBranch('all')}
+                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold text-left transition-colors ${
+                            activeBranchId === 'all'
+                              ? 'bg-zinc-100 dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400'
+                              : 'text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900'
+                          }`}
+                        >
+                          <div>
+                            <div className="leading-tight">
+                              {language === 'km' ? 'សាខាទាំងអស់' : 'All Branches'}
+                            </div>
+                            <div className="text-xs text-zinc-400 font-normal mt-0.5">
+                              {language === 'km' ? 'បង្ហាញទិន្នន័យគ្រប់សាខា' : 'View all branches'}
+                            </div>
+                          </div>
+                          {activeBranchId === 'all' && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
+                        </button>
+
+                        {isLoadingBranches ? (
+                          <div className="p-4 text-center text-xs text-zinc-500 flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                            <span>{language === 'km' ? 'កំពុងទាញយក...' : 'Loading branches...'}</span>
+                          </div>
+                        ) : (
+                          branches.map((b) => {
+                            const isCurrent = b.id === activeBranchId
+                            return (
+                              <button
+                                key={b.id}
+                                type="button"
+                                onClick={() => handleSwitchBranch(b.id)}
+                                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold text-left transition-colors ${
+                                  isCurrent
+                                    ? 'bg-zinc-100 dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400'
+                                    : 'text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900'
+                                }`}
+                              >
+                                <div>
+                                  <div className="leading-tight">
+                                    {language === 'km' && b.name_km ? b.name_km : b.name_en}
+                                  </div>
+                                  <div className="text-xs text-zinc-400 font-normal font-mono mt-0.5">
+                                    {b.code}
+                                  </div>
+                                </div>
+                                {isCurrent && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
+                              </button>
+                            )
+                          })
+                        )}
+
 
                         <div className="pt-1.5 border-t border-zinc-100 dark:border-zinc-800">
                           <button
@@ -209,11 +357,24 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                 id="my-profile-avatar-input"
                 type="file"
                 accept="image/*"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0]
                   if (file) {
-                    const url = URL.createObjectURL(file)
-                    useAuthStore.getState().updateUser({ avatar_url: url })
+                    const formData = new FormData()
+                    formData.append('file', file)
+                    try {
+                      const res = await api.post('/media/upload', formData, {
+                        headers: { 'Content-Type': 'multipart/form-data' },
+                      })
+                      const url = res.data?.url || res.data?.media_url
+                      if (url) {
+                        useAuthStore.getState().updateUser({ avatar_url: url })
+                      }
+                    } catch {
+                      // Fallback preview
+                      const url = URL.createObjectURL(file)
+                      useAuthStore.getState().updateUser({ avatar_url: url })
+                    }
                   }
                 }}
                 className="hidden"
@@ -241,7 +402,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
         </div>
       </div>
 
-      {/* Modal: Create New Branch */}
+      {/* Modal: Create New Branch in PostgreSQL Database */}
       {isCreateBranchModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -320,48 +481,36 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                   </label>
                   <input
                     type="text"
-                    value={newBranchForm.branch_code}
+                    value={newBranchForm.code}
                     onChange={(e) => {
-                      setNewBranchForm({ ...newBranchForm, branch_code: e.target.value.toUpperCase() })
-                      if (branchErrors.branch_code) setBranchErrors((prev) => ({ ...prev, branch_code: '' }))
+                      setNewBranchForm({ ...newBranchForm, code: e.target.value.toUpperCase() })
+                      if (branchErrors.code) setBranchErrors((prev) => ({ ...prev, code: '' }))
                     }}
                     placeholder="TK-02"
                     className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm font-mono outline-none ${
-                      branchErrors.branch_code
+                      branchErrors.code
                         ? 'border-red-500 focus:border-red-500'
                         : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
                     }`}
                   />
-                  {branchErrors.branch_code && (
+                  {branchErrors.code && (
                     <div className="text-red-600 dark:text-red-400 text-xs font-medium mt-1">
-                      {branchErrors.branch_code}
+                      {branchErrors.code}
                     </div>
                   )}
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 block">
-                    {language === 'km' ? 'លេខទូរស័ព្ទ' : 'Phone Number'} *
+                    {language === 'km' ? 'លេខទូរស័ព្ទ' : 'Phone Number'}
                   </label>
                   <input
                     type="text"
                     value={newBranchForm.phone}
-                    onChange={(e) => {
-                      setNewBranchForm({ ...newBranchForm, phone: e.target.value })
-                      if (branchErrors.phone) setBranchErrors((prev) => ({ ...prev, phone: '' }))
-                    }}
+                    onChange={(e) => setNewBranchForm({ ...newBranchForm, phone: e.target.value })}
                     placeholder="012 345 678"
-                    className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm outline-none ${
-                      branchErrors.phone
-                        ? 'border-red-500 focus:border-red-500'
-                        : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
-                    }`}
+                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
                   />
-                  {branchErrors.phone && (
-                    <div className="text-red-600 dark:text-red-400 text-xs font-medium mt-1">
-                      {branchErrors.phone}
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -388,9 +537,11 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                 </button>
                 <button
                   type="submit"
-                  className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={isCreatingBranch}
+                  className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2"
                 >
-                  {language === 'km' ? 'បង្កើតសាខា' : 'Create Branch'}
+                  {isCreatingBranch && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>{language === 'km' ? 'បង្កើតសាខា' : 'Create Branch'}</span>
                 </button>
               </div>
             </form>

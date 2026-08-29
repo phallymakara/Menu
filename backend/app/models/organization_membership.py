@@ -96,11 +96,17 @@ class OrganizationMembership(
         nullable=True,
     )
 
+    pos_pin: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
     is_owner: Mapped[bool] = mapped_column(
         Boolean,
         default=False,
         nullable=False,
     )
+
 
     invitation_token_hash: Mapped[str | None] = mapped_column(
         String(255),

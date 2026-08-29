@@ -59,12 +59,20 @@ export interface DiningTable {
 
 export interface StaffMember {
   id: string
+  organization_id?: string
+  user_id?: string
+  branch_id?: string | null
   full_name: string
-  phone: string
+  phone?: string | null
   email?: string | null
   avatar_url?: string | null
-  role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'CHEF'
-  pin_code: string
+  role: 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'CHEF' | 'INVENTORY' | 'MENU_EDITOR' | 'REPORT_VIEWER'
+  job_title?: string | null
+  pos_pin?: string | null
+  pin_code?: string | null
+  is_owner?: boolean
   is_active: boolean
+  status?: string
   created_at: string
 }
+

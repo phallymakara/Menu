@@ -15,18 +15,22 @@ For the full feature breakdown, architectural diagrams, API reference matrix, an
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
+# 1. Start local PostgreSQL & Redis containers (from project root)
+docker compose up -d
+
+# 2. Install dependencies
 uv sync
 
-# 2. Run database migrations
+# 3. Run database migrations
 uv run alembic upgrade head
 
-# 3. Start development server
+# 4. Start development server
 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 - **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - **ReDoc:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
+
 
 ---
 

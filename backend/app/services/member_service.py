@@ -114,17 +114,24 @@ async def invite_member(
         user = user_result.scalar_one_or_none()
 
     if user is None:
-        # Create a placeholder invited user
+        # Create a user (activated if password is provided directly, otherwise invited)
         user = User(
             email=payload.email,
             phone=payload.phone,
             full_name=payload.full_name,
-            password_hash=hash_password(secrets.token_urlsafe(24)),
-            status=UserStatus.INVITED,
-            is_verified=False,
+            avatar_url=payload.avatar_url,
+            password_hash=hash_password(payload.password) if payload.password else hash_password(secrets.token_urlsafe(24)),
+            status=UserStatus.ACTIVE if payload.password else UserStatus.INVITED,
+            is_verified=bool(payload.password),
         )
         session.add(user)
         await session.flush()
+    else:
+        if payload.avatar_url:
+            user.avatar_url = payload.avatar_url
+        if payload.password:
+            user.password_hash = hash_password(payload.password)
+            user.status = UserStatus.ACTIVE
 
     # 3. Check existing membership in this organization
     mem_result = await session.execute(
@@ -145,27 +152,31 @@ async def invite_member(
     token_hash = _hash_token(raw_token)
     expires_at = datetime.now(UTC) + timedelta(days=7)
 
+    membership_status = MembershipStatus.ACTIVE if payload.password else MembershipStatus.INVITED
+
     if membership is None:
         membership = OrganizationMembership(
             organization_id=org_id,
             user_id=user.id,
             branch_id=payload.branch_id,
             role=payload.role,
-            status=MembershipStatus.INVITED,
+            status=membership_status,
             job_title=payload.job_title,
+            pos_pin=payload.pos_pin,
             is_owner=(payload.role == StaffRole.OWNER),
-            invitation_token_hash=token_hash,
-            invitation_expires_at=expires_at,
+            invitation_token_hash=token_hash if not payload.password else None,
+            invitation_expires_at=expires_at if not payload.password else None,
             invited_by_user_id=tenant.user_id,
         )
         session.add(membership)
     else:
         membership.branch_id = payload.branch_id
         membership.role = payload.role
-        membership.status = MembershipStatus.INVITED
+        membership.status = membership_status
         membership.job_title = payload.job_title
-        membership.invitation_token_hash = token_hash
-        membership.invitation_expires_at = expires_at
+        membership.pos_pin = payload.pos_pin
+        membership.invitation_token_hash = token_hash if not payload.password else None
+        membership.invitation_expires_at = expires_at if not payload.password else None
         membership.invited_by_user_id = tenant.user_id
 
     await session.commit()
@@ -180,7 +191,7 @@ async def invite_member(
         user_id=tenant.user_id,
         resource_type="member",
         resource_id=str(membership.id),
-        details={"invited_email": payload.email, "role": payload.role.value},
+        details={"invited_email": payload.email, "role": payload.role.value, "branch_id": str(payload.branch_id) if payload.branch_id else None},
     )
     await session.commit()
 
@@ -202,7 +213,10 @@ async def invite_member(
         expires_at=expires_at,
         email=user.email,
         phone=user.phone,
+        pos_pin=membership.pos_pin,
+        avatar_url=user.avatar_url,
     )
+
 
 
 async def accept_invitation(
@@ -327,9 +341,11 @@ async def list_members(
             email=m.user.email,
             phone=m.user.phone,
             full_name=m.user.full_name,
+            avatar_url=m.user.avatar_url,
             role=m.role,
             is_owner=m.is_owner,
             job_title=m.job_title,
+            pos_pin=m.pos_pin,
             status=m.status,
             branch_id=m.branch_id,
             created_at=m.created_at,
@@ -370,9 +386,11 @@ async def get_member(
         email=membership.user.email,
         phone=membership.user.phone,
         full_name=membership.user.full_name,
+        avatar_url=membership.user.avatar_url,
         role=membership.role,
         is_owner=membership.is_owner,
         job_title=membership.job_title,
+        pos_pin=membership.pos_pin,
         status=membership.status,
         branch_id=membership.branch_id,
         created_at=membership.created_at,
@@ -388,7 +406,7 @@ async def update_member(
     payload: MemberUpdate,
 ) -> MemberResponse:
     """
-    Updates a staff member's role, branch assignment, title, or status.
+    Updates a staff member's role, branch assignment, title, PIN, avatar, or status.
     """
     caller = await _verify_admin_access(session, tenant, org_id)
 
@@ -422,12 +440,25 @@ async def update_member(
             raise TenantNotFoundError("Assigned branch not found in organization.")
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    # User fields
+    if "full_name" in update_data and update_data["full_name"] is not None:
+        membership.user.full_name = update_data.pop("full_name")
+    if "phone" in update_data:
+        membership.user.phone = update_data.pop("phone")
+    if "email" in update_data:
+        membership.user.email = update_data.pop("email")
+    if "avatar_url" in update_data:
+        membership.user.avatar_url = update_data.pop("avatar_url")
+
+    # Membership fields
     for field, value in update_data.items():
         setattr(membership, field, value)
 
     # If role changed to OWNER, set is_owner
     if "role" in update_data:
         membership.is_owner = update_data["role"] == StaffRole.OWNER
+
 
     await session.commit()
     await session.refresh(membership)

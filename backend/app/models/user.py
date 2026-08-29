@@ -52,7 +52,13 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
 
+    avatar_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True,
+    )
+
     status: Mapped[UserStatus] = mapped_column(
+
         Enum(
             UserStatus,
             name="user_status",

@@ -38,6 +38,11 @@ router = APIRouter(tags=["Organization Staff & Members"])
 
 
 @router.post(
+    "/organizations/{org_id}/members",
+    response_model=InviteResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+@router.post(
     "/organizations/{org_id}/members/invite",
     response_model=InviteResponse,
     status_code=status.HTTP_201_CREATED,
@@ -48,6 +53,7 @@ async def invite_staff_member(
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> InviteResponse:
+
     """
     Invite a staff member by email or phone with an assigned role and branch.
     """

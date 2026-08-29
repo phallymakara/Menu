@@ -14,7 +14,7 @@ from app.core.phone import normalize_cambodian_phone
 from app.core.security import hash_password, verify_password
 from app.models.branch import Branch
 from app.models.business import Business
-from app.models.enums import MembershipStatus, OrganizationStatus, UserStatus
+from app.models.enums import MembershipStatus, OrganizationStatus, StaffRole, UserStatus
 from app.models.organization import Organization
 from app.models.organization_membership import OrganizationMembership
 from app.models.user import User
@@ -145,10 +145,12 @@ async def register_owner(
     membership = OrganizationMembership(
         organization_id=organization.id,
         user_id=user.id,
+        role=StaffRole.OWNER,
         status=MembershipStatus.ACTIVE,
         job_title="Owner",
         is_owner=True,
     )
+
 
     # 6. Create initial business
     business = Business(

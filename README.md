@@ -213,6 +213,7 @@ Menu/
 
 ### 1. Prerequisites
 - **Python 3.13+**
+- **Docker & Docker Compose** (for local PostgreSQL database & Redis)
 - **`uv`** package manager:
   ```bash
   # Windows (PowerShell)
@@ -224,7 +225,22 @@ Menu/
 
 ---
 
-### 2. Installation and Dependency Sync
+### 2. Local Database & Redis Setup (Docker)
+
+Start the local PostgreSQL 16 database and Redis containers:
+
+```bash
+docker compose up -d
+```
+
+To stop the containers when finished:
+```bash
+docker compose down
+```
+
+---
+
+### 3. Installation and Dependency Sync
 
 ```bash
 cd backend
@@ -233,13 +249,20 @@ uv sync
 
 ---
 
-### 3. Database Migrations
+### 4. Database Migrations
 
-Copy the `.env.example` file and configure your database credentials:
+Configure your environment file from the template:
 
 ```bash
 cp .env.example .env
 ```
+
+Ensure `DATABASE_URL` in `backend/.env` points to your local Docker instance:
+```env
+DATABASE_URL="postgresql+asyncpg://user:password@localhost:5433/emenu_dev"
+REDIS_URL="redis://localhost:6379/0"
+```
+
 
 Apply all Alembic database migrations:
 
@@ -249,7 +272,7 @@ uv run alembic upgrade head
 
 ---
 
-### 4. Running the Development Server
+### 5. Running the Development Server
 
 ```bash
 uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
@@ -257,6 +280,7 @@ uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 - **Interactive Swagger Documentation:** [http://localhost:8000/docs](http://localhost:8000/docs)
 - **ReDoc Documentation:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
 
 ---
 

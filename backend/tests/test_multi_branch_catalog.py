@@ -177,7 +177,7 @@ async def test_branch_menu_merges_master_and_local_items(multi_branch_setup):
             },
         )
         assert res_a.status_code == status.HTTP_201_CREATED
-        latte_id = res_a.json()["id"]
+        assert "id" in res_a.json()
 
         # 2. Create local item for Branch B (Riverside Sunset Cocktail)
         res_b = await client.post(
@@ -190,7 +190,8 @@ async def test_branch_menu_merges_master_and_local_items(multi_branch_setup):
             },
         )
         assert res_b.status_code == status.HTTP_201_CREATED
-        cocktail_id = res_b.json()["id"]
+        assert "id" in res_b.json()
+
 
         # 3. Fetch Published Menu for Branch A
         menu_a_res = await client.get(

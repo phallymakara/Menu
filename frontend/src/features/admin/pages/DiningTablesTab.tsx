@@ -1,4 +1,4 @@
-import { useState, type FC } from 'react'
+import { useState, useEffect, useCallback, type FC } from 'react'
 import {
   Plus,
   Printer,
@@ -6,55 +6,201 @@ import {
   Users,
   ExternalLink,
   X,
+  Loader2,
+  Download,
+  Layers,
 } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
-import { useOnboardingStore } from '@/features/onboarding/stores/useOnboardingStore'
 import { Button } from '@/components/ui/Button'
+import { api } from '@/lib/api'
 import type { DiningZone, DiningTable } from '../types/admin.types'
+
+const isUuid = (id?: string | null): boolean =>
+  !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 
 export const DiningTablesTab: FC = () => {
   const { language } = useLanguageStore()
-  const { businessProfile } = useOnboardingStore()
+
+  const [businessId, setBusinessId] = useState<string | null>(
+    localStorage.getItem('emenu_business_id')
+  )
+  const [branchId, setBranchId] = useState<string | null>(
+    localStorage.getItem('emenu_branch_id')
+  )
+
+  const [zones, setZones] = useState<DiningZone[]>([])
+  const [tables, setTables] = useState<DiningTable[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDownloadingZip, setIsDownloadingZip] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const [activeZone, setActiveZone] = useState<string>('all')
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
+  const [isZoneModalOpen, setIsZoneModalOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
   const [selectedTableForPrint, setSelectedTableForPrint] = useState<DiningTable | null>(null)
-
-  // Zones
-  const [zones] = useState<DiningZone[]>([
-    { id: 'zone-1', name_en: 'Main Hall', name_km: 'សាលធំកណ្តាល', tables_count: 8 },
-    { id: 'zone-2', name_en: 'Outdoor Terrace', name_km: 'រានហាលខាងក្រៅ', tables_count: 4 },
-    { id: 'zone-3', name_en: 'VIP Private Room', name_km: 'បន្ទប់ពិសេស VIP', tables_count: 2 },
-  ])
-
-  // Tables
-  const [tables, setTables] = useState<DiningTable[]>([
-    { id: 'tbl-1', table_number: 'T-01', zone_id: 'zone-1', zone_name: 'Main Hall', capacity: 4, qr_token: 't_bkk_01', status: 'AVAILABLE' },
-    { id: 'tbl-2', table_number: 'T-02', zone_id: 'zone-1', zone_name: 'Main Hall', capacity: 4, qr_token: 't_bkk_02', status: 'OCCUPIED' },
-    { id: 'tbl-3', table_number: 'T-03', zone_id: 'zone-1', zone_name: 'Main Hall', capacity: 2, qr_token: 't_bkk_03', status: 'AVAILABLE' },
-    { id: 'tbl-4', table_number: 'T-04', zone_id: 'zone-1', zone_name: 'Main Hall', capacity: 6, qr_token: 't_bkk_04', status: 'BILLING' },
-    { id: 'tbl-5', table_number: 'T-05', zone_id: 'zone-1', zone_name: 'Main Hall', capacity: 4, qr_token: 't_bkk_05', status: 'AVAILABLE' },
-    { id: 'tbl-6', table_number: 'T-06', zone_id: 'zone-2', zone_name: 'Outdoor Terrace', capacity: 4, qr_token: 't_bkk_06', status: 'AVAILABLE' },
-    { id: 'tbl-7', table_number: 'T-07', zone_id: 'zone-2', zone_name: 'Outdoor Terrace', capacity: 2, qr_token: 't_bkk_07', status: 'AVAILABLE' },
-    { id: 'tbl-8', table_number: 'T-08', zone_id: 'zone-2', zone_name: 'Outdoor Terrace', capacity: 4, qr_token: 't_bkk_08', status: 'OCCUPIED' },
-    { id: 'tbl-9', table_number: 'VIP-01', zone_id: 'zone-3', zone_name: 'VIP Private Room', capacity: 8, qr_token: 't_bkk_vip01', status: 'AVAILABLE' },
-    { id: 'tbl-10', table_number: 'VIP-02', zone_id: 'zone-3', zone_name: 'VIP Private Room', capacity: 10, qr_token: 't_bkk_vip02', status: 'AVAILABLE' },
-  ])
 
   // Batch Form State
   const [batchPrefix, setBatchPrefix] = useState('T-')
   const [batchCount, setBatchCount] = useState(6)
   const [batchCapacity, setBatchCapacity] = useState(4)
-  const [batchZoneId, setBatchZoneId] = useState('zone-1')
-
-  // Inline Validation Errors
+  const [batchZoneId, setBatchZoneId] = useState('')
   const [batchErrors, setBatchErrors] = useState<Record<string, string>>({})
 
-  const handleDeleteTable = (tableId: string) => {
-    setTables(tables.filter((t) => t.id !== tableId))
+  // Zone Form State
+  const [zoneForm, setZoneForm] = useState({ name_en: '', name_km: '' })
+  const [zoneErrors, setZoneErrors] = useState<Record<string, string>>({})
+
+
+
+  // 1. Resolve Tenant Context
+  const resolveTenant = useCallback(async () => {
+    let biz = businessId
+    let br = branchId
+
+    if (!isUuid(biz)) {
+      try {
+        const bizRes = await api.get('/businesses')
+        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
+          biz = bizRes.data[0].id
+          setBusinessId(biz)
+          localStorage.setItem('emenu_business_id', biz!)
+        }
+      } catch {
+        // Handled in catch
+      }
+    }
+
+    if (isUuid(biz) && !isUuid(br)) {
+      try {
+        const brRes = await api.get(`/businesses/${biz}/branches`)
+        if (Array.isArray(brRes.data) && brRes.data.length > 0) {
+          br = brRes.data[0].id
+          setBranchId(br)
+          localStorage.setItem('emenu_branch_id', br!)
+        }
+      } catch {
+        // Handled in catch
+      }
+    }
+
+    return { biz, br }
+  }, [branchId, businessId])
+
+  // 2. Fetch Isolated Tenant Zones and Tables
+  const loadData = useCallback(async () => {
+    setIsLoading(true)
+    setErrorMessage(null)
+
+    try {
+      const { biz, br } = await resolveTenant()
+
+      if (!isUuid(biz) || !isUuid(br)) {
+        setIsLoading(false)
+        return
+      }
+
+      const [zonesRes, tablesRes] = await Promise.all([
+        api.get(`/businesses/${biz}/branches/${br}/dining-areas`).catch(() => ({ data: [] })),
+        api.get(`/businesses/${biz}/branches/${br}/tables`).catch(() => ({ data: [] })),
+      ])
+
+      const rawZones: any[] = Array.isArray(zonesRes.data) ? zonesRes.data : []
+      const mappedZones: DiningZone[] = rawZones.map((z) => ({
+        id: z.id,
+        name_en: z.name_en,
+        name_km: z.name_km || z.name_en,
+        tables_count: z.tables_count || 0,
+      }))
+      setZones(mappedZones)
+      if (mappedZones.length > 0 && !batchZoneId) {
+        setBatchZoneId(mappedZones[0].id)
+      }
+
+      const rawTables: any[] = Array.isArray(tablesRes.data) ? tablesRes.data : []
+      const mappedTables: DiningTable[] = rawTables.map((t) => ({
+        id: t.id,
+        table_number: t.table_number,
+        zone_id: t.dining_area_id,
+        zone_name: t.dining_area?.name_en || 'Main Area',
+        capacity: t.capacity || 4,
+        qr_token: t.qr_code_token || t.id,
+        status: t.status || 'AVAILABLE',
+      }))
+      setTables(mappedTables)
+    } catch {
+      setErrorMessage(
+        language === 'km'
+          ? 'មិនអាចទាញយកទិន្នន័យតុបានទេ។'
+          : 'Unable to load dining tables. Please try again.'
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }, [batchZoneId, language, resolveTenant])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  // 3. Delete Table from Tenant DB
+  const handleDeleteTable = async (tableId: string) => {
+    if (!isUuid(tableId)) {
+      setTables(tables.filter((t) => t.id !== tableId))
+      return
+    }
+
+    if (!confirm(language === 'km' ? 'តើអ្នកប្រាកដជាចង់លុបតុនេះទេ?' : 'Are you sure you want to delete this table?')) {
+      return
+    }
+
+    try {
+      const { biz, br } = await resolveTenant()
+      if (isUuid(biz) && isUuid(br)) {
+        await api.delete(`/businesses/${biz}/branches/${br}/tables/${tableId}`)
+      }
+      setTables(tables.filter((t) => t.id !== tableId))
+    } catch {
+      alert(language === 'km' ? 'មិនអាចលុបតុបានទេ' : 'Failed to delete table')
+    }
   }
 
+  // 4. Create Zone Form
+  const handleCreateZone = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!zoneForm.name_en.trim()) {
+      setZoneErrors({ name_en: 'Zone name is required' })
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const { biz, br } = await resolveTenant()
+      if (isUuid(biz) && isUuid(br)) {
+        const res = await api.post(`/businesses/${biz}/branches/${br}/dining-areas`, {
+          name_en: zoneForm.name_en.trim(),
+          name_km: zoneForm.name_km.trim() || zoneForm.name_en.trim(),
+        })
+        const newZ: DiningZone = {
+          id: res.data.id,
+          name_en: res.data.name_en,
+          name_km: res.data.name_km,
+          tables_count: 0,
+        }
+        setZones((prev) => [...prev, newZ])
+        if (!batchZoneId) setBatchZoneId(newZ.id)
+      }
+      setZoneForm({ name_en: '', name_km: '' })
+      setIsZoneModalOpen(false)
+    } catch {
+      alert('Failed to create dining area')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // 5. Batch Generate Tables in Tenant DB
   const validateBatchForm = () => {
     const errs: Record<string, string> = {}
     if (!batchPrefix.trim()) {
@@ -67,34 +213,70 @@ export const DiningTablesTab: FC = () => {
     return Object.keys(errs).length === 0
   }
 
-  const handleGenerateBatch = (e: React.FormEvent) => {
+  const handleGenerateBatch = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateBatchForm()) return
 
-    const targetZone = zones.find((z) => z.id === batchZoneId)
-    const newTables: DiningTable[] = []
-    const startIdx = tables.length + 1
+    setIsSubmitting(true)
+    try {
+      const { biz, br } = await resolveTenant()
+      if (isUuid(biz) && isUuid(br)) {
+        const res = await api.post(`/businesses/${biz}/branches/${br}/tables/batch`, {
+          prefix: batchPrefix.trim(),
+          start_number: tables.length + 1,
+          count: batchCount,
+          capacity: batchCapacity,
+          dining_area_id: isUuid(batchZoneId) ? batchZoneId : null,
+        })
 
-    for (let i = 1; i <= batchCount; i++) {
-      const numStr = String(startIdx + i - 1).padStart(2, '0')
-      newTables.push({
-        id: `tbl-${Date.now()}-${i}`,
-        table_number: `${batchPrefix}${numStr}`,
-        zone_id: batchZoneId,
-        zone_name: targetZone?.name_en || 'Main Hall',
-        capacity: batchCapacity,
-        qr_token: `t_${batchPrefix.toLowerCase().replace('-', '')}_${numStr}`,
-        status: 'AVAILABLE',
-      })
+        if (Array.isArray(res.data)) {
+          const generated: DiningTable[] = res.data.map((t: any) => ({
+            id: t.id,
+            table_number: t.table_number,
+            zone_id: t.dining_area_id,
+            zone_name: zones.find((z) => z.id === t.dining_area_id)?.name_en || 'Main Area',
+            capacity: t.capacity || batchCapacity,
+            qr_token: t.qr_code_token || t.id,
+            status: t.status || 'AVAILABLE',
+          }))
+          setTables((prev) => [...prev, ...generated])
+        }
+      }
+      setBatchErrors({})
+      setIsBatchModalOpen(false)
+    } catch {
+      alert('Failed to generate batch tables')
+    } finally {
+      setIsSubmitting(false)
     }
-
-    setTables([...tables, ...newTables])
-    setBatchErrors({})
-    setIsBatchModalOpen(false)
   }
 
-  const handlePrintAll = () => {
-    window.print()
+  // 6. Download Table QR Batch ZIP Archive
+  const handleDownloadBatchZip = async () => {
+    setIsDownloadingZip(true)
+    try {
+      const { biz, br } = await resolveTenant()
+      if (isUuid(biz) && isUuid(br)) {
+        const response = await api.get(`/businesses/${biz}/branches/${br}/tables/qr/batch`, {
+          responseType: 'blob',
+        })
+        const blob = new Blob([response.data], { type: 'application/zip' })
+        const downloadUrl = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = downloadUrl
+        const branchCode = br ? br.slice(0, 8) : 'export'
+        link.download = `table_qr_codes_${branchCode}.zip`
+
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(downloadUrl)
+      }
+    } catch {
+      alert(language === 'km' ? 'មិនអាចទាញយកឯកសារ ZIP បានទេ' : 'Failed to download QR ZIP archive')
+    } finally {
+      setIsDownloadingZip(false)
+    }
   }
 
   const filteredTables = tables.filter((t) => activeZone === 'all' || t.zone_id === activeZone)
@@ -114,19 +296,55 @@ export const DiningTablesTab: FC = () => {
           </p>
         </div>
 
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={() => {
-            setBatchErrors({})
-            setIsBatchModalOpen(true)
-          }}
-          className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          {language === 'km' ? 'បង្កើតជាក្រុម' : 'Batch Generate Tables'}
-        </Button>
+        {errorMessage && (
+          <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-semibold">
+            {errorMessage}
+          </div>
+        )}
+
+
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={handleDownloadBatchZip}
+            disabled={isDownloadingZip || tables.length === 0}
+            className="text-xs font-semibold px-3 py-2"
+          >
+            {isDownloadingZip ? (
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-1.5" />
+            )}
+            {language === 'km' ? 'ទាញយក QR ZIP' : 'Download QR ZIP'}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => setIsZoneModalOpen(true)}
+            className="text-xs font-semibold px-3 py-2"
+          >
+            <Layers className="w-4 h-4 mr-1.5" />
+            {language === 'km' ? '+ តំបន់' : '+ Area'}
+          </Button>
+
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => {
+              setBatchErrors({})
+              setIsBatchModalOpen(true)
+            }}
+            className="text-xs font-semibold px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            {language === 'km' ? 'បង្កើតជាក្រុម' : 'Batch Generate'}
+          </Button>
+        </div>
       </div>
 
       {/* Zone Filter Tabs */}
@@ -161,219 +379,170 @@ export const DiningTablesTab: FC = () => {
         })}
       </div>
 
-      {/* Tables Grid (Zero Shadows, Flat Border) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {filteredTables.map((tbl) => {
-          const qrSvgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-            `${window.location.origin}/t/${tbl.qr_token}`
-          )}`
+      {/* Tables Grid */}
+      {isLoading ? (
+        <div className="h-64 flex flex-col items-center justify-center gap-2 text-zinc-500">
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+          <p className="text-xs">
+            {language === 'km' ? 'កំពុងទាញយកទិន្នន័យតុ...' : 'Loading tables...'}
+          </p>
+        </div>
+      ) : filteredTables.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-sm font-medium text-zinc-500">
+            {language === 'km' ? 'មិនទាន់មានតុនៅក្នុងតំបន់នេះទេ' : 'No tables in this area yet'}
+          </p>
+        </div>
+      ) : (
 
-          return (
-            <div
-              key={tbl.id}
-              className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between space-y-3"
-            >
-              <div className="space-y-3">
-                {/* Header: Table Number & Status */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-lg font-bold text-zinc-950 dark:text-zinc-50 font-mono">
-                      {tbl.table_number}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {filteredTables.map((tbl) => {
+            const qrSvgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+              `${window.location.origin}/t/${tbl.qr_token}`
+            )}`
+
+            return (
+              <div
+                key={tbl.id}
+                className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between space-y-3"
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-lg font-bold text-zinc-950 dark:text-zinc-50 font-mono">
+                        {tbl.table_number}
+                      </span>
+                      <span className="text-xs text-zinc-400 font-medium">({tbl.zone_name})</span>
+                    </div>
+
+                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 uppercase">
+                      {tbl.status}
                     </span>
-                    <span className="text-xs text-zinc-400 font-medium">({tbl.zone_name})</span>
                   </div>
 
-                  <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400">
-                    {tbl.status}
-                  </span>
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-500 font-medium">
+                    <Users className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>{tbl.capacity} {language === 'km' ? 'កៅអី' : 'Seats'}</span>
+                  </div>
+
+                  <div className="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center justify-center space-y-1">
+                    <img
+                      src={qrSvgUrl}
+                      alt={`QR for ${tbl.table_number}`}
+                      className="w-20 h-20 rounded bg-white p-1"
+                    />
+                    <span className="text-[10px] font-mono text-zinc-400 truncate max-w-[180px]">
+                      /t/{tbl.qr_token}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Seating Capacity */}
-                <div className="flex items-center gap-1.5 text-xs text-zinc-500 font-medium">
-                  <Users className="w-3.5 h-3.5 text-zinc-400" />
-                  <span>{tbl.capacity} {language === 'km' ? 'កៅអី' : 'Seats'}</span>
-                </div>
+                <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                  <a
+                    href={`/t/${tbl.qr_token}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>{language === 'km' ? 'មើលមីនុយ' : 'Preview'}</span>
+                  </a>
 
-                {/* QR Code Preview Box */}
-                <div className="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center justify-center space-y-1">
-                  <img
-                    src={qrSvgUrl}
-                    alt={`QR for ${tbl.table_number}`}
-                    className="w-20 h-20 rounded bg-white p-1"
-                  />
-                  <span className="text-[10px] font-mono text-zinc-400">
-                    /t/{tbl.qr_token}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTableForPrint(tbl)
+                        setIsPrintModalOpen(true)
+                      }}
+                      title="Print QR Stand"
+                      className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteTable(tbl.id)}
+                      title="Delete Table"
+                      className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
+            )
+          })}
+        </div>
+      )}
 
-              {/* Bottom Actions */}
-              <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-                <a
-                  href={`/t/${tbl.qr_token}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span>{language === 'km' ? 'មើលមីនុយ' : 'Preview'}</span>
-                </a>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedTableForPrint(tbl)
-                      setIsPrintModalOpen(true)
-                    }}
-                    title="Print QR Stand"
-                    className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteTable(tbl.id)}
-                    title="Delete Table"
-                    className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Modal: Batch Generate Tables */}
-      {isBatchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs"
-            onClick={() => setIsBatchModalOpen(false)}
-          />
-          <div className="relative w-full max-w-md bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 space-y-4 z-10">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              <h3 className="font-bold text-base text-zinc-950 dark:text-zinc-50">
-                {language === 'km' ? 'បង្កើតតុជាក្រុម' : 'Batch Generate Tables'}
-              </h3>
+      {/* Modal: Add Dining Area */}
+      {isZoneModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-sm w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
+                {language === 'km' ? 'បន្ថែមតំបន់ / បន្ទប់' : 'Add Dining Area'}
+              </h2>
               <button
                 type="button"
-                onClick={() => setIsBatchModalOpen(false)}
-                className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                onClick={() => setIsZoneModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleGenerateBatch} className="space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    {language === 'km' ? 'បុព្វបទកូដតុ (Prefix)' : 'Table Prefix'} *
-                  </label>
-                  <input
-                    type="text"
-                    value={batchPrefix}
-                    onChange={(e) => {
-                      setBatchPrefix(e.target.value)
-                      if (batchErrors.batchPrefix) setBatchErrors((prev) => ({ ...prev, batchPrefix: '' }))
-                    }}
-                    placeholder="T-"
-                    className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm font-mono outline-none ${
-                      batchErrors.batchPrefix
-                        ? 'border-red-500 focus:border-red-500'
-                        : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
-                    }`}
-                  />
-                  {batchErrors.batchPrefix && (
-                    <div className="text-red-600 dark:text-red-400 text-xs font-medium mt-1">
-                      {batchErrors.batchPrefix}
-                    </div>
-                  )}
-                </div>
+            <form onSubmit={handleCreateZone} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  {language === 'km' ? 'ឈ្មោះជាភាសាអង់គ្លេស' : 'Name (English)'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Garden Terrace"
+                  value={zoneForm.name_en}
+                  onChange={(e) => setZoneForm({ ...zoneForm, name_en: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                />
+                {zoneErrors.name_en && (
+                  <p className="text-xs text-red-500 mt-1">{zoneErrors.name_en}</p>
+                )}
 
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    {language === 'km' ? 'ចំនួនតុ (Count)' : 'Number of Tables'} *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={batchCount}
-                    onChange={(e) => {
-                      setBatchCount(parseInt(e.target.value) || 0)
-                      if (batchErrors.batchCount) setBatchErrors((prev) => ({ ...prev, batchCount: '' }))
-                    }}
-                    className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm outline-none ${
-                      batchErrors.batchCount
-                        ? 'border-red-500 focus:border-red-500'
-                        : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
-                    }`}
-                  />
-                  {batchErrors.batchCount && (
-                    <div className="text-red-600 dark:text-red-400 text-xs font-medium mt-1">
-                      {batchErrors.batchCount}
-                    </div>
-                  )}
-                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    {language === 'km' ? 'តំបន់អង្គុយ' : 'Dining Zone'} *
-                  </label>
-                  <select
-                    value={batchZoneId}
-                    onChange={(e) => setBatchZoneId(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
-                  >
-                    {zones.map((z) => (
-                      <option key={z.id} value={z.id}>
-                        {language === 'km' ? z.name_km : z.name_en}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                    {language === 'km' ? 'ចំនួនកៅអី (Seats)' : 'Seats / Capacity'} *
-                  </label>
-                  <select
-                    value={batchCapacity}
-                    onChange={(e) => setBatchCapacity(parseInt(e.target.value) || 4)}
-                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
-                  >
-                    <option value={2}>2 Seats</option>
-                    <option value={4}>4 Seats</option>
-                    <option value={6}>6 Seats</option>
-                    <option value={8}>8 Seats</option>
-                    <option value={10}>10+ Seats</option>
-                  </select>
-                </div>
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  {language === 'km' ? 'ឈ្មោះជាភាសាខ្មែរ' : 'Name (Khmer)'}
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. រានហាលសួនច្បារ"
+                  value={zoneForm.name_km}
+                  onChange={(e) => setZoneForm({ ...zoneForm, name_km: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="pt-2 flex items-center justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
-                  size="md"
-                  onClick={() => setIsBatchModalOpen(false)}
+                  size="sm"
+                  onClick={() => setIsZoneModalOpen(false)}
                 >
                   {language === 'km' ? 'បោះបង់' : 'Cancel'}
                 </Button>
                 <Button
                   type="submit"
                   variant="primary"
-                  size="md"
+                  size="sm"
+                  disabled={isSubmitting}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                 >
-                  {language === 'km' ? 'បង្កើតតុភ្លាមៗ' : 'Generate Tables'}
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : language === 'km' ? 'រក្សាទុក' : 'Save Area'}
                 </Button>
               </div>
             </form>
@@ -381,92 +550,176 @@ export const DiningTablesTab: FC = () => {
         </div>
       )}
 
-      {/* Modal: Printable QR Table Stand Package */}
-      {isPrintModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs"
-            onClick={() => {
-              setIsPrintModalOpen(false)
-              setSelectedTableForPrint(null)
-            }}
-          />
-          <div className="relative w-full max-w-2xl bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 space-y-5 z-10 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              <div>
-                <h3 className="font-bold text-base text-zinc-950 dark:text-zinc-50">
-                  {language === 'km' ? 'កាត QR កូដសម្រាប់ដាក់លើតុ' : 'Printable Table QR Stand Cards'}
-                </h3>
-                <p className="text-xs text-zinc-500">
-                  {language === 'km'
-                    ? 'ទំហំស្តង់ដារសម្រាប់បោះពុម្ពដាក់លើជើងទម្រតុអាហារ'
-                    : 'Standard acrylic stand size ready for high-resolution printing'}
-                </p>
-              </div>
+      {/* Modal: Batch Generate Tables */}
+      {isBatchModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
+                {language === 'km' ? 'បង្កើតតុជាក្រុម' : 'Batch Generate Tables'}
+              </h2>
               <button
                 type="button"
-                onClick={() => {
-                  setIsPrintModalOpen(false)
-                  setSelectedTableForPrint(null)
-                }}
-                className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                onClick={() => setIsBatchModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Printable Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {(selectedTableForPrint ? [selectedTableForPrint] : tables.slice(0, 4)).map((t) => {
-                const qrSvg = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                  `${window.location.origin}/t/${t.qr_token}`
-                )}`
-                return (
-                  <div
-                    key={t.id}
-                    className="p-5 rounded-xl border border-zinc-900 dark:border-zinc-100 bg-white text-zinc-900 flex flex-col items-center text-center space-y-3 print:border-black"
-                  >
-                    <div className="space-y-0.5">
-                      <h4 className="font-bold text-sm text-zinc-800">
-                        {businessProfile.name_en || 'E-Menu Restaurant'}
-                      </h4>
-                      <div className="text-2xl font-black font-mono tracking-tight text-emerald-600">
-                        {t.table_number}
-                      </div>
-                    </div>
+            <form onSubmit={handleGenerateBatch} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                  {language === 'km' ? 'តំបន់' : 'Dining Area / Zone'}
+                </label>
+                <select
+                  value={batchZoneId}
+                  onChange={(e) => setBatchZoneId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                >
+                  {zones.map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {language === 'km' ? z.name_km : z.name_en}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                    <img src={qrSvg} alt="QR" className="w-28 h-28 rounded bg-white" />
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                    {language === 'km' ? 'បុព្វបទ' : 'Prefix'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={batchPrefix}
+                    onChange={(e) => setBatchPrefix(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm font-mono focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
 
-                    <div className="space-y-0.5 text-xs text-zinc-600">
-                      <p className="font-bold">ស្កេនដើម្បីមើលមីនុយ & កុម្ម៉ង់ម្ហូប</p>
-                      <p className="text-[10px] text-zinc-400">Scan to View Menu & Order</p>
-                    </div>
-                  </div>
-                )
-              })}
+                <div>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                    {language === 'km' ? 'ចំនួនតុ' : 'Count'}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    required
+                    value={batchCount}
+                    onChange={(e) => setBatchCount(parseInt(e.target.value) || 1)}
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                    {language === 'km' ? 'ចំនួនកៅអី' : 'Capacity'}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    required
+                    value={batchCapacity}
+                    onChange={(e) => setBatchCapacity(parseInt(e.target.value) || 4)}
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                  />
+                </div>
+              </div>
+
+              {batchErrors.batchCount && (
+                <p className="text-xs text-red-500">{batchErrors.batchCount}</p>
+              )}
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsBatchModalOpen(false)}
+                >
+                  {language === 'km' ? 'បោះបង់' : 'Cancel'}
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  disabled={isSubmitting}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {isSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    language === 'km' ? 'បង្កើតតុ' : 'Generate Tables'
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Single Table QR Stand Print View */}
+      {isPrintModalOpen && selectedTableForPrint && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-sm w-full p-6 text-center space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                {language === 'km' ? 'បោះពុម្ព QR តុ' : 'Print Table QR Stand'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white text-zinc-900 space-y-3">
+              <p className="text-xs uppercase tracking-widest text-zinc-500 font-bold">
+                Scan to Order
+              </p>
+              <div className="flex justify-center">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                    `${window.location.origin}/t/${selectedTableForPrint.qr_token}`
+                  )}`}
+                  alt="QR Code"
+                  className="w-40 h-40"
+                />
+              </div>
+              <div>
+                <p className="text-2xl font-black font-mono tracking-tight">
+                  {selectedTableForPrint.table_number}
+                </p>
+                <p className="text-xs text-zinc-500 font-medium">
+                  {selectedTableForPrint.zone_name} • {selectedTableForPrint.capacity} Seats
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
-                size="md"
-                onClick={() => {
-                  setIsPrintModalOpen(false)
-                  setSelectedTableForPrint(null)
-                }}
+                size="sm"
+                onClick={() => setIsPrintModalOpen(false)}
               >
                 {language === 'km' ? 'បិទ' : 'Close'}
               </Button>
               <Button
                 type="button"
                 variant="primary"
-                size="md"
-                onClick={handlePrintAll}
+                size="sm"
+                onClick={() => window.print()}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
               >
                 <Printer className="w-4 h-4 mr-1.5" />
-                {language === 'km' ? 'បោះពុម្ពឥឡូវនេះ' : 'Print Cards'}
+                {language === 'km' ? 'បោះពុម្ព' : 'Print'}
               </Button>
             </div>
           </div>

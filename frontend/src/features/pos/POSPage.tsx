@@ -20,64 +20,8 @@ import { api } from '@/lib/api'
 import { useWebSocket } from '@/lib/websocket'
 import { playChime, playSuccessSound } from '@/lib/audio'
 
-// Demonstration Fallback Data
-const DEMO_ZONES: POSDiningZone[] = [
-  { id: 'zone-main', name_en: 'Main Hall', name_km: 'សាលធំកណ្តាល' },
-  { id: 'zone-patio', name_en: 'Outdoor Patio', name_km: 'រានហាលខាងក្រៅ' },
-  { id: 'zone-vip', name_en: 'VIP Lounge', name_km: 'បន្ទប់ពិសេស VIP' },
-]
-
-const DEMO_TABLES: POSTable[] = [
-  { id: 'tbl-1', table_number: 'T-01', status: 'available', capacity: 4, dining_area_id: 'zone-main', dining_area_name: 'Main Hall' },
-  { id: 'tbl-2', table_number: 'T-02', status: 'occupied', capacity: 4, dining_area_id: 'zone-main', dining_area_name: 'Main Hall', session_id: 'sess-2', session_elapsed_minutes: 18, session_subtotal_usd: 28.50, guest_count: 3, active_orders_count: 2 },
-  { id: 'tbl-3', table_number: 'T-03', status: 'bill_requested', capacity: 2, dining_area_id: 'zone-main', dining_area_name: 'Main Hall', session_id: 'sess-3', session_elapsed_minutes: 45, session_subtotal_usd: 44.00, guest_count: 2, active_orders_count: 1 },
-  { id: 'tbl-4', table_number: 'T-04', status: 'occupied', capacity: 6, dining_area_id: 'zone-main', dining_area_name: 'Main Hall', session_id: 'sess-4', session_elapsed_minutes: 8, session_subtotal_usd: 14.50, guest_count: 4, active_orders_count: 1 },
-  { id: 'tbl-5', table_number: 'T-05', status: 'available', capacity: 4, dining_area_id: 'zone-main', dining_area_name: 'Main Hall' },
-  { id: 'tbl-6', table_number: 'P-01', status: 'available', capacity: 4, dining_area_id: 'zone-patio', dining_area_name: 'Outdoor Patio' },
-  { id: 'tbl-7', table_number: 'P-02', status: 'occupied', capacity: 2, dining_area_id: 'zone-patio', dining_area_name: 'Outdoor Patio', session_id: 'sess-7', session_elapsed_minutes: 24, session_subtotal_usd: 19.50, guest_count: 2, active_orders_count: 1 },
-  { id: 'tbl-8', table_number: 'P-03', status: 'dirty_cleaning', capacity: 4, dining_area_id: 'zone-patio', dining_area_name: 'Outdoor Patio' },
-  { id: 'tbl-9', table_number: 'VIP-01', status: 'occupied', capacity: 8, dining_area_id: 'zone-vip', dining_area_name: 'VIP Lounge', session_id: 'sess-9', session_elapsed_minutes: 52, session_subtotal_usd: 88.00, guest_count: 6, active_orders_count: 3 },
-  { id: 'tbl-10', table_number: 'VIP-02', status: 'available', capacity: 10, dining_area_id: 'zone-vip', dining_area_name: 'VIP Lounge' },
-]
-
-const DEMO_ROUNDS: Record<string, POSPlacedRound[]> = {
-  'tbl-2': [
-    {
-      id: 'r1',
-      order_number: 'ORD-1047',
-      round_number: 1,
-      created_at: new Date(Date.now() - 18 * 60 * 1000).toISOString(),
-      subtotal_usd: 24.00,
-      items: [
-        { id: 'it-1', menu_item_id: 'm1', item_name_en: 'Lok Lak Beef with Kampot Pepper', item_name_km: 'ឡុកឡាក់សាច់គោម្រេចកំពត', quantity: 2, course_stage: 'MAINS', status: 'SERVED', unit_price_usd: 6.50, subtotal_usd: 13.00, modifiers_summary: 'Add Fried Egg' },
-        { id: 'it-2', menu_item_id: 'm2', item_name_en: 'Traditional Tonle Sap Fish Amok', item_name_km: 'អាម៉ុកត្រីទន្លេសាបបុរាណ', quantity: 1, course_stage: 'MAINS', status: 'SERVED', unit_price_usd: 7.00, subtotal_usd: 7.00 },
-      ],
-    },
-    {
-      id: 'r2',
-      order_number: 'ORD-1048',
-      round_number: 2,
-      created_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
-      subtotal_usd: 4.50,
-      items: [
-        { id: 'it-3', menu_item_id: 'm6', item_name_en: 'Iced Condensed Milk Coffee', item_name_km: 'កាហ្វេទឹកដោះគោទឹកកក', quantity: 2, course_stage: 'DRINKS', status: 'PREPARING', unit_price_usd: 2.25, subtotal_usd: 4.50, modifiers_summary: '50% Sweet' },
-      ],
-    },
-  ],
-  'tbl-3': [
-    {
-      id: 'r3',
-      order_number: 'ORD-1040',
-      round_number: 1,
-      created_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-      subtotal_usd: 44.00,
-      items: [
-        { id: 'it-4', menu_item_id: 'm1', item_name_en: 'Lok Lak Beef with Kampot Pepper', quantity: 4, course_stage: 'MAINS', status: 'SERVED', unit_price_usd: 8.50, subtotal_usd: 34.00, variant_name_en: 'Large' },
-        { id: 'it-5', menu_item_id: 'm7', item_name_en: 'Fresh Passion Fruit Soda', quantity: 4, course_stage: 'DRINKS', status: 'SERVED', unit_price_usd: 2.50, subtotal_usd: 10.00 },
-      ],
-    },
-  ],
-}
+const isUuid = (id?: string | null): boolean =>
+  !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 
 export const POSPage: FC = () => {
   const {
@@ -119,55 +63,120 @@ export const POSPage: FC = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
+  const [branchName, setBranchName] = useState<string>('Restaurant')
 
   // Context identifiers
-  const tenantBizId = localStorage.getItem('emenu_business_id') || 'demo-biz'
-  const tenantBranchId = localStorage.getItem('emenu_branch_id') || 'demo-branch'
+  const [tenantBizId, setTenantBizId] = useState<string | null>(
+    localStorage.getItem('emenu_business_id')
+  )
+  const [tenantBranchId, setTenantBranchId] = useState<string | null>(
+    localStorage.getItem('emenu_branch_id')
+  )
   const accessToken = localStorage.getItem('emenu_access_token') || ''
-  const isDemoMode = !accessToken || tenantBizId === 'demo-biz'
 
-  // 1. Fetch POS Data (Zones, Tables, Catalog)
+  // 1. Resolve Active Business and Branch IDs dynamically
+  const resolveTenantContext = useCallback(async () => {
+    let bizId = tenantBizId
+    let branchId = tenantBranchId
+
+    if (!isUuid(bizId)) {
+      try {
+        const bizRes = await api.get('/businesses')
+        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
+          bizId = bizRes.data[0].id
+          setTenantBizId(bizId)
+          localStorage.setItem('emenu_business_id', bizId!)
+        }
+      } catch {
+        // Handled in catch
+      }
+    }
+
+    if (isUuid(bizId) && !isUuid(branchId)) {
+      try {
+        const branchRes = await api.get(`/businesses/${bizId}/branches`)
+        if (Array.isArray(branchRes.data) && branchRes.data.length > 0) {
+          branchId = branchRes.data[0].id
+          setBranchName(branchRes.data[0].name_en || 'Main Branch')
+          setTenantBranchId(branchId)
+          localStorage.setItem('emenu_branch_id', branchId!)
+        }
+      } catch {
+        // Handled in catch
+      }
+    }
+
+    return { bizId, branchId }
+  }, [tenantBizId, tenantBranchId])
+
+  // 2. Fetch POS Data (Zones, Tables, Categories, Items) for the Isolated Tenant
   const fetchPOSData = useCallback(async () => {
     setIsRefreshing(true)
 
-    if (isDemoMode) {
-      setZones(DEMO_ZONES)
-      setTables(DEMO_TABLES)
-      setIsLoading(false)
-      setIsRefreshing(false)
-      return
-    }
-
     try {
+      const { bizId, branchId } = await resolveTenantContext()
+
+      if (!isUuid(bizId) || !isUuid(branchId)) {
+        setIsLoading(false)
+        setIsRefreshing(false)
+        return
+      }
+
       const [zonesRes, tablesRes, catRes, itemRes] = await Promise.all([
-        api.get(`/businesses/${tenantBizId}/branches/${tenantBranchId}/dining-areas`).catch(() => null),
-        api.get(`/businesses/${tenantBizId}/branches/${tenantBranchId}/tables`).catch(() => null),
-        api.get(`/businesses/${tenantBizId}/categories`).catch(() => null),
-        api.get(`/businesses/${tenantBizId}/items`).catch(() => null),
+        api.get(`/businesses/${bizId}/branches/${branchId}/dining-areas`).catch(() => ({ data: [] })),
+        api.get(`/businesses/${bizId}/branches/${branchId}/tables`).catch(() => ({ data: [] })),
+        api.get(`/businesses/${bizId}/categories`).catch(() => ({ data: [] })),
+        api.get(`/businesses/${bizId}/items`).catch(() => ({ data: [] })),
       ])
 
-      if (zonesRes?.data) setZones(zonesRes.data)
-      if (tablesRes?.data) setTables(tablesRes.data)
+      const rawZones: any[] = Array.isArray(zonesRes.data) ? zonesRes.data : []
+      const builtZones: POSDiningZone[] = rawZones.map((z) => ({
+        id: z.id,
+        name_en: z.name_en,
+        name_km: z.name_km || z.name_en,
+      }))
+      setZones(builtZones)
 
-      const rawCats: any[] = catRes?.data || []
-      const rawItems: any[] = itemRes?.data || []
+      const rawTables: any[] = Array.isArray(tablesRes.data) ? tablesRes.data : []
+      const builtTables: POSTable[] = rawTables.map((t) => ({
+        id: t.id,
+        table_number: t.table_number,
+        status: (t.status || 'AVAILABLE').toLowerCase(),
+        capacity: t.capacity || 4,
+        dining_area_id: t.dining_area_id,
+        dining_area_name: t.dining_area?.name_en || 'Main Area',
+        session_id: t.active_session_id || null,
+        session_elapsed_minutes: 0,
+        session_subtotal_usd: 0,
+        guest_count: t.capacity || 2,
+        active_orders_count: 0,
+      }))
+      setTables(builtTables)
+
+      const rawCats: any[] = Array.isArray(catRes.data) ? catRes.data : []
+      const rawItems: any[] = Array.isArray(itemRes.data)
+        ? itemRes.data
+        : itemRes.data?.items && Array.isArray(itemRes.data.items)
+        ? itemRes.data.items
+        : []
+
       const builtCategories: Category[] = rawCats.map((c) => ({
         id: c.id,
         name_en: c.name_en,
-        name_km: c.name_km,
-        display_order: c.display_order,
+        name_km: c.name_km || c.name_en,
+        display_order: c.display_order || 0,
         items: rawItems
           .filter((i) => i.category_id === c.id)
           .map((i) => ({
             id: i.id,
             category_id: i.category_id,
             name_en: i.name_en,
-            name_km: i.name_km,
-            description_en: i.description_en,
-            description_km: i.description_km,
-            base_price_usd: Number(i.base_price_usd) || 0,
+            name_km: i.name_km || i.name_en,
+            description_en: i.description_en || '',
+            description_km: i.description_km || '',
+            base_price_usd: Number(i.base_price || i.price_usd || 0),
             image_url: i.image_url,
-            is_available: i.is_available ?? true,
+            is_available: i.is_active ?? i.is_available ?? true,
             variants: i.variants || [],
             modifier_groups: i.modifier_groups || [],
           })),
@@ -177,49 +186,47 @@ export const POSPage: FC = () => {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }, [isDemoMode, setTables, setZones, tenantBizId, tenantBranchId])
+  }, [resolveTenantContext, setTables, setZones])
 
   useEffect(() => {
     fetchPOSData()
   }, [fetchPOSData])
 
-  // 2. Select Table & Load its Placed Order Rounds
+  // 3. Select Table & Load its Live Order Rounds
   const handleSelectTable = useCallback((table: POSTable) => {
     setSelectedTable(table)
 
-    if (isDemoMode) {
-      const rounds = DEMO_ROUNDS[table.id] || []
-      setActiveRounds(rounds)
-      return
-    }
-
-    if (table.session_id) {
+    if (table.session_id && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       api
         .get(`/businesses/${tenantBizId}/branches/${tenantBranchId}/table-sessions/${table.session_id}/orders`)
         .then((res) => {
-          if (res.data?.orders) {
+          if (res.data?.orders && Array.isArray(res.data.orders)) {
             setActiveRounds(res.data.orders)
+          } else if (Array.isArray(res.data)) {
+            setActiveRounds(res.data)
+          } else {
+            setActiveRounds([])
           }
         })
         .catch(() => setActiveRounds([]))
     } else {
       setActiveRounds([])
     }
-  }, [isDemoMode, setActiveRounds, setSelectedTable, tenantBizId, tenantBranchId])
+  }, [setActiveRounds, setSelectedTable, tenantBizId, tenantBranchId])
 
-  // 3. Mark Table Cleaned Action
+  // 4. Mark Table Cleaned Action
   const handleMarkCleaned = async (tableId: string) => {
     updateTableStatus(tableId, 'available', null)
     playSuccessSound()
 
-    if (!isDemoMode) {
-      await api.patch(`/businesses/${tenantBizId}/branches/${tenantBranchId}/tables/${tableId}`, {
-        status: 'available',
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      await api.patch(`/businesses/${tenantBizId}/branches/${tenantBranchId}/tables/${tableId}/status`, {
+        status: 'AVAILABLE',
       }).catch(() => null)
     }
   }
 
-  // 4. Submit Waiter Direct Order
+  // 5. Submit Waiter Direct Order to Isolated Tenant Backend
   const handleSubmitDirectOrder = async (courseStage: CourseStage, guestNotes: string) => {
     if (activeCart.length === 0 || !selectedTable) return
     setIsSubmittingOrder(true)
@@ -247,7 +254,6 @@ export const POSPage: FC = () => {
       })),
     }
 
-    // Update table status to occupied
     updateTableStatus(selectedTable.id, 'occupied', selectedTable.session_id || `sess-${Date.now()}`)
     setActiveRounds([...activeRounds, newRound])
     clearCart()
@@ -255,23 +261,25 @@ export const POSPage: FC = () => {
     setViewMode('floor_map')
     playChime(587.33, 880, 0.4)
 
-    if (!isDemoMode) {
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       await api.post(`/businesses/${tenantBizId}/branches/${tenantBranchId}/orders`, {
         table_id: selectedTable.id,
         guest_notes: guestNotes,
         items: activeCart.map((c) => ({
           menu_item_id: c.menu_item_id,
-          item_variant_id: c.variant_id,
+          item_variant_id: c.variant_id && isUuid(c.variant_id) ? c.variant_id : null,
           quantity: c.quantity,
-          course_stage: c.course_stage,
+          course_stage: c.course_stage || courseStage,
           special_instructions: c.special_instructions,
-          modifiers: c.modifiers.map((m) => ({ modifier_option_id: m.modifier_option_id, quantity: 1 })),
+          modifiers: c.modifiers
+            .filter((m) => isUuid(m.modifier_option_id))
+            .map((m) => ({ modifier_option_id: m.modifier_option_id, quantity: 1 })),
         })),
       }).catch(() => null)
     }
   }
 
-  // 5. Settle Cash Payment
+  // 6. Settle Cash Payment
   const handleConfirmCashSettlement = async (result: {
     tenderedUSD: number
     tenderedKHR: number
@@ -286,7 +294,7 @@ export const POSPage: FC = () => {
     closeCashModal()
     openReceiptModal(`PAY-${Date.now()}`)
 
-    if (!isDemoMode && selectedTable.session_id) {
+    if (selectedTable.session_id && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       await api.post(
         `/businesses/${tenantBizId}/branches/${tenantBranchId}/table-sessions/${selectedTable.session_id}/payments/cash`,
         {
@@ -298,12 +306,11 @@ export const POSPage: FC = () => {
     }
   }
 
-  // 6. Supervisor PIN Void Handler
+  // 7. Supervisor PIN Void Handler
   const handleConfirmSupervisorVoid = async (pin: string, reason: string) => {
     if (!targetVoidItem) return
 
     playSuccessSound()
-    // Optimistic removal of item from round
     const updatedRounds = activeRounds.map((r) => ({
       ...r,
       items: r.items.filter((i) => i.id !== targetVoidItem.id),
@@ -315,7 +322,7 @@ export const POSPage: FC = () => {
     setActiveRounds(updatedRounds)
     closeVoidModal()
 
-    if (!isDemoMode && selectedTable) {
+    if (selectedTable && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       await api.post(
         `/businesses/${tenantBizId}/branches/${tenantBranchId}/orders/void-item`,
         {
@@ -327,9 +334,9 @@ export const POSPage: FC = () => {
     }
   }
 
-  // 7. WebSocket Real-Time Listener for POS Room
+  // 8. WebSocket Real-Time Listener for POS Room
   const wsUrl =
-    !isDemoMode && accessToken
+    accessToken && isUuid(tenantBranchId)
       ? `/ws/branches/${tenantBranchId}?token=${accessToken}&room_type=pos`
       : null
 
@@ -347,8 +354,8 @@ export const POSPage: FC = () => {
           updateTableStatus(data.table_id, 'dirty_cleaning')
           playSuccessSound()
         }
-      } catch (err) {
-        console.warn('POS WS message error', err)
+      } catch {
+        // Ignore parse error
       }
     },
   })
@@ -372,7 +379,7 @@ export const POSPage: FC = () => {
       <div>
         {/* Sticky POS Header */}
         <POSHeader
-          branchName="Siem Reap Bistro"
+          branchName={branchName}
           onRefresh={fetchPOSData}
           isRefreshing={isRefreshing}
         />
@@ -382,16 +389,7 @@ export const POSPage: FC = () => {
           {viewMode === 'direct_order' ? (
             /* Direct Waiter / Counter Order Taking Mode */
             <POSMenuCatalog
-              categories={categories.length > 0 ? categories : [
-                { id: 'cat-1', name_en: 'Khmer Mains', name_km: 'ម្ហូបខ្មែរ', display_order: 1, items: [
-                  { id: 'm1', category_id: 'cat-1', name_en: 'Lok Lak Beef', name_km: 'ឡុកឡាក់សាច់គោ', description_en: '', description_km: '', base_price_usd: 6.50, image_url: null, is_available: true, variants: [], modifier_groups: [] },
-                  { id: 'm2', category_id: 'cat-1', name_en: 'Fish Amok', name_km: 'អាម៉ុកត្រី', description_en: '', description_km: '', base_price_usd: 7.00, image_url: null, is_available: true, variants: [], modifier_groups: [] },
-                ]},
-                { id: 'cat-2', name_en: 'Beverages', name_km: 'ភេសជ្ជៈ', display_order: 2, items: [
-                  { id: 'm3', category_id: 'cat-2', name_en: 'Iced Milk Coffee', name_km: 'កាហ្វេទឹកដោះគោ', description_en: '', description_km: '', base_price_usd: 2.25, image_url: null, is_available: true, variants: [], modifier_groups: [] },
-                  { id: 'm4', category_id: 'cat-2', name_en: 'Passion Fruit Soda', name_km: 'ផាសិនសូដា', description_en: '', description_km: '', base_price_usd: 2.50, image_url: null, is_available: true, variants: [], modifier_groups: [] },
-                ]}
-              ]}
+              categories={categories}
               activeCart={activeCart}
               selectedTable={selectedTable}
               onAddToCart={addToCart}
@@ -451,7 +449,7 @@ export const POSPage: FC = () => {
         onClose={closeKHQRModal}
         totalUSD={totalUSD}
         tableNumber={selectedTable?.table_number || 'T-01'}
-        merchantName="Siem Reap Bistro"
+        merchantName={branchName}
         isSettled={false}
         onSimulateSettlement={() => {
           handleConfirmCashSettlement({
@@ -477,7 +475,7 @@ export const POSPage: FC = () => {
         isOpen={isReceiptModalOpen}
         onClose={closeReceiptModal}
         tableNumber={selectedTable?.table_number || 'T-01'}
-        branchName="Siem Reap Bistro"
+        branchName={branchName}
         totalUSD={totalUSD}
         totalKHR={totalKHR}
         subtotalUSD={subtotalUSD}

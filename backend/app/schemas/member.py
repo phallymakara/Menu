@@ -1,13 +1,21 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from app.models.enums import MembershipStatus, StaffRole
 
 
 class MemberInvite(BaseModel):
-    """Schema for inviting a new staff member to the organization."""
+    """Schema for inviting or directly provisioning a new staff member."""
 
     email: EmailStr | None = Field(
         default=None,
@@ -30,19 +38,60 @@ class MemberInvite(BaseModel):
     )
     branch_id: UUID | None = Field(
         default=None,
-        description="Optional assigned branch ID",
+        description="Optional assigned branch ID for branch isolation",
     )
     job_title: str | None = Field(
         default=None,
         max_length=100,
         description="Custom job title / display label",
     )
+    pos_pin: str | None = Field(
+        default=None,
+        max_length=64,
+        description="4-6 digit numeric POS PIN code",
+    )
+    avatar_url: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Profile photo or avatar URL",
+    )
+    password: str | None = Field(
+        default=None,
+        min_length=6,
+        max_length=128,
+        description="Optional direct password for staff login without invitation token",
+    )
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def normalize_role(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            try:
+                return StaffRole(v.lower())
+            except ValueError:
+                pass
+        return v
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def empty_email_to_none(cls, v: Any) -> Any:
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def empty_phone_to_none(cls, v: Any) -> Any:
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
     @model_validator(mode="after")
     def validate_contact_provided(self) -> "MemberInvite":
         if not self.email and not self.phone:
             raise ValueError("Either email or phone must be provided for invitation.")
         return self
+
 
 
 class InviteAccept(BaseModel):
@@ -67,18 +116,34 @@ class InviteAccept(BaseModel):
 
 
 class MemberUpdate(BaseModel):
-    """Schema for updating a member's role, branch assignment, title, or status."""
+    """Schema for updating a member's role, branch assignment, title, PIN, avatar, or status."""
 
+    full_name: str | None = Field(default=None, max_length=150)
+    phone: str | None = Field(default=None, max_length=30)
+    email: EmailStr | None = Field(default=None)
     role: StaffRole | None = Field(default=None, description="Updated staff role")
     branch_id: UUID | None = Field(
         default=None,
         description="Updated branch assignment (pass null to unassign)",
     )
     job_title: str | None = Field(default=None, max_length=100)
+    pos_pin: str | None = Field(default=None, max_length=64, description="Updated POS PIN")
+    avatar_url: str | None = Field(default=None, max_length=500, description="Updated avatar photo URL")
     status: MembershipStatus | None = Field(
         default=None,
         description="Updated membership status (e.g. suspended, active, terminated)",
     )
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def normalize_role(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            try:
+                return StaffRole(v.lower())
+            except ValueError:
+                pass
+        return v
+
 
 
 class MemberResponse(BaseModel):
@@ -92,9 +157,11 @@ class MemberResponse(BaseModel):
     email: str | None = None
     phone: str | None = None
     full_name: str
+    avatar_url: str | None = None
     role: StaffRole
     is_owner: bool
     job_title: str | None = None
+    pos_pin: str | None = None
     status: MembershipStatus
     branch_id: UUID | None = None
     created_at: datetime
@@ -115,3 +182,5 @@ class InviteResponse(BaseModel):
     expires_at: datetime
     email: str | None = None
     phone: str | None = None
+    pos_pin: str | None = None
+    avatar_url: str | None = None
