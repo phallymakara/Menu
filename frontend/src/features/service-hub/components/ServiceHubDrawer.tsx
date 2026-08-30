@@ -4,7 +4,7 @@ import {
   Droplets,
   Utensils,
   Receipt,
-  Sparkles,
+  SprayCan,
   Bell,
   Clock,
   CheckCircle2,
@@ -46,7 +46,7 @@ export const ServiceHubDrawer: FC = () => {
       case 'REQUEST_BILL':
         return Receipt
       case 'TABLE_CLEANING':
-        return Sparkles
+        return SprayCan
       default:
         return Bell
     }

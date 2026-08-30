@@ -773,26 +773,26 @@ export const MenuManagementTab: FC = () => {
   return (
     <div className="space-y-6">
       {/* Primary Actions Aligned Left */}
-      <div className="flex items-center gap-2.5 sm:gap-3">
+      <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
         <Button
           type="button"
           variant="outline"
-          size="md"
+          size="sm"
           onClick={() => {
             setEditingCategory(null)
             setCategoryForm({ name_en: '', name_km: '' })
             setIsAddCategoryModalOpen(true)
           }}
-          className="text-sm font-semibold px-4 py-2.5 rounded-xl border-zinc-300 dark:border-zinc-700"
+          className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 rounded-full border-zinc-300 dark:border-zinc-700"
         >
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
           {language === 'km' ? 'បង្កើតប្រភេទ' : 'New Category'}
         </Button>
 
         <Button
           type="button"
           variant="primary"
-          size="md"
+          size="sm"
           onClick={() => {
             setEditingItem(null)
             setItemForm({
@@ -808,9 +808,9 @@ export const MenuManagementTab: FC = () => {
             })
             setIsAddItemModalOpen(true)
           }}
-          className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white"
         >
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
           {language === 'km' ? 'បន្ថែមមុខម្ហូបថ្មី' : 'Add Menu Item'}
         </Button>
       </div>
@@ -829,7 +829,7 @@ export const MenuManagementTab: FC = () => {
           <button
             type="button"
             onClick={() => setActiveCategory('all')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${activeCategory === 'all'
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeCategory === 'all'
                 ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
                 : 'border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
               }`}
@@ -841,7 +841,7 @@ export const MenuManagementTab: FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveCategory(c.id)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${activeCategory === c.id
+                className={`px-3.5 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors ${activeCategory === c.id
                     ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
                     : 'border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800'
                   }`}

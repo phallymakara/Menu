@@ -69,11 +69,11 @@ export const AnalyticsReportsTab: FC = () => {
         </div>
 
         {/* Time Filter Buttons */}
-        <div className="flex items-center gap-1 p-1 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+        <div className="flex items-center gap-1 p-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950">
           <button
             type="button"
             onClick={() => setTimeRange('today')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+            className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-colors ${
               timeRange === 'today'
                 ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-zinc-100'
@@ -84,7 +84,7 @@ export const AnalyticsReportsTab: FC = () => {
           <button
             type="button"
             onClick={() => setTimeRange('week')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+            className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-colors ${
               timeRange === 'week'
                 ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-zinc-100'
@@ -95,7 +95,7 @@ export const AnalyticsReportsTab: FC = () => {
           <button
             type="button"
             onClick={() => setTimeRange('month')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+            className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-colors ${
               timeRange === 'month'
                 ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950'
                 : 'text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-zinc-100'

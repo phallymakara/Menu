@@ -10,7 +10,6 @@ import {
   Check,
   X,
   Loader2,
-  Building2,
 } from 'lucide-react'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
@@ -116,6 +115,22 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
 
   useEffect(() => {
     fetchBranches()
+
+    const handleBranchesUpdated = () => {
+      fetchBranches()
+    }
+
+    const handleFocus = () => {
+      fetchBranches()
+    }
+
+    window.addEventListener('emenu:branches-updated', handleBranchesUpdated)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      window.removeEventListener('emenu:branches-updated', handleBranchesUpdated)
+      window.removeEventListener('focus', handleFocus)
+    }
   }, [fetchBranches])
 
   const currentBranch = branches.find((b) => b.id === activeBranchId) || branches[0]
@@ -175,6 +190,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
         setIsCreateBranchModalOpen(false)
         await fetchBranches()
         handleSwitchBranch(res.data.id)
+        window.dispatchEvent(new CustomEvent('emenu:branches-updated'))
       }
     } catch {
       alert(language === 'km' ? 'មិនអាចបង្កើតសាខាបានទេ' : 'Failed to create branch')
@@ -203,9 +219,9 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
 
   return (
     <header className="bg-white dark:bg-zinc-950 sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800">
-      <div className="px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div className="px-3 sm:px-6 h-16 flex items-center justify-between gap-2 max-w-full">
         {/* Left: Mobile Toggle & Store Identity */}
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
           <button
             type="button"
             onClick={onToggleSidebar}
@@ -225,7 +241,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-sm sm:text-base tracking-tight text-zinc-950 dark:text-zinc-50 block leading-tight">
+                <span className="hidden sm:inline-block font-bold text-sm sm:text-base tracking-tight text-zinc-950 dark:text-zinc-50 leading-tight">
                   {language === 'km' ? businessName.km : businessName.en}
                 </span>
 
@@ -233,12 +249,16 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
-                    className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-sm font-semibold border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (!isBranchDropdownOpen) {
+                        fetchBranches()
+                      }
+                      setIsBranchDropdownOpen(!isBranchDropdownOpen)
+                    }}
+                    className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer"
                   >
-                    <Building2 className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>{displayBranchName}</span>
-                    <ChevronDown className="w-4 h-4 text-zinc-400" />
+                    <span className="max-w-[120px] sm:max-w-[200px] truncate">{displayBranchName}</span>
+                    <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400 shrink-0" />
                   </button>
 
                   {/* Branch Dropdown */}
@@ -248,7 +268,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                         className="fixed inset-0 z-40"
                         onClick={() => setIsBranchDropdownOpen(false)}
                       />
-                      <div className="absolute left-0 mt-1.5 w-72 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-2 z-50 space-y-1 shadow-lg">
+                      <div className="absolute left-0 mt-1.5 w-72 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-2 z-50 space-y-1">
                         <div className="px-3 py-1.5 text-xs font-bold text-zinc-500 uppercase tracking-wider">
                           {language === 'km' ? 'ជ្រើសរើសសាខា' : 'Select Branch'}
                         </div>
@@ -331,7 +351,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
         </div>
 
         {/* Right: Language, Theme, User profile & Logout */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <LanguageSwitcher />
           <ThemeToggle />
 

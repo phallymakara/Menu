@@ -1,5 +1,5 @@
 import { type FC } from 'react'
-import { Clock, Users, Check, AlertTriangle, Sparkles } from 'lucide-react'
+import { Clock, Users, Check, AlertTriangle } from 'lucide-react'
 import { POSTable } from '../types/pos.types'
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -104,7 +104,7 @@ export const POSTableCard: FC<POSTableCardProps> = ({
               }}
               className="w-full py-1.5 px-2 rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
             >
-              <Sparkles className="w-3.5 h-3.5" />
+              <Check className="w-3.5 h-3.5" />
               <span>{language === 'km' ? 'ចុចសម្អាតរួច' : 'Mark Cleaned'}</span>
             </button>
           </div>

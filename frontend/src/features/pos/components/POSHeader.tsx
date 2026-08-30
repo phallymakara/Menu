@@ -44,7 +44,7 @@ export const POSHeader: FC<POSHeaderProps> = ({
             <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center text-white shrink-0">
               <LayoutGrid className="w-4 h-4" />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <h1 className="font-bold text-sm text-zinc-950 dark:text-zinc-50 leading-tight">
                 {branchName}
               </h1>

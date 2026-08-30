@@ -8,7 +8,6 @@ import {
   X,
   Loader2,
   Download,
-  Layers,
 } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
@@ -297,25 +296,25 @@ export const DiningTablesTab: FC = () => {
         </div>
 
         {errorMessage && (
-          <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-semibold">
+          <p className="text-xs font-medium text-red-500">
             {errorMessage}
-          </div>
+          </p>
         )}
 
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             type="button"
             variant="outline"
-            size="md"
+            size="sm"
             onClick={handleDownloadBatchZip}
             disabled={isDownloadingZip || tables.length === 0}
-            className="text-xs font-semibold px-3 py-2"
+            className="text-xs sm:text-sm font-semibold px-3.5 py-1.5"
           >
             {isDownloadingZip ? (
-              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
             ) : (
-              <Download className="w-4 h-4 mr-1.5" />
+              <Download className="w-3.5 h-3.5 mr-1.5" />
             )}
             {language === 'km' ? 'ទាញយក QR ZIP' : 'Download QR ZIP'}
           </Button>
@@ -323,25 +322,24 @@ export const DiningTablesTab: FC = () => {
           <Button
             type="button"
             variant="outline"
-            size="md"
+            size="sm"
             onClick={() => setIsZoneModalOpen(true)}
-            className="text-xs font-semibold px-3 py-2"
+            className="text-xs sm:text-sm font-semibold px-3.5 py-1.5"
           >
-            <Layers className="w-4 h-4 mr-1.5" />
             {language === 'km' ? '+ តំបន់' : '+ Area'}
           </Button>
 
           <Button
             type="button"
             variant="primary"
-            size="md"
+            size="sm"
             onClick={() => {
               setBatchErrors({})
               setIsBatchModalOpen(true)
             }}
-            className="text-xs font-semibold px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
           >
-            <Plus className="w-4 h-4 mr-1.5" />
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
             {language === 'km' ? 'បង្កើតជាក្រុម' : 'Batch Generate'}
           </Button>
         </div>
@@ -352,7 +350,7 @@ export const DiningTablesTab: FC = () => {
         <button
           type="button"
           onClick={() => setActiveZone('all')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+          className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
             activeZone === 'all'
               ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
               : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'
@@ -367,7 +365,7 @@ export const DiningTablesTab: FC = () => {
               key={z.id}
               type="button"
               onClick={() => setActiveZone(z.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
                 activeZone === z.id
                   ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
                   : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'
@@ -597,6 +595,9 @@ export const DiningTablesTab: FC = () => {
                     onChange={(e) => setBatchPrefix(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm font-mono focus:outline-none focus:border-emerald-600"
                   />
+                  {batchErrors.batchPrefix && (
+                    <p className="text-xs text-red-500 mt-1">{batchErrors.batchPrefix}</p>
+                  )}
                 </div>
 
                 <div>

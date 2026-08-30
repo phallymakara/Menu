@@ -342,22 +342,22 @@ export const StaffManagementTab: FC = () => {
         <Button
           type="button"
           variant="primary"
-          size="md"
+          size="sm"
           onClick={() => {
             setFormErrors({})
             setIsAddStaffModalOpen(true)
           }}
-          className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
         >
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
           {language === 'km' ? 'បន្ថែមបុគ្គលិកថ្មី' : 'Add Staff Member'}
         </Button>
       </div>
 
       {errorMessage && (
-        <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 text-xs font-semibold">
+        <p className="text-xs font-medium text-red-500">
           {errorMessage}
-        </div>
+        </p>
       )}
 
       {/* Branch Isolation Filter Bar */}
@@ -366,7 +366,7 @@ export const StaffManagementTab: FC = () => {
           <button
             type="button"
             onClick={() => setActiveBranchId('all')}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer ${
               activeBranchId === 'all'
                 ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
                 : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'
@@ -379,7 +379,7 @@ export const StaffManagementTab: FC = () => {
               key={b.id}
               type="button"
               onClick={() => setActiveBranchId(b.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                 activeBranchId === b.id
                   ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
                   : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'

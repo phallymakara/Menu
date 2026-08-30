@@ -48,7 +48,7 @@ export const KDSHeader: FC<KDSHeaderProps> = ({
             <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center text-white shrink-0">
               <Flame className="w-4 h-4" />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-sm text-zinc-950 dark:text-zinc-50 leading-tight">
                   {branchName}

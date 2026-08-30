@@ -234,33 +234,33 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {activeSubTab === 'ingredients' ? (
             <Button
               type="button"
               variant="primary"
-              size="md"
+              size="sm"
               onClick={() => {
                 setIngredientErrors({})
                 setIsAddIngredientModalOpen(true)
               }}
-              className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-3.5 h-3.5 mr-1.5" />
               {language === 'km' ? 'បន្ថែមគ្រឿងផ្សំ' : 'Add Raw Ingredient'}
             </Button>
           ) : (
             <Button
               type="button"
               variant="primary"
-              size="md"
+              size="sm"
               onClick={() => {
                 setTransferErrors({})
                 setIsNewTransferModalOpen(true)
               }}
-              className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              <ArrowLeftRight className="w-4 h-4 mr-2" />
+              <ArrowLeftRight className="w-3.5 h-3.5 mr-1.5" />
               {language === 'km' ? 'ផ្ទេរស្តុកថ្មី' : 'New Stock Transfer'}
             </Button>
           )}
@@ -272,7 +272,7 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
         <button
           type="button"
           onClick={() => setActiveSubTab('ingredients')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+          className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors ${
             activeSubTab === 'ingredients'
               ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 font-bold'
               : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900'
@@ -285,7 +285,7 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
         <button
           type="button"
           onClick={() => setActiveSubTab('transfers')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+          className={`px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors ${
             activeSubTab === 'transfers'
               ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 font-bold'
               : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-900'

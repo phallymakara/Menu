@@ -95,18 +95,18 @@ export const StoreSettingsTab: FC = () => {
         <Button
           type="button"
           variant="primary"
-          size="md"
+          size="sm"
           onClick={handleSaveSettings}
-          className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+          className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
         >
           {isSaved ? (
             <>
-              <Check className="w-4 h-4 mr-2" />
+              <Check className="w-3.5 h-3.5 mr-1.5" />
               <span>{language === 'km' ? 'បានរក្សាទុក!' : 'Saved!'}</span>
             </>
           ) : (
             <>
-              <Save className="w-4 h-4 mr-2" />
+              <Save className="w-3.5 h-3.5 mr-1.5" />
               <span>{language === 'km' ? 'រក្សាទុកការកំណត់' : 'Save Changes'}</span>
             </>
           )}

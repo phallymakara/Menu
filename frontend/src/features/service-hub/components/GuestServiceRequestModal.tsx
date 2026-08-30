@@ -1,5 +1,5 @@
 import { useState, type FC } from 'react'
-import { Droplets, Utensils, Receipt, Sparkles, Bell, Check, Send } from 'lucide-react'
+import { Droplets, Utensils, Receipt, SprayCan, Bell, Check, Send } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { ServiceRequestType } from '../types/serviceHub.types'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -60,7 +60,7 @@ export const GuestServiceRequestModal: FC<GuestServiceRequestModalProps> = ({
     },
     {
       type: 'TABLE_CLEANING',
-      icon: Sparkles,
+      icon: SprayCan,
       labelKm: 'សុំជួយសម្អាតតុ / កំពប់ទឹក',
       labelEn: 'Table Cleanup / Spill',
       subKm: 'ដកចានចាស់ ឬជូតតុ',
