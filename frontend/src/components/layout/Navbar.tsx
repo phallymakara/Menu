@@ -29,15 +29,15 @@ export const Navbar: FC = () => {
         </Link>
 
         {/* Desktop / Laptop Center Nav Links */}
-        <nav className="hidden lg:flex items-center gap-8 text-base font-medium text-zinc-600 dark:text-zinc-300">
+        <nav className="hidden md:flex items-center gap-7 lg:gap-8 text-sm sm:text-base font-medium text-zinc-600 dark:text-zinc-300">
           <a href="#features" className="hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors">
-            {t('features')}
+            {language === 'km' ? 'មុខងារស្នូល' : 'Features'}
           </a>
           <a href="#how-it-works" className="hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors">
-            {t('howItWorks')}
+            {language === 'km' ? 'របៀបដំណើរការ' : 'How It Works'}
           </a>
           <a href="#pricing" className="hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors">
-            {t('pricing')}
+            {language === 'km' ? 'តម្លៃសេវាកម្ម' : 'Pricing'}
           </a>
         </nav>
 
@@ -50,13 +50,13 @@ export const Navbar: FC = () => {
           <div className="hidden sm:flex items-center gap-2.5">
             <Link
               to="/login"
-              className="text-base font-semibold text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors px-2 py-1"
+              className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors px-2 py-1"
             >
               {language === 'km' ? 'ចូលប្រើប្រាស់' : 'Sign In'}
             </Link>
             <Link to="/register">
-              <Button size="md" variant="primary" className="text-sm font-semibold">
-                {t('getStartedFree')}
+              <Button size="md" variant="primary" className="text-sm font-semibold rounded-full px-5">
+                {language === 'km' ? 'សាកល្បងឥតគិតថ្លៃ' : 'Start Free Trial'}
               </Button>
             </Link>
           </div>

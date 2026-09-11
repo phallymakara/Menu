@@ -112,14 +112,12 @@ export const PricingTable: FC = () => {
           <button
             onClick={() => setIsAnnual(!isAnnual)}
             aria-label="Toggle annual billing"
-            className={`w-14 h-7 rounded-full p-0.5 transition-colors relative ${
-              isAnnual ? 'bg-emerald-600' : 'bg-zinc-300 dark:bg-zinc-700'
-            }`}
+            className={`w-14 h-7 rounded-full p-0.5 transition-colors relative ${isAnnual ? 'bg-emerald-600' : 'bg-zinc-300 dark:bg-zinc-700'
+              }`}
           >
             <div
-              className={`w-6 h-6 rounded-full bg-white transition-transform ${
-                isAnnual ? 'translate-x-7' : 'translate-x-0'
-              }`}
+              className={`w-6 h-6 rounded-full bg-white transition-transform ${isAnnual ? 'translate-x-7' : 'translate-x-0'
+                }`}
             />
           </button>
           <span className={isAnnual ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-zinc-400 dark:text-zinc-500'}>
@@ -136,9 +134,8 @@ export const PricingTable: FC = () => {
           return (
             <Card
               key={i}
-              className={`p-7 sm:p-8 flex flex-col justify-between space-y-6 ${
-                p.isPopular ? 'border-emerald-600 dark:border-emerald-500 ring-1 ring-emerald-600/20' : ''
-              }`}
+              className={`p-7 sm:p-8 flex flex-col justify-between space-y-6 ${p.isPopular ? 'border-emerald-600 dark:border-emerald-500 ring-1 ring-emerald-600/20' : ''
+                }`}
             >
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
