@@ -55,6 +55,13 @@ export const km = {
     alreadyHaveAccount: 'មានគណនីរួចហើយ?',
     dontHaveAccount: 'មិនទាន់មានគណនី?',
     invalidCredentials: 'អ៊ីមែល ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ',
+    signUpWithGoogle: 'ចុះឈ្មោះជាមួយ Google',
+    or: 'ឬ',
+    enterFullName: 'សូមបញ្ចូលឈ្មោះពេញ',
+    enterEmailOrPhone: 'សូមបញ្ចូលអ៊ីមែល ឬលេខទូរស័ព្ទ',
+    emailAlreadyInUse: 'អ៊ីមែល ឬលេខទូរស័ព្ទនេះមានក្នុងប្រព័ន្ធរួចហើយ',
+    registrationFailed: 'មិនអាចបង្កើតគណនីបានទេ សូមព្យាយាមម្តងទៀត',
+    googleComingSoon: 'ការចុះឈ្មោះតាម Google នឹងបើកដំណើរការឆាប់ៗនេះ',
   },
 
   // Onboarding Wizard

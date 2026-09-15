@@ -1,10 +1,11 @@
 import type { FC } from 'react'
-import { Link } from 'react-router-dom'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { useAuthModalStore } from '@/stores/useAuthModalStore'
 import heroBgImage from '@/assets/hero-workflow-panoramic.jpg'
 
 export const HeroSection: FC = () => {
   const { language } = useLanguageStore()
+  const { openRegisterModal } = useAuthModalStore()
   const isKm = language === 'km'
 
   return (
@@ -55,12 +56,13 @@ export const HeroSection: FC = () => {
 
         {/* CTA Buttons Matching Reference Image */}
         <div className="pt-2 flex flex-wrap items-center justify-center gap-3.5">
-          <Link
-            to="/register"
-            className="inline-flex items-center justify-center px-7 py-3 rounded-full text-sm sm:text-base font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-md shadow-emerald-600/25 hover:shadow-lg hover:shadow-emerald-600/35 transition-all transform hover:-translate-y-0.5"
+          <button
+            type="button"
+            onClick={openRegisterModal}
+            className="inline-flex items-center justify-center px-7 py-3 rounded-full text-sm sm:text-base font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 shadow-md shadow-emerald-600/25 hover:shadow-lg hover:shadow-emerald-600/35 transition-all transform hover:-translate-y-0.5 cursor-pointer"
           >
             {isKm ? 'សាកល្បងឥតគិតថ្លៃ' : 'Start Free Trial'}
-          </Link>
+          </button>
           <a
             href="#demo-signup"
             className="inline-flex items-center justify-center px-7 py-3 rounded-full text-sm sm:text-base font-semibold text-zinc-800 dark:text-zinc-200 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-sm border border-zinc-300/90 dark:border-zinc-700 hover:bg-white dark:hover:bg-zinc-800 shadow-sm transition-all transform hover:-translate-y-0.5"

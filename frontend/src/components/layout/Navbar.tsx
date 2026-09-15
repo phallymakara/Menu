@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom'
 import { Utensils, Menu as MenuIcon, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
-import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { useAuthModalStore } from '@/stores/useAuthModalStore'
 
 export const Navbar: FC = () => {
   const { t, language } = useLanguageStore()
+  const { openRegisterModal } = useAuthModalStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   return (
@@ -44,7 +45,6 @@ export const Navbar: FC = () => {
         {/* Right Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
           <LanguageSwitcher />
-          <ThemeToggle />
 
           {/* Desktop Auth Buttons */}
           <div className="hidden sm:flex items-center gap-2.5">
@@ -54,11 +54,14 @@ export const Navbar: FC = () => {
             >
               {language === 'km' ? 'ចូលប្រើប្រាស់' : 'Sign In'}
             </Link>
-            <Link to="/register">
-              <Button size="md" variant="primary" className="text-sm font-semibold rounded-full px-5">
-                {language === 'km' ? 'សាកល្បងឥតគិតថ្លៃ' : 'Start Free Trial'}
-              </Button>
-            </Link>
+            <Button
+              size="md"
+              variant="primary"
+              onClick={openRegisterModal}
+              className="text-sm font-semibold rounded-full px-5"
+            >
+              {language === 'km' ? 'សាកល្បងឥតគិតថ្លៃ' : 'Start Free Trial'}
+            </Button>
           </div>
 
           {/* Mobile Menu Toggle Button */}
@@ -107,15 +110,17 @@ export const Navbar: FC = () => {
             >
               {language === 'km' ? 'ចូលប្រើប្រាស់' : 'Sign In'}
             </Link>
-            <Link
-              to="/register"
-              onClick={() => setMobileMenuOpen(false)}
-              className="w-full"
+            <Button
+              size="lg"
+              variant="primary"
+              onClick={() => {
+                setMobileMenuOpen(false)
+                openRegisterModal()
+              }}
+              className="w-full justify-center h-12 text-base font-semibold"
             >
-              <Button size="lg" variant="primary" className="w-full justify-center h-12 text-base font-semibold">
-                {t('getStartedFree')}
-              </Button>
-            </Link>
+              {t('getStartedFree')}
+            </Button>
           </div>
         </div>
       )}

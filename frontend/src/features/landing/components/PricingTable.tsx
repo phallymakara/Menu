@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { useAuthModalStore } from '@/stores/useAuthModalStore'
 
 export const PricingTable: FC = () => {
   const { t, language } = useLanguageStore()
+  const { openRegisterModal } = useAuthModalStore()
   const [isAnnual, setIsAnnual] = useState(false)
 
   const plans = [
@@ -171,6 +173,7 @@ export const PricingTable: FC = () => {
                 variant={p.isPopular ? 'primary' : 'outline'}
                 className="w-full h-12 text-base font-semibold"
                 size="lg"
+                onClick={openRegisterModal}
               >
                 {language === 'km' ? p.cta_km : p.cta_en}
               </Button>

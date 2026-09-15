@@ -55,6 +55,13 @@ export const en = {
     alreadyHaveAccount: 'Already have an account?',
     dontHaveAccount: "Don't have an account?",
     invalidCredentials: 'Invalid email or password. Please try again.',
+    signUpWithGoogle: 'Sign up with Google',
+    or: 'or',
+    enterFullName: 'Please enter your full name.',
+    enterEmailOrPhone: 'Please enter email or phone number.',
+    emailAlreadyInUse: 'This email or phone number is already registered.',
+    registrationFailed: 'Could not create account. Please try again.',
+    googleComingSoon: 'Google sign-up will be available soon.',
   },
 
   // Onboarding Wizard
