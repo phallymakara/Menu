@@ -22,7 +22,7 @@ export interface POSOrderDrawerProps {
   onOpenKHQRModal: () => void
   onOpenVoidModal: (item: POSPlacedItem) => void
   onPrintPrecheck: () => void
-  onStartDirectOrder: () => void
+  onStartDirectOrder?: () => void
 }
 
 export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
@@ -205,19 +205,23 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
             <button
               onClick={onPrintPrecheck}
               disabled={rounds.length === 0}
-              className="flex-1 py-2 px-3 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
+              className={`${
+                onStartDirectOrder ? 'flex-1' : 'w-full'
+              } py-2.5 px-3 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors`}
             >
               <Printer className="w-3.5 h-3.5" />
               <span>{language === 'km' ? 'ព្រីនវិក្កយបត្រ' : 'Print Pre-check'}</span>
             </button>
 
-            <button
-              onClick={onStartDirectOrder}
-              className="flex-1 py-2 px-3 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>{language === 'km' ? '+ កុម្ម៉ង់បន្ថែម' : '+ Add Dishes'}</span>
-            </button>
+            {onStartDirectOrder && (
+              <button
+                onClick={onStartDirectOrder}
+                className="flex-1 py-2.5 px-3 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{language === 'km' ? '+ កុម្ម៉ង់បន្ថែម' : '+ Add Dishes'}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

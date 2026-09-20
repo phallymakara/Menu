@@ -1,14 +1,14 @@
 import type { FC } from 'react'
-import { Utensils } from 'lucide-react'
 
 export const PageLoader: FC<{ message?: string }> = ({ message }) => {
   return (
     <div className="min-h-[50vh] flex-1 flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-200">
       <div className="flex items-center justify-center mb-4">
-        {/* Inner brand box (Flat, Clean) */}
-        <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white">
-          <Utensils className="w-6 h-6" />
-        </div>
+        <img
+          src="/logo-mark.svg"
+          alt="E-Menu Cambodia"
+          className="w-14 h-14 object-contain animate-pulse"
+        />
       </div>
       {/* Subtle loader indicator */}
       <div className="flex items-center gap-1.5 mt-2">

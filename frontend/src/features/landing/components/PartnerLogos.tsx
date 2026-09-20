@@ -14,8 +14,8 @@ export const PartnerLogos: FC = () => {
   ]
 
   return (
-    <section className="py-12 border-t border-zinc-200 dark:border-zinc-800 text-center space-y-6">
-      <p className="text-xs font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">
+    <section className="py-12 border-t border-zinc-200 text-center space-y-6">
+      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">
         {language === 'km' ? 'ផ្តល់ទំនុកចិត្តដោយភោជនីយដ្ឋាន និងហាងកាហ្វេជាច្រើន' : t('trustedBy')}
       </p>
 
@@ -23,7 +23,7 @@ export const PartnerLogos: FC = () => {
         {partners.map((partner, i) => (
           <span
             key={i}
-            className="text-xs sm:text-sm font-semibold text-zinc-400 dark:text-zinc-600 hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors tracking-tight"
+            className="text-xs sm:text-sm font-semibold text-zinc-400 hover:text-zinc-600 transition-colors tracking-tight"
           >
             {partner}
           </span>

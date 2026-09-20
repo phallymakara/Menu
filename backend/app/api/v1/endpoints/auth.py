@@ -93,11 +93,15 @@ async def register_owner_endpoint(
         # Commit transaction to database
         await session.commit()
 
+        token = create_access_token(user.id)
+
         return OwnerRegistrationResponse(
             user_id=str(user.id),
             organization_id=str(organization.id),
             business_id=str(business.id),
             branch_id=str(branch.id),
+            access_token=token,
+            token_type="bearer",
             message="Owner account and business workspace created successfully.",
         )
 

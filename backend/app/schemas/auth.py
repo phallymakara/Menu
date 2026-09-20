@@ -93,6 +93,8 @@ class OwnerRegistrationResponse(BaseModel):
     business_id: str
     branch_id: str
     message: str
+    access_token: str | None = None
+    token_type: str = "bearer"
 
 
 class LoginRequest(BaseModel):

@@ -1,5 +1,6 @@
 import re
 import secrets
+from uuid import uuid4
 
 import structlog
 from sqlalchemy import or_, select
@@ -64,7 +65,10 @@ async def register_owner(
         contact_conditions.append(User.email == str(payload.email).lower())
 
     if normalized_phone is not None:
-        contact_conditions.append(User.phone == normalized_phone)
+        phone_variants = [normalized_phone, payload.phone.strip()]
+        if normalized_phone.startswith("+855"):
+            phone_variants.append("0" + normalized_phone[4:])
+        contact_conditions.append(User.phone.in_(list(set(phone_variants))))
 
     if contact_conditions:
         logger.debug(
@@ -112,8 +116,15 @@ async def register_owner(
         organization_slug=org_slug,
     )
 
-    # 3. Create the user record
+    # 3. Create all initial tenant entity records with explicit UUIDs
+    user_id = uuid4()
+    org_id = uuid4()
+    biz_id = uuid4()
+    branch_id = uuid4()
+    membership_id = uuid4()
+
     user = User(
+        id=user_id,
         email=str(payload.email).lower() if payload.email else None,
         phone=normalized_phone,
         password_hash=hash_password(payload.password),
@@ -124,55 +135,37 @@ async def register_owner(
         is_platform_admin=False,
     )
 
-    # 4. Create the organization record
     organization = Organization(
+        id=org_id,
         name=org_name,
         slug=org_slug,
         status=OrganizationStatus.ACTIVE,
         is_active=True,
     )
 
-    # Flush to generate IDs for user and organization
-    session.add_all([user, organization])
-    await session.flush()
-    logger.debug(
-        "User and organization records flushed",
-        user_id=str(user.id),
-        organization_id=str(organization.id),
-    )
-
-    # 5. Create membership as Owner
     membership = OrganizationMembership(
-        organization_id=organization.id,
-        user_id=user.id,
+        id=membership_id,
+        organization_id=org_id,
+        user_id=user_id,
         role=StaffRole.OWNER,
         status=MembershipStatus.ACTIVE,
         job_title="Owner",
         is_owner=True,
     )
 
-
-    # 6. Create initial business
     business = Business(
-        organization_id=organization.id,
+        id=biz_id,
+        organization_id=org_id,
         name_en=biz_name_en,
         name_km=biz_name_km,
         business_type=biz_type,
         is_active=True,
     )
 
-    # Flush to generate business ID
-    session.add_all([membership, business])
-    await session.flush()
-    logger.debug(
-        "Membership and business records flushed",
-        business_id=str(business.id),
-    )
-
-    # 7. Create initial branch
     branch = Branch(
-        organization_id=organization.id,
-        business_id=business.id,
+        id=branch_id,
+        organization_id=org_id,
+        business_id=biz_id,
         name_en=branch_name_en,
         name_km=branch_name_km,
         code=branch_code,
@@ -182,24 +175,23 @@ async def register_owner(
         is_active=True,
     )
 
-    session.add(branch)
-    await session.flush()
+    session.add_all([user, organization, membership, business, branch])
 
-    # 8. Auto-provision 30-day trial subscription (Standard plan)
+    # 4. Auto-provision 30-day trial subscription (Standard plan)
     from app.services.subscription_service import provision_trial_subscription
 
-    await provision_trial_subscription(session, organization.id)
+    await provision_trial_subscription(session, org_id)
 
-    # 9. Record audit log for registration
+    # 5. Record audit log for registration
     from app.services.audit_service import record_audit_log
 
     await record_audit_log(
         session=session,
         action="AUTH_REGISTER",
-        organization_id=organization.id,
-        user_id=user.id,
+        organization_id=org_id,
+        user_id=user_id,
         resource_type="user",
-        resource_id=str(user.id),
+        resource_id=str(user_id),
         details={"email": user.email, "organization_slug": organization.slug},
     )
 
@@ -230,34 +222,32 @@ async def authenticate_user(
     if "@" in normalized_identifier:
         condition = User.email == normalized_identifier
     else:
+        phone_candidates = {normalized_identifier}
         try:
-            normalized_phone = normalize_cambodian_phone(normalized_identifier)
-        except ValueError as exc:
-            logger.warning(
-                "Authentication failed: invalid phone number format",
-                error=str(exc),
-            )
-            raise InvalidCredentialsError(
-                "Invalid email, phone number, or password."
-            ) from exc
+            norm_e164 = normalize_cambodian_phone(normalized_identifier)
+            phone_candidates.add(norm_e164)
+            if norm_e164.startswith("+855"):
+                phone_candidates.add("0" + norm_e164[4:])
+        except ValueError:
+            pass
 
-        condition = User.phone == normalized_phone
+        condition = User.phone.in_(list(phone_candidates))
 
     result = await session.execute(select(User).where(condition))
-    user = result.scalar_one_or_none()
+    matched_users = result.scalars().all()
 
-    if user is None:
+    if not matched_users:
         logger.warning("Authentication failed: user not found")
         raise InvalidCredentialsError("Invalid email, phone number, or password.")
 
-    if not verify_password(
-        password,
-        user.password_hash,
-    ):
-        logger.warning(
-            "Authentication failed: incorrect password",
-            user_id=str(user.id),
-        )
+    user = None
+    for candidate_user in matched_users:
+        if verify_password(password, candidate_user.password_hash):
+            user = candidate_user
+            break
+
+    if user is None:
+        logger.warning("Authentication failed: incorrect password")
         raise InvalidCredentialsError("Invalid email, phone number, or password.")
 
     if user.status != UserStatus.ACTIVE:

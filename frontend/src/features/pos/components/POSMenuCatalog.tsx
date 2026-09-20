@@ -1,5 +1,5 @@
 import { useState, useMemo, type FC } from 'react'
-import { Search, Plus, Send, Trash2, ArrowLeft } from 'lucide-react'
+import { Search, Plus, Send, Trash2 } from 'lucide-react'
 import { Category, MenuItem, ItemVariant, ModifierOption, CourseStage } from '@/features/guest/types/guest.types'
 import { POSCartItem, POSTable } from '../types/pos.types'
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay'
@@ -16,7 +16,6 @@ export interface POSMenuCatalogProps {
   onRemoveFromCart: (cartItemId: string) => void
   onClearCart: () => void
   onSubmitOrder: (courseStage: CourseStage, guestNotes: string) => Promise<void>
-  onBackToFloorMap: () => void
   isSubmitting?: boolean
 }
 
@@ -29,7 +28,6 @@ export const POSMenuCatalog: FC<POSMenuCatalogProps> = ({
   onRemoveFromCart,
   onClearCart,
   onSubmitOrder,
-  onBackToFloorMap,
   isSubmitting = false,
 }) => {
   const { language } = useLanguageStore()
@@ -140,22 +138,14 @@ export const POSMenuCatalog: FC<POSMenuCatalogProps> = ({
       <div className="flex-1 space-y-4 w-full">
         {/* Navigation & Search */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <button
-            onClick={onBackToFloorMap}
-            className="px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 text-xs font-semibold text-zinc-700 dark:text-zinc-300 flex items-center gap-1.5 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>{language === 'km' ? 'ត្រឡប់ទៅប្លង់តុ' : 'Back to Floor Map'}</span>
-          </button>
-
           <div className="relative flex-1 max-w-sm">
-            <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={language === 'km' ? 'ស្វែងរកមុខម្ហូប...' : 'Search menu item...'}
-              className="w-full pl-9 pr-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
+              className="w-full pl-10 pr-4 py-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs focus:ring-1 focus:ring-emerald-500 outline-none transition-colors"
             />
           </div>
         </div>
@@ -164,10 +154,10 @@ export const POSMenuCatalog: FC<POSMenuCatalogProps> = ({
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           <button
             onClick={() => setActiveCategoryId('all')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+            className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
               activeCategoryId === 'all'
-                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-sm'
+                : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-800/80'
             }`}
           >
             {language === 'km' ? 'ទាំងអស់' : 'All'}
@@ -177,10 +167,10 @@ export const POSMenuCatalog: FC<POSMenuCatalogProps> = ({
             <button
               key={cat.id}
               onClick={() => setActiveCategoryId(cat.id)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-colors ${
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
                 activeCategoryId === cat.id
-                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                  : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-sm'
+                  : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-800/80'
               }`}
             >
               {language === 'km' && cat.name_km ? cat.name_km : cat.name_en}

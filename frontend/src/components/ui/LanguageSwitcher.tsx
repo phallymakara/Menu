@@ -30,12 +30,12 @@ export const LanguageSwitcher: FC<LanguageSwitcherProps> = ({ className }) => {
         onClick={() => setIsOpen(!isOpen)}
         aria-label="Select Language"
         className={cn(
-          'px-2.5 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors flex items-center gap-2 text-base font-semibold',
+          'px-2.5 py-2 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-100 transition-colors flex items-center gap-2 text-base sm:text-lg font-semibold',
           isOpen && 'bg-zinc-100 dark:bg-zinc-800 text-zinc-950 dark:text-zinc-100'
         )}
       >
-        <Globe className="w-5 h-5" />
-        <span className="text-base font-bold uppercase font-mono">{language}</span>
+        <Globe className="w-5 h-5 sm:w-5 sm:h-5" />
+        <span className="text-base sm:text-lg font-bold uppercase font-mono">{language}</span>
       </button>
 
       {/* Popover Options */}

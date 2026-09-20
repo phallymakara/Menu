@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useOnboardingStore } from '@/features/onboarding/stores/useOnboardingStore'
 
 export interface AuthUser {
   id: string
@@ -61,6 +62,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('emenu_business_id')
     localStorage.removeItem('emenu_branch_id')
     localStorage.removeItem('emenu_onboarding_completed')
+    useOnboardingStore.getState().resetOnboarding()
     set({
       token: null,
       user: null,

@@ -41,9 +41,8 @@ export const DiningTablesTab: FC = () => {
   const [selectedTableForPrint, setSelectedTableForPrint] = useState<DiningTable | null>(null)
 
   // Batch Form State
-  const [batchPrefix, setBatchPrefix] = useState('T-')
-  const [batchCount, setBatchCount] = useState(6)
-  const [batchCapacity, setBatchCapacity] = useState(4)
+  const [batchCount, setBatchCount] = useState('')
+  const [batchCapacity, setBatchCapacity] = useState('')
   const [batchZoneId, setBatchZoneId] = useState('')
   const [batchErrors, setBatchErrors] = useState<Record<string, string>>({})
 
@@ -202,11 +201,13 @@ export const DiningTablesTab: FC = () => {
   // 5. Batch Generate Tables in Tenant DB
   const validateBatchForm = () => {
     const errs: Record<string, string> = {}
-    if (!batchPrefix.trim()) {
-      errs.batchPrefix = language === 'km' ? 'សូមបញ្ចូលបុព្វបទតុ' : 'Table prefix is required'
+    const countNum = parseInt(batchCount, 10)
+    if (!batchCount.trim() || isNaN(countNum) || countNum < 1 || countNum > 50) {
+      errs.batchCount = language === 'km' ? 'សូមបញ្ចូលចំនួនតុ (១ - ៥០)' : 'Please enter table count (1 - 50)'
     }
-    if (!batchCount || batchCount < 1 || batchCount > 50) {
-      errs.batchCount = language === 'km' ? 'ចំនួនតុត្រូវនៅចន្លោះពី ១ ដល់ ៥០' : 'Table count must be between 1 and 50'
+    const capNum = parseInt(batchCapacity, 10)
+    if (!batchCapacity.trim() || isNaN(capNum) || capNum < 1 || capNum > 50) {
+      errs.batchCapacity = language === 'km' ? 'សូមបញ្ចូលចំនួនកៅអី (១ - ៥០)' : 'Please enter capacity (1 - 50)'
     }
     setBatchErrors(errs)
     return Object.keys(errs).length === 0
@@ -216,15 +217,19 @@ export const DiningTablesTab: FC = () => {
     e.preventDefault()
     if (!validateBatchForm()) return
 
+    const countNum = parseInt(batchCount, 10)
+    const capNum = parseInt(batchCapacity, 10)
+
     setIsSubmitting(true)
     try {
       const { biz, br } = await resolveTenant()
       if (isUuid(biz) && isUuid(br)) {
         const res = await api.post(`/businesses/${biz}/branches/${br}/tables/batch`, {
-          prefix: batchPrefix.trim(),
+          prefix: 'T-',
           start_number: tables.length + 1,
-          count: batchCount,
-          capacity: batchCapacity,
+          end_number: tables.length + countNum,
+          count: countNum,
+          capacity: capNum,
           dining_area_id: isUuid(batchZoneId) ? batchZoneId : null,
         })
 
@@ -234,7 +239,7 @@ export const DiningTablesTab: FC = () => {
             table_number: t.table_number,
             zone_id: t.dining_area_id,
             zone_name: zones.find((z) => z.id === t.dining_area_id)?.name_en || 'Main Area',
-            capacity: t.capacity || batchCapacity,
+            capacity: t.capacity || capNum,
             qr_token: t.qr_code_token || t.id,
             status: t.status || 'AVAILABLE',
           }))
@@ -242,6 +247,8 @@ export const DiningTablesTab: FC = () => {
         }
       }
       setBatchErrors({})
+      setBatchCount('')
+      setBatchCapacity('')
       setIsBatchModalOpen(false)
     } catch {
       alert('Failed to generate batch tables')
@@ -500,15 +507,21 @@ export const DiningTablesTab: FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Garden Terrace"
+                  placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះជាភាសាអង់គ្លេស' : 'Enter name in English'}
                   value={zoneForm.name_en}
-                  onChange={(e) => setZoneForm({ ...zoneForm, name_en: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                  onChange={(e) => {
+                    setZoneForm({ ...zoneForm, name_en: e.target.value })
+                    if (zoneErrors.name_en) {
+                      setZoneErrors((prev) => ({ ...prev, name_en: '' }))
+                    }
+                  }}
+                  className={`w-full px-4 py-2.5 rounded-full border ${
+                    zoneErrors.name_en ? 'border-red-500' : 'border-zinc-200 dark:border-zinc-700'
+                  } bg-transparent text-sm focus:outline-none focus:border-emerald-600`}
                 />
                 {zoneErrors.name_en && (
                   <p className="text-xs text-red-500 mt-1">{zoneErrors.name_en}</p>
                 )}
-
               </div>
 
               <div>
@@ -517,10 +530,10 @@ export const DiningTablesTab: FC = () => {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. រានហាលសួនច្បារ"
+                  placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះជាភាសាខ្មែរ' : 'Enter name in Khmer'}
                   value={zoneForm.name_km}
                   onChange={(e) => setZoneForm({ ...zoneForm, name_km: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                  className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
                 />
               </div>
 
@@ -573,7 +586,7 @@ export const DiningTablesTab: FC = () => {
                 <select
                   value={batchZoneId}
                   onChange={(e) => setBatchZoneId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                  className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:border-emerald-600 transition-all"
                 >
                   {zones.map((z) => (
                     <option key={z.id} value={z.id}>
@@ -583,36 +596,40 @@ export const DiningTablesTab: FC = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-                    {language === 'km' ? 'បុព្វបទ' : 'Prefix'}
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={batchPrefix}
-                    onChange={(e) => setBatchPrefix(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm font-mono focus:outline-none focus:border-emerald-600"
-                  />
-                  {batchErrors.batchPrefix && (
-                    <p className="text-xs text-red-500 mt-1">{batchErrors.batchPrefix}</p>
-                  )}
-                </div>
-
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
                     {language === 'km' ? 'ចំនួនតុ' : 'Count'}
                   </label>
                   <input
-                    type="number"
-                    min={1}
-                    max={50}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     required
+                    placeholder={language === 'km' ? 'បញ្ចូលចំនួនតុ' : 'Enter count'}
                     value={batchCount}
-                    onChange={(e) => setBatchCount(parseInt(e.target.value) || 1)}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                    onKeyDown={(e) => {
+                      if (
+                        !/[0-9]/.test(e.key) &&
+                        !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'].includes(e.key)
+                      ) {
+                        e.preventDefault()
+                      }
+                    }}
+                    onChange={(e) => {
+                      const numericVal = e.target.value.replace(/[^0-9]/g, '')
+                      setBatchCount(numericVal)
+                      if (batchErrors.batchCount) {
+                        setBatchErrors((prev) => ({ ...prev, batchCount: '' }))
+                      }
+                    }}
+                    className={`w-full px-4 py-2.5 rounded-full border ${
+                      batchErrors.batchCount ? 'border-red-500' : 'border-zinc-200 dark:border-zinc-700'
+                    } bg-transparent text-sm focus:outline-none focus:border-emerald-600 transition-all`}
                   />
+                  {batchErrors.batchCount && (
+                    <p className="text-xs text-red-500 mt-1">{batchErrors.batchCount}</p>
+                  )}
                 </div>
 
                 <div>
@@ -620,20 +637,36 @@ export const DiningTablesTab: FC = () => {
                     {language === 'km' ? 'ចំនួនកៅអី' : 'Capacity'}
                   </label>
                   <input
-                    type="number"
-                    min={1}
-                    max={20}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     required
+                    placeholder={language === 'km' ? 'បញ្ចូលចំនួនកៅអី' : 'Enter capacity'}
                     value={batchCapacity}
-                    onChange={(e) => setBatchCapacity(parseInt(e.target.value) || 4)}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                    onKeyDown={(e) => {
+                      if (
+                        !/[0-9]/.test(e.key) &&
+                        !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Enter'].includes(e.key)
+                      ) {
+                        e.preventDefault()
+                      }
+                    }}
+                    onChange={(e) => {
+                      const numericVal = e.target.value.replace(/[^0-9]/g, '')
+                      setBatchCapacity(numericVal)
+                      if (batchErrors.batchCapacity) {
+                        setBatchErrors((prev) => ({ ...prev, batchCapacity: '' }))
+                      }
+                    }}
+                    className={`w-full px-4 py-2.5 rounded-full border ${
+                      batchErrors.batchCapacity ? 'border-red-500' : 'border-zinc-200 dark:border-zinc-700'
+                    } bg-transparent text-sm focus:outline-none focus:border-emerald-600 transition-all`}
                   />
+                  {batchErrors.batchCapacity && (
+                    <p className="text-xs text-red-500 mt-1">{batchErrors.batchCapacity}</p>
+                  )}
                 </div>
               </div>
-
-              {batchErrors.batchCount && (
-                <p className="text-xs text-red-500">{batchErrors.batchCount}</p>
-              )}
 
               <div className="pt-2 flex items-center justify-end gap-2">
                 <Button

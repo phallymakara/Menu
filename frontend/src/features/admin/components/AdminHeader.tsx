@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Utensils,
   LogOut,
   Menu as MenuIcon,
   Camera,
@@ -39,11 +38,17 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
   const [businessId, setBusinessId] = useState<string | null>(
     localStorage.getItem('emenu_business_id')
   )
-  const [businessName, setBusinessName] = useState({
-    en: 'Restaurant Menu',
-    km: 'ម៉ឺនុយភោជនីយដ្ឋាន',
+  const [businessName, setBusinessName] = useState(() => {
+    const savedEn = localStorage.getItem('emenu_business_name_en') || ''
+    const savedKm = localStorage.getItem('emenu_business_name_km') || savedEn
+    return {
+      en: savedEn,
+      km: savedKm,
+    }
   })
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [logoUrl, setLogoUrl] = useState<string | null>(() =>
+    localStorage.getItem('emenu_business_logo') || null
+  )
 
   const [branches, setBranches] = useState<RealBranch[]>([])
   const [activeBranchId, setActiveBranchId] = useState<string | null>(
@@ -63,26 +68,56 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
   })
   const [branchErrors, setBranchErrors] = useState<Record<string, string>>({})
 
-  // 1. Fetch Real Business and Branches from PostgreSQL Database
+  // 1. Fetch Real Business Profile & Branches from PostgreSQL Database
   const fetchBranches = useCallback(async () => {
+    const token = localStorage.getItem('emenu_access_token')
+    if (!token) {
+      setIsLoadingBranches(false)
+      return
+    }
+
     setIsLoadingBranches(true)
     try {
       let bizId = businessId
 
-      if (!isUuid(bizId)) {
-        const bizRes = await api.get('/businesses').catch(() => ({ data: [] }))
-        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
-          bizId = bizRes.data[0].id
+      // Always fetch business profile to ensure the real store name is shown
+      const bizRes = await api.get('/businesses').catch(() => ({ data: [] }))
+      if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
+        const targetBiz =
+          (isUuid(bizId) ? bizRes.data.find((b: any) => b.id === bizId) : null) ||
+          bizRes.data[0]
+
+        if (targetBiz) {
+          bizId = targetBiz.id
           setBusinessId(bizId)
           localStorage.setItem('emenu_business_id', bizId!)
-          if (bizRes.data[0].name_en) {
-            setBusinessName({
-              en: bizRes.data[0].name_en,
-              km: bizRes.data[0].name_km || bizRes.data[0].name_en,
-            })
+
+          const nameEn = targetBiz.name_en || ''
+          const nameKm = targetBiz.name_km || nameEn
+          if (nameEn || nameKm) {
+            setBusinessName({ en: nameEn, km: nameKm })
+            if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
+            if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
           }
-          if (bizRes.data[0].logo_url) {
-            setLogoUrl(bizRes.data[0].logo_url)
+
+          if (targetBiz.logo_url) {
+            setLogoUrl(targetBiz.logo_url)
+            localStorage.setItem('emenu_business_logo', targetBiz.logo_url)
+          }
+        }
+      } else if (isUuid(bizId)) {
+        const singleBiz = await api.get(`/businesses/${bizId}`).catch(() => null)
+        if (singleBiz?.data) {
+          const nameEn = singleBiz.data.name_en || ''
+          const nameKm = singleBiz.data.name_km || nameEn
+          if (nameEn || nameKm) {
+            setBusinessName({ en: nameEn, km: nameKm })
+            if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
+            if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
+          }
+          if (singleBiz.data.logo_url) {
+            setLogoUrl(singleBiz.data.logo_url)
+            localStorage.setItem('emenu_business_logo', singleBiz.data.logo_url)
           }
         }
       }
@@ -120,15 +155,33 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
       fetchBranches()
     }
 
+    const handleBusinessUpdated = (e: any) => {
+      const d = e?.detail
+      if (d) {
+        const en = d.name_en || ''
+        const km = d.name_km || en
+        if (en || km) {
+          setBusinessName({ en, km })
+        }
+        if (d.logo_url) {
+          setLogoUrl(d.logo_url)
+        }
+      } else {
+        fetchBranches()
+      }
+    }
+
     const handleFocus = () => {
       fetchBranches()
     }
 
     window.addEventListener('emenu:branches-updated', handleBranchesUpdated)
+    window.addEventListener('emenu:business-updated', handleBusinessUpdated)
     window.addEventListener('focus', handleFocus)
 
     return () => {
       window.removeEventListener('emenu:branches-updated', handleBranchesUpdated)
+      window.removeEventListener('emenu:business-updated', handleBusinessUpdated)
       window.removeEventListener('focus', handleFocus)
     }
   }, [fetchBranches])
@@ -217,6 +270,11 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
       ? 'ជ្រើសរើសសាខា'
       : 'Select Branch'
 
+  const displayStoreName =
+    language === 'km'
+      ? businessName.km || businessName.en || 'ហាងរបស់ខ្ញុំ'
+      : businessName.en || businessName.km || 'My Store'
+
   return (
     <header className="bg-white dark:bg-zinc-950 sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800">
       <div className="px-3 sm:px-6 h-16 flex items-center justify-between gap-2 max-w-full">
@@ -236,13 +294,13 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
               {logoUrl ? (
                 <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
               ) : (
-                <Utensils className="w-4 h-4" />
+                <img src="/logo-mark.svg" alt="Logo" className="w-6 h-6 object-contain" />
               )}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="hidden sm:inline-block font-bold text-sm sm:text-base tracking-tight text-zinc-950 dark:text-zinc-50 leading-tight">
-                  {language === 'km' ? businessName.km : businessName.en}
+                  {displayStoreName}
                 </span>
 
                 {/* Branch Switcher Button */}

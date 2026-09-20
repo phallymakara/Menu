@@ -301,13 +301,13 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
         <div className="space-y-4">
           {/* Search bar */}
           <div className="relative max-w-sm">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={language === 'km' ? 'ស្វែងរកតាមឈ្មោះ ឬ SKU...' : 'Search ingredient or SKU...'}
-              className="w-full pl-9 pr-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs sm:text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+              className="w-full pl-10 pr-4 py-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs sm:text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors"
             />
           </div>
 

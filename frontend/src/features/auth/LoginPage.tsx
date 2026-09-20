@@ -8,7 +8,7 @@ import { useAuthStore } from '@/stores/useAuthStore'
 import { api } from '@/lib/api'
 
 export const LoginPage: FC = () => {
-  const { language } = useLanguageStore()
+  const { language, t } = useLanguageStore()
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
 
@@ -65,11 +65,28 @@ export const LoginPage: FC = () => {
 
       // Existing user: direct directly to dashboard page
       navigate('/admin')
-    } catch {
-      const msg =
-        language === 'km'
-          ? 'អ៊ីមែល ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ'
-          : 'Invalid email or password. Please try again.'
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail
+      let msg: string
+      if (typeof detail === 'string') {
+        if (detail.includes('Invalid email, phone number, or password')) {
+          msg =
+            language === 'km'
+              ? 'អ៊ីមែល លេខទូរស័ព្ទ ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ'
+              : 'Invalid email, phone number, or password.'
+        } else if (detail.includes('not active')) {
+          msg = language === 'km' ? 'គណនីនេះត្រូវបានផ្អាកដំណើរការ' : 'This account is not active.'
+        } else {
+          msg = detail
+        }
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        msg = detail[0]?.msg || (language === 'km' ? 'ទិន្នន័យបញ្ចូលមិនត្រឹមត្រូវ' : 'Invalid input format.')
+      } else {
+        msg =
+          language === 'km'
+            ? 'អ៊ីមែល ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ'
+            : 'Invalid email or password. Please try again.'
+      }
       setErrorMessage(msg)
     } finally {
       setIsLoading(false)
@@ -101,7 +118,7 @@ export const LoginPage: FC = () => {
                 setEmailOrPhone(e.target.value)
                 if (errorMessage) setErrorMessage(null)
               }}
-              placeholder={language === 'km' ? 'dara@restaurant.com ឬ 012 345 678' : 'dara@restaurant.com or 012 345 678'}
+              placeholder={t('emailOrPhonePlaceholder')}
               className={`w-full pl-11 pr-4 py-3 rounded-lg border ${
                 errorMessage
                   ? 'border-red-500 focus:border-red-500'

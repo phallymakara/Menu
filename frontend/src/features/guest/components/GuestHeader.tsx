@@ -78,13 +78,13 @@ export const GuestHeader: FC<GuestHeaderProps> = ({
       {/* Search Input Bar */}
       <div className="px-4 pb-2.5 max-w-2xl mx-auto">
         <div className="relative">
-          <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={language === 'km' ? 'ស្វែងរកមុខម្ហូប ឬភេសជ្ជៈ...' : 'Search food or drinks...'}
-            className="w-full pl-9 pr-4 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs focus:ring-1 focus:ring-emerald-500 outline-none transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs sm:text-sm focus:ring-1 focus:ring-emerald-500 outline-none transition-colors"
           />
         </div>
       </div>

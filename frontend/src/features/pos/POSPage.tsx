@@ -1,15 +1,13 @@
 import { useEffect, useState, useCallback, type FC } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { useLanguageStore } from '@/stores/useLanguageStore'
 import {
   POSDiningZone,
   POSTable,
-  POSPlacedRound,
 } from './types/pos.types'
-import { Category, CourseStage } from '@/features/guest/types/guest.types'
 import { POSHeader } from './components/POSHeader'
 import { POSTableGrid } from './components/POSTableGrid'
 import { POSOrderDrawer } from './components/POSOrderDrawer'
-import { POSMenuCatalog } from './components/POSMenuCatalog'
 import { POSCashPaymentModal } from './components/POSCashPaymentModal'
 import { POSSupervisorVoidModal } from './components/POSSupervisorVoidModal'
 import { POSReceiptModal } from './components/POSReceiptModal'
@@ -18,19 +16,16 @@ import { ServiceHubDrawer } from '@/features/service-hub/components/ServiceHubDr
 import { usePOSStore } from './stores/usePOSStore'
 import { api } from '@/lib/api'
 import { useWebSocket } from '@/lib/websocket'
-import { playChime, playSuccessSound } from '@/lib/audio'
+import { playSuccessSound, playChime } from '@/lib/audio'
 
 const isUuid = (id?: string | null): boolean =>
   !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 
 export const POSPage: FC = () => {
   const {
-    zones,
     tables,
     selectedTable,
     activeRounds,
-    activeCart,
-    viewMode,
     selectedZoneId,
     exchangeRate,
     isCashModalOpen,
@@ -42,12 +37,6 @@ export const POSPage: FC = () => {
     setTables,
     setSelectedTable,
     setActiveRounds,
-    setViewMode,
-    setSelectedZoneId,
-    addToCart,
-    updateCartQuantity,
-    removeFromCart,
-    clearCart,
     openCashModal,
     closeCashModal,
     openKHQRModal,
@@ -58,12 +47,14 @@ export const POSPage: FC = () => {
     closeReceiptModal,
     updateTableStatus,
   } = usePOSStore()
+  const { language } = useLanguageStore()
 
-  const [categories, setCategories] = useState<Category[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
-  const [branchName, setBranchName] = useState<string>('Restaurant')
+  const [storeInfo, setStoreInfo] = useState({
+    nameEn: localStorage.getItem('emenu_business_name_en') || '',
+    nameKm: localStorage.getItem('emenu_business_name_km') || '',
+    logoUrl: localStorage.getItem('emenu_business_logo') || null,
+  })
 
   // Context identifiers
   const [tenantBizId, setTenantBizId] = useState<string | null>(
@@ -83,9 +74,32 @@ export const POSPage: FC = () => {
       try {
         const bizRes = await api.get('/businesses')
         if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
-          bizId = bizRes.data[0].id
+          const biz = bizRes.data[0]
+          bizId = biz.id
           setTenantBizId(bizId)
           localStorage.setItem('emenu_business_id', bizId!)
+          const nameEn = biz.name_en || ''
+          const nameKm = biz.name_km || nameEn
+          const logo = biz.logo_url || null
+          setStoreInfo({ nameEn, nameKm, logoUrl: logo })
+          if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
+          if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
+          if (logo) localStorage.setItem('emenu_business_logo', logo)
+        }
+      } catch {
+        // Handled in catch
+      }
+    } else if (!storeInfo.nameEn && !storeInfo.nameKm) {
+      try {
+        const singleBiz = await api.get(`/businesses/${bizId}`)
+        if (singleBiz?.data) {
+          const nameEn = singleBiz.data.name_en || ''
+          const nameKm = singleBiz.data.name_km || nameEn
+          const logo = singleBiz.data.logo_url || null
+          setStoreInfo({ nameEn, nameKm, logoUrl: logo })
+          if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
+          if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
+          if (logo) localStorage.setItem('emenu_business_logo', logo)
         }
       } catch {
         // Handled in catch
@@ -97,7 +111,6 @@ export const POSPage: FC = () => {
         const branchRes = await api.get(`/businesses/${bizId}/branches`)
         if (Array.isArray(branchRes.data) && branchRes.data.length > 0) {
           branchId = branchRes.data[0].id
-          setBranchName(branchRes.data[0].name_en || 'Main Branch')
           setTenantBranchId(branchId)
           localStorage.setItem('emenu_branch_id', branchId!)
         }
@@ -107,26 +120,21 @@ export const POSPage: FC = () => {
     }
 
     return { bizId, branchId }
-  }, [tenantBizId, tenantBranchId])
+  }, [tenantBizId, tenantBranchId, storeInfo.nameEn, storeInfo.nameKm])
 
   // 2. Fetch POS Data (Zones, Tables, Categories, Items) for the Isolated Tenant
   const fetchPOSData = useCallback(async () => {
-    setIsRefreshing(true)
-
     try {
       const { bizId, branchId } = await resolveTenantContext()
 
       if (!isUuid(bizId) || !isUuid(branchId)) {
         setIsLoading(false)
-        setIsRefreshing(false)
         return
       }
 
-      const [zonesRes, tablesRes, catRes, itemRes] = await Promise.all([
+      const [zonesRes, tablesRes] = await Promise.all([
         api.get(`/businesses/${bizId}/branches/${branchId}/dining-areas`).catch(() => ({ data: [] })),
         api.get(`/businesses/${bizId}/branches/${branchId}/tables`).catch(() => ({ data: [] })),
-        api.get(`/businesses/${bizId}/categories`).catch(() => ({ data: [] })),
-        api.get(`/businesses/${bizId}/items`).catch(() => ({ data: [] })),
       ])
 
       const rawZones: any[] = Array.isArray(zonesRes.data) ? zonesRes.data : []
@@ -152,39 +160,8 @@ export const POSPage: FC = () => {
         active_orders_count: 0,
       }))
       setTables(builtTables)
-
-      const rawCats: any[] = Array.isArray(catRes.data) ? catRes.data : []
-      const rawItems: any[] = Array.isArray(itemRes.data)
-        ? itemRes.data
-        : itemRes.data?.items && Array.isArray(itemRes.data.items)
-        ? itemRes.data.items
-        : []
-
-      const builtCategories: Category[] = rawCats.map((c) => ({
-        id: c.id,
-        name_en: c.name_en,
-        name_km: c.name_km || c.name_en,
-        display_order: c.display_order || 0,
-        items: rawItems
-          .filter((i) => i.category_id === c.id)
-          .map((i) => ({
-            id: i.id,
-            category_id: i.category_id,
-            name_en: i.name_en,
-            name_km: i.name_km || i.name_en,
-            description_en: i.description_en || '',
-            description_km: i.description_km || '',
-            base_price_usd: Number(i.base_price || i.price_usd || 0),
-            image_url: i.image_url,
-            is_available: i.is_active ?? i.is_available ?? true,
-            variants: i.variants || [],
-            modifier_groups: i.modifier_groups || [],
-          })),
-      }))
-      setCategories(builtCategories)
     } finally {
       setIsLoading(false)
-      setIsRefreshing(false)
     }
   }, [resolveTenantContext, setTables, setZones])
 
@@ -222,59 +199,6 @@ export const POSPage: FC = () => {
     if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       await api.patch(`/businesses/${tenantBizId}/branches/${tenantBranchId}/tables/${tableId}/status`, {
         status: 'AVAILABLE',
-      }).catch(() => null)
-    }
-  }
-
-  // 5. Submit Waiter Direct Order to Isolated Tenant Backend
-  const handleSubmitDirectOrder = async (courseStage: CourseStage, guestNotes: string) => {
-    if (activeCart.length === 0 || !selectedTable) return
-    setIsSubmittingOrder(true)
-
-    const cartSubtotal = activeCart.reduce((sum, item) => sum + item.total_price_usd, 0)
-    const newRound: POSPlacedRound = {
-      id: `r-${Date.now()}`,
-      order_number: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-      round_number: activeRounds.length + 1,
-      created_at: new Date().toISOString(),
-      subtotal_usd: cartSubtotal,
-      items: activeCart.map((c, idx) => ({
-        id: `it-${Date.now()}-${idx}`,
-        menu_item_id: c.menu_item_id,
-        item_name_en: c.item_name_en,
-        item_name_km: c.item_name_km,
-        variant_name_en: c.variant_name,
-        quantity: c.quantity,
-        course_stage: c.course_stage || courseStage,
-        status: 'PREPARING',
-        unit_price_usd: c.unit_price_usd,
-        subtotal_usd: c.total_price_usd,
-        special_instructions: c.special_instructions,
-        modifiers_summary: c.modifiers.map((m) => m.modifier_name).join(', '),
-      })),
-    }
-
-    updateTableStatus(selectedTable.id, 'occupied', selectedTable.session_id || `sess-${Date.now()}`)
-    setActiveRounds([...activeRounds, newRound])
-    clearCart()
-    setIsSubmittingOrder(false)
-    setViewMode('floor_map')
-    playChime(587.33, 880, 0.4)
-
-    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
-      await api.post(`/businesses/${tenantBizId}/branches/${tenantBranchId}/orders`, {
-        table_id: selectedTable.id,
-        guest_notes: guestNotes,
-        items: activeCart.map((c) => ({
-          menu_item_id: c.menu_item_id,
-          item_variant_id: c.variant_id && isUuid(c.variant_id) ? c.variant_id : null,
-          quantity: c.quantity,
-          course_stage: c.course_stage || courseStage,
-          special_instructions: c.special_instructions,
-          modifiers: c.modifiers
-            .filter((m) => isUuid(m.modifier_option_id))
-            .map((m) => ({ modifier_option_id: m.modifier_option_id, quantity: 1 })),
-        })),
       }).catch(() => null)
     }
   }
@@ -340,7 +264,7 @@ export const POSPage: FC = () => {
       ? `/ws/branches/${tenantBranchId}?token=${accessToken}&room_type=pos`
       : null
 
-  useWebSocket(wsUrl, {
+  const { isConnected } = useWebSocket(wsUrl, {
     autoConnect: !!wsUrl,
     onMessage: (rawMsg) => {
       try {
@@ -365,6 +289,11 @@ export const POSPage: FC = () => {
   const totalUSD = subtotalUSD + taxUSD
   const totalKHR = Math.round(totalUSD * exchangeRate)
 
+  const resolvedStoreName =
+    language === 'km'
+      ? storeInfo.nameKm || storeInfo.nameEn || 'ភោជនីយដ្ឋាន'
+      : storeInfo.nameEn || storeInfo.nameKm || 'Restaurant'
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 text-center space-y-3">
@@ -379,57 +308,38 @@ export const POSPage: FC = () => {
       <div>
         {/* Sticky POS Header */}
         <POSHeader
-          branchName={branchName}
-          onRefresh={fetchPOSData}
-          isRefreshing={isRefreshing}
+          storeName={resolvedStoreName}
+          storeLogo={storeInfo.logoUrl}
+          isConnected={isConnected}
         />
 
         {/* Main Workspace Body */}
-        <div className="p-4 sm:p-6 max-w-7xl mx-auto">
-          {viewMode === 'direct_order' ? (
-            /* Direct Waiter / Counter Order Taking Mode */
-            <POSMenuCatalog
-              categories={categories}
-              activeCart={activeCart}
-              selectedTable={selectedTable}
-              onAddToCart={addToCart}
-              onUpdateCartQty={updateCartQuantity}
-              onRemoveFromCart={removeFromCart}
-              onClearCart={clearCart}
-              onSubmitOrder={handleSubmitDirectOrder}
-              onBackToFloorMap={() => setViewMode('floor_map')}
-              isSubmitting={isSubmittingOrder}
-            />
-          ) : (
-            /* Floor Map Grid & Active Table Drawer */
-            <div className="flex flex-col lg:flex-row gap-6 items-start">
-              <div className="flex-1 w-full">
-                <POSTableGrid
-                  zones={zones}
-                  tables={tables}
-                  selectedZoneId={selectedZoneId}
-                  selectedTableId={selectedTable?.id}
-                  onSelectZone={setSelectedZoneId}
-                  onSelectTable={handleSelectTable}
-                  onMarkCleaned={handleMarkCleaned}
-                />
-              </div>
-
-              {/* Side Drawer for Selected Table */}
-              {selectedTable && (
-                <POSOrderDrawer
-                  table={selectedTable}
-                  rounds={activeRounds}
-                  onClose={() => setSelectedTable(null)}
-                  onOpenCashModal={openCashModal}
-                  onOpenKHQRModal={openKHQRModal}
-                  onOpenVoidModal={openVoidModal}
-                  onPrintPrecheck={() => openReceiptModal('PRECHECK')}
-                  onStartDirectOrder={() => setViewMode('direct_order')}
-                />
-              )}
+        <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
+          {/* Floor Map Grid & Active Table Drawer */}
+          <div className="flex flex-col lg:flex-row gap-6 items-start">
+            <div className="flex-1 w-full">
+              <POSTableGrid
+                tables={tables}
+                selectedZoneId={selectedZoneId}
+                selectedTableId={selectedTable?.id}
+                onSelectTable={handleSelectTable}
+                onMarkCleaned={handleMarkCleaned}
+              />
             </div>
-          )}
+
+            {/* Side Drawer for Selected Table */}
+            {selectedTable && (
+              <POSOrderDrawer
+                table={selectedTable}
+                rounds={activeRounds}
+                onClose={() => setSelectedTable(null)}
+                onOpenCashModal={openCashModal}
+                onOpenKHQRModal={openKHQRModal}
+                onOpenVoidModal={openVoidModal}
+                onPrintPrecheck={() => openReceiptModal('PRECHECK')}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -449,7 +359,7 @@ export const POSPage: FC = () => {
         onClose={closeKHQRModal}
         totalUSD={totalUSD}
         tableNumber={selectedTable?.table_number || 'T-01'}
-        merchantName={branchName}
+        merchantName={resolvedStoreName}
         isSettled={false}
         onSimulateSettlement={() => {
           handleConfirmCashSettlement({
@@ -475,7 +385,7 @@ export const POSPage: FC = () => {
         isOpen={isReceiptModalOpen}
         onClose={closeReceiptModal}
         tableNumber={selectedTable?.table_number || 'T-01'}
-        branchName={branchName}
+        branchName={resolvedStoreName}
         totalUSD={totalUSD}
         totalKHR={totalKHR}
         subtotalUSD={subtotalUSD}

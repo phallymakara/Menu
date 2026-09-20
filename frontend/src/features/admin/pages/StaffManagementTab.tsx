@@ -32,7 +32,7 @@ export const StaffManagementTab: FC = () => {
     localStorage.getItem('emenu_tenant_id') || localStorage.getItem('emenu_organization_id')
   )
   const [activeBranchId, setActiveBranchId] = useState<string>(
-    localStorage.getItem('emenu_branch_id') || 'all'
+    localStorage.getItem('emenu_branch_id') || ''
   )
 
   const [branches, setBranches] = useState<BranchOption[]>([])
@@ -92,14 +92,19 @@ export const StaffManagementTab: FC = () => {
     if (isUuid(bizId)) {
       try {
         const branchRes = await api.get(`/businesses/${bizId}/branches`)
-        if (Array.isArray(branchRes.data)) {
-          setBranches(
-            branchRes.data.map((b: any) => ({
-              id: b.id,
-              name_en: b.name_en,
-              name_km: b.name_km || b.name_en,
-            }))
-          )
+        if (Array.isArray(branchRes.data) && branchRes.data.length > 0) {
+          const mappedBranches = branchRes.data.map((b: any) => ({
+            id: b.id,
+            name_en: b.name_en,
+            name_km: b.name_km || b.name_en,
+          }))
+          setBranches(mappedBranches)
+
+          const stored = localStorage.getItem('emenu_branch_id')
+          const matched = mappedBranches.find((b: any) => b.id === stored)
+          const targetBranchId = matched ? matched.id : mappedBranches[0].id
+          setActiveBranchId(targetBranchId)
+          localStorage.setItem('emenu_branch_id', targetBranchId)
         }
       } catch {
         // Handled in catch
@@ -109,7 +114,7 @@ export const StaffManagementTab: FC = () => {
     return currentOrg
   }, [orgId])
 
-  // 2. Fetch Isolated Staff Members
+  // 2. Fetch Isolated Staff Members for Current Branch Only
   const loadStaff = useCallback(async () => {
     setIsLoading(true)
     setErrorMessage(null)
@@ -121,9 +126,13 @@ export const StaffManagementTab: FC = () => {
         return
       }
 
+      const currentBranch =
+        (isUuid(activeBranchId) ? activeBranchId : null) ||
+        (isUuid(localStorage.getItem('emenu_branch_id')) ? localStorage.getItem('emenu_branch_id') : null)
+
       const params: Record<string, string> = {}
-      if (activeBranchId !== 'all' && isUuid(activeBranchId)) {
-        params.branch_id = activeBranchId
+      if (currentBranch) {
+        params.branch_id = currentBranch
       }
 
       const res = await api.get(`/organizations/${currentOrg}/members`, { params })
@@ -146,7 +155,10 @@ export const StaffManagementTab: FC = () => {
           status: m.status || 'active',
           created_at: m.created_at ? m.created_at.split('T')[0] : '2026-08-01',
         }))
-        setStaffList(mapped)
+        const branchMembers = currentBranch && isUuid(currentBranch)
+          ? mapped.filter((m) => m.branch_id === currentBranch)
+          : mapped
+        setStaffList(branchMembers)
       } else {
         setStaffList([])
       }
@@ -210,11 +222,9 @@ export const StaffManagementTab: FC = () => {
       }
 
       const assignedBranch =
-        newStaff.branch_id && isUuid(newStaff.branch_id)
-          ? newStaff.branch_id
-          : activeBranchId !== 'all' && isUuid(activeBranchId)
-          ? activeBranchId
-          : branches[0]?.id || null
+        (isUuid(activeBranchId) ? activeBranchId : null) ||
+        (isUuid(localStorage.getItem('emenu_branch_id')) ? localStorage.getItem('emenu_branch_id') : null) ||
+        (branches.length > 0 ? branches[0].id : null)
 
       await api.post(`/organizations/${currentOrg}/members`, {
         full_name: newStaff.full_name.trim(),
@@ -344,7 +354,21 @@ export const StaffManagementTab: FC = () => {
           variant="primary"
           size="sm"
           onClick={() => {
+            const currentBranch =
+              (isUuid(activeBranchId) ? activeBranchId : null) ||
+              (isUuid(localStorage.getItem('emenu_branch_id')) ? localStorage.getItem('emenu_branch_id') : null) ||
+              (branches.length > 0 ? branches[0].id : '')
             setFormErrors({})
+            setNewStaff({
+              full_name: '',
+              phone: '',
+              email: '',
+              avatar_url: null,
+              role: 'WAITER',
+              branch_id: currentBranch,
+              pin_code: '',
+              password: '',
+            })
             setIsAddStaffModalOpen(true)
           }}
           className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -358,37 +382,6 @@ export const StaffManagementTab: FC = () => {
         <p className="text-xs font-medium text-red-500">
           {errorMessage}
         </p>
-      )}
-
-      {/* Branch Isolation Filter Bar */}
-      {branches.length > 0 && (
-        <div className="flex items-center gap-2.5 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => setActiveBranchId('all')}
-            className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-              activeBranchId === 'all'
-                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'
-            }`}
-          >
-            {language === 'km' ? 'សាខាទាំងអស់' : 'All Branches'}
-          </button>
-          {branches.map((b) => (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() => setActiveBranchId(b.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                activeBranchId === b.id
-                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                  : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'
-              }`}
-            >
-              <span>{language === 'km' ? b.name_km : b.name_en}</span>
-            </button>
-          ))}
-        </div>
       )}
 
       {/* Single Column Row List */}
@@ -549,22 +542,27 @@ export const StaffManagementTab: FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleCreateStaff} className="space-y-3">
+            <form onSubmit={handleCreateStaff} className="space-y-3" autoComplete="off">
               {/* Avatar Upload Trigger */}
-              <div className="flex items-center gap-4 py-1">
-                <div className="w-14 h-14 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex items-center justify-center text-zinc-400 shrink-0">
-                  {isUploadingPhoto ? (
-                    <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
-                  ) : newStaff.avatar_url ? (
-                    <img
-                      src={newStaff.avatar_url}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Camera className="w-6 h-6" />
-                  )}
-                </div>
+              <div className="flex flex-col items-center justify-center text-center py-2">
+                <label
+                  htmlFor="staff-avatar-upload"
+                  className="relative group cursor-pointer block mb-2"
+                >
+                  <div className="w-16 h-16 rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-700 hover:border-emerald-500 dark:hover:border-emerald-500 bg-zinc-50 dark:bg-zinc-800/60 overflow-hidden flex items-center justify-center text-zinc-400 transition-colors shrink-0 mx-auto">
+                    {isUploadingPhoto ? (
+                      <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+                    ) : newStaff.avatar_url ? (
+                      <img
+                        src={newStaff.avatar_url}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Camera className="w-6 h-6 group-hover:text-emerald-600 transition-colors" />
+                    )}
+                  </div>
+                </label>
                 <div>
                   <label
                     htmlFor="staff-avatar-upload"
@@ -593,10 +591,18 @@ export const StaffManagementTab: FC = () => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Sokha Makara"
+                  autoComplete="off"
+                  placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះពេញ' : 'Enter full name'}
                   value={newStaff.full_name}
-                  onChange={(e) => setNewStaff({ ...newStaff, full_name: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                  onChange={(e) => {
+                    setNewStaff({ ...newStaff, full_name: e.target.value })
+                    if (formErrors.full_name) {
+                      setFormErrors((prev) => ({ ...prev, full_name: '' }))
+                    }
+                  }}
+                  className={`w-full px-4 py-2.5 rounded-full border ${
+                    formErrors.full_name ? 'border-red-500' : 'border-zinc-200 dark:border-zinc-700'
+                  } bg-transparent text-sm focus:outline-none focus:border-emerald-600 transition-all`}
                 />
                 {formErrors.full_name && (
                   <p className="text-xs text-red-500 mt-1">{formErrors.full_name}</p>
@@ -611,10 +617,18 @@ export const StaffManagementTab: FC = () => {
                   </label>
                   <input
                     type="text"
-                    placeholder="012 345 678"
+                    autoComplete="off"
+                    placeholder={language === 'km' ? 'បញ្ចូលលេខទូរស័ព្ទ' : 'Enter phone number'}
                     value={newStaff.phone}
-                    onChange={(e) => setNewStaff({ ...newStaff, phone: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                    onChange={(e) => {
+                      setNewStaff({ ...newStaff, phone: e.target.value })
+                      if (formErrors.phone) {
+                        setFormErrors((prev) => ({ ...prev, phone: '' }))
+                      }
+                    }}
+                    className={`w-full px-4 py-2.5 rounded-full border ${
+                      formErrors.phone ? 'border-red-500' : 'border-zinc-200 dark:border-zinc-700'
+                    } bg-transparent text-sm focus:outline-none focus:border-emerald-600 transition-all`}
                   />
                 </div>
 
@@ -624,34 +638,15 @@ export const StaffManagementTab: FC = () => {
                   </label>
                   <input
                     type="email"
-                    placeholder="staff@restaurant.com"
+                    autoComplete="off"
+                    placeholder={language === 'km' ? 'បញ្ចូលអ៊ីមែល' : 'Enter email'}
                     value={newStaff.email}
                     onChange={(e) => setNewStaff({ ...newStaff, email: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                    className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600 transition-all"
                   />
                 </div>
               </div>
               {formErrors.phone && <p className="text-xs text-red-500">{formErrors.phone}</p>}
-
-              {/* Branch Assignment */}
-              {branches.length > 0 && (
-                <div>
-                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-                    {language === 'km' ? 'សាខាដែលត្រូវចាត់តាំង' : 'Assigned Branch'} *
-                  </label>
-                  <select
-                    value={newStaff.branch_id || (activeBranchId !== 'all' ? activeBranchId : branches[0]?.id || '')}
-                    onChange={(e) => setNewStaff({ ...newStaff, branch_id: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
-                  >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {language === 'km' ? b.name_km : b.name_en}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               {/* Role Selection & 4-Digit POS PIN */}
               <div className="grid grid-cols-2 gap-3">
@@ -664,7 +659,7 @@ export const StaffManagementTab: FC = () => {
                     onChange={(e) =>
                       setNewStaff({ ...newStaff, role: e.target.value as StaffMember['role'] })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                    className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm focus:outline-none focus:border-emerald-600 transition-all"
                   >
                     <option value="WAITER">{language === 'km' ? 'អ្នករត់តុ (Waiter)' : 'Waiter'}</option>
                     <option value="CASHIER">{language === 'km' ? 'បេឡា (Cashier)' : 'Cashier'}</option>
@@ -681,10 +676,18 @@ export const StaffManagementTab: FC = () => {
                   <input
                     type="password"
                     maxLength={4}
-                    placeholder="1234"
+                    autoComplete="new-password"
+                    placeholder={language === 'km' ? 'បញ្ចូលកូដ PIN' : 'Enter PIN'}
                     value={newStaff.pin_code}
-                    onChange={(e) => setNewStaff({ ...newStaff, pin_code: e.target.value.replace(/\D/g, '') })}
-                    className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm font-mono tracking-widest focus:outline-none focus:border-emerald-600"
+                    onChange={(e) => {
+                      setNewStaff({ ...newStaff, pin_code: e.target.value.replace(/\D/g, '') })
+                      if (formErrors.pin_code) {
+                        setFormErrors((prev) => ({ ...prev, pin_code: '' }))
+                      }
+                    }}
+                    className={`w-full px-4 py-2.5 rounded-full border ${
+                      formErrors.pin_code ? 'border-red-500' : 'border-zinc-200 dark:border-zinc-700'
+                    } bg-transparent text-sm font-mono tracking-widest focus:outline-none focus:border-emerald-600 transition-all`}
                   />
                   {formErrors.pin_code && (
                     <p className="text-xs text-red-500 mt-1">{formErrors.pin_code}</p>
@@ -699,10 +702,11 @@ export const StaffManagementTab: FC = () => {
                 </label>
                 <input
                   type="password"
-                  placeholder="Min 6 characters"
+                  autoComplete="new-password"
+                  placeholder={language === 'km' ? 'បញ្ចូលពាក្យសម្ងាត់' : 'Enter password'}
                   value={newStaff.password}
                   onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600"
+                  className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600 transition-all"
                 />
               </div>
 

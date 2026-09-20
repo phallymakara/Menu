@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
+from app.api.v1.endpoints.websockets import router as ws_router
 from app.core.config import settings
 from app.core.logging import LoggingMiddleware, setup_logging
 
@@ -52,11 +53,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API v1 router
+# Include API v1 router and direct ws router
 app.include_router(
     api_router,
     prefix="/api/v1",
 )
+app.include_router(ws_router)
 
 # Mount local uploads static directory
 upload_path = Path("uploads")

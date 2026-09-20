@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 export const api = axios.create({
   baseURL: '/api/v1',
@@ -11,8 +12,14 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('emenu_access_token')
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`
+    // Ensure token is a valid JWT format (3 parts separated by dots)
+    if (token) {
+      if (token.startsWith('token_') || token.split('.').length !== 3) {
+        // Clear corrupt or mock token
+        localStorage.removeItem('emenu_access_token')
+      } else if (config.headers) {
+        config.headers.Authorization = `Bearer ${token}`
+      }
     }
 
     const tenantId =
@@ -32,11 +39,23 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Optional: Clear tokens or dispatch logout event if not on guest routes
       const path = window.location.pathname
-      if (!path.startsWith('/t/')) {
-        // Only redirect staff users, guest QR users don't need redirect
-        // localStorage.removeItem('emenu_access_token')
+      // QR guest customer routes start with /t/ or /order/
+      if (!path.startsWith('/t/') && !path.startsWith('/order/')) {
+        // Clear auth store state & localStorage to stop endless 401 spam
+        useAuthStore.getState().logout()
+
+        // If on admin or protected route, redirect to home page with login modal trigger
+        if (
+          path.startsWith('/admin') ||
+          path.startsWith('/pos') ||
+          path.startsWith('/kds') ||
+          path.startsWith('/onboarding')
+        ) {
+          if (!window.location.search.includes('auth=login')) {
+            window.location.href = '/?auth=login'
+          }
+        }
       }
     }
     return Promise.reject(error)
