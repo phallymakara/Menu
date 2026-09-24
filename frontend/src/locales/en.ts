@@ -114,7 +114,7 @@ export const en = {
     openSession: 'Start Ordering',
     placeOrder: 'Place Order',
     orderSummary: 'Order Summary',
-    specialInstructions: 'Special instructions (e.g. less sugar, no ice)',
+    specialInstructions: 'Special instructions',
     addModifiers: 'Customize options',
     selectVariant: 'Select size',
     addToCart: 'Add to Order',

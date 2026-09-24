@@ -70,7 +70,7 @@ export const MenuItemCard: FC<MenuItemCardProps> = ({ item, onSelect }) => {
 
       {/* Food Photo if available */}
       {item.image_url && (
-        <div className="w-20 h-20 rounded-lg overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-zinc-800">
+        <div className="w-20 h-20 rounded-2xl overflow-hidden bg-zinc-100 dark:bg-zinc-800 shrink-0 border border-zinc-200 dark:border-zinc-800 shadow-xs">
           <img
             src={item.image_url}
             alt={displayName}

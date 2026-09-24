@@ -42,32 +42,33 @@ export const Modal: FC<ModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity modal-backdrop-animate"
         onClick={onClose}
       />
 
       {/* Dialog Body */}
       <div
         className={cn(
-          'relative w-full z-10 overflow-hidden rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 transition-all',
+          'relative w-full z-10 overflow-hidden rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 sm:p-7 shadow-2xl transition-all modal-dialog-animate my-auto',
           sizeClasses[size],
-          isBottomSheet && 'max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:rounded-b-none max-sm:border-b-0 max-sm:p-5'
+          isBottomSheet && 'max-sm:fixed max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:rounded-b-none max-sm:rounded-t-3xl max-sm:border-b-0 max-sm:p-5'
         )}
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-zinc-100 dark:border-zinc-800">
           <div>
-            {title && <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 leading-tight">{title}</h3>}
-            {description && <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{description}</p>}
+            {title && <h3 className="text-base sm:text-lg font-bold text-zinc-900 dark:text-zinc-100 leading-tight">{title}</h3>}
+            {description && <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">{description}</p>}
           </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+            aria-label="Close"
+            className="rounded-full p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 

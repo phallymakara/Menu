@@ -163,9 +163,9 @@ export const GuestServiceRequestModal: FC<GuestServiceRequestModalProps> = ({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder={
-              language === 'km' ? 'ឧ. សូមយកកែវបន្ថែម ២...' : 'e.g. 2 extra glasses please...'
+              language === 'km' ? 'បញ្ចូលចំណាំ ឬសំណើបន្ថែម...' : 'Enter additional request notes...'
             }
-            className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs outline-none focus:ring-1 focus:ring-emerald-500"
+            className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs outline-none focus:ring-1 focus:ring-emerald-500 transition-colors"
           />
         </div>
 

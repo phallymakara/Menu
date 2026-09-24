@@ -114,7 +114,7 @@ export const km = {
     openSession: 'ចាប់ផ្តើមកុម្ម៉ង់',
     placeOrder: 'បញ្ជូនការកុម្ម៉ង់',
     orderSummary: 'សង្ខេបការកុម្ម៉ង់',
-    specialInstructions: 'ចំណាំបន្ថែម (ឧ. ស្ករតិច ទឹកកកតិច)',
+    specialInstructions: 'ចំណាំបន្ថែមលើមុខម្ហូប',
     addModifiers: 'ជម្រើសបន្ថែម',
     selectVariant: 'ជ្រើសរើសទំហំ',
     addToCart: 'ដាក់ក្នុងកន្ត្រក',

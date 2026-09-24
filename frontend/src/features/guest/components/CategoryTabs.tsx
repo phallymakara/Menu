@@ -20,9 +20,9 @@ export const CategoryTabs: FC<CategoryTabsProps> = ({
       <div className="flex gap-2 overflow-x-auto px-4 py-2.5 max-w-2xl mx-auto no-scrollbar">
         <button
           onClick={() => onSelectCategory('all')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+          className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
             activeCategoryId === 'all'
-              ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+              ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs'
               : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
           }`}
         >
@@ -35,9 +35,9 @@ export const CategoryTabs: FC<CategoryTabsProps> = ({
             <button
               key={cat.id}
               onClick={() => onSelectCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                 isActive
-                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 shadow-xs'
                   : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
               }`}
             >

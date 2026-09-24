@@ -86,7 +86,7 @@ export const POSSupervisorVoidModal: FC<POSSupervisorVoidModalProps> = ({
           <select
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs outline-none focus:ring-1 focus:ring-red-500"
+            className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs outline-none focus:ring-1 focus:ring-red-500 transition-colors"
           >
             {reasons.map((r) => (
               <option key={r.code} value={r.code}>
@@ -111,7 +111,7 @@ export const POSSupervisorVoidModal: FC<POSSupervisorVoidModalProps> = ({
               setErrorMsg(null)
             }}
             placeholder="••••"
-            className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-center font-mono font-bold text-lg tracking-widest outline-none focus:ring-1 focus:ring-red-500"
+            className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-center font-mono font-bold text-lg tracking-widest outline-none focus:ring-1 focus:ring-red-500 transition-colors"
             autoFocus
           />
         </div>
@@ -127,7 +127,7 @@ export const POSSupervisorVoidModal: FC<POSSupervisorVoidModalProps> = ({
         <button
           type="submit"
           disabled={pin.length < 4 || isSubmitting}
-          className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors"
+          className="w-full py-3 px-4 rounded-full bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors"
         >
           <Trash2 className="w-4 h-4" />
           <span>

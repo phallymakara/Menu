@@ -119,7 +119,7 @@ export const LoginPage: FC = () => {
                 if (errorMessage) setErrorMessage(null)
               }}
               placeholder={t('emailOrPhonePlaceholder')}
-              className={`w-full pl-11 pr-4 py-3 rounded-lg border ${
+              className={`w-full pl-11 pr-4 py-3 rounded-full border ${
                 errorMessage
                   ? 'border-red-500 focus:border-red-500'
                   : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-300'
@@ -153,7 +153,7 @@ export const LoginPage: FC = () => {
                 if (errorMessage) setErrorMessage(null)
               }}
               placeholder="••••••••"
-              className={`w-full pl-11 pr-11 py-3 rounded-lg border ${
+              className={`w-full pl-11 pr-11 py-3 rounded-full border ${
                 errorMessage
                   ? 'border-red-500 focus:border-red-500'
                   : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-300'

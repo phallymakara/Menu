@@ -484,16 +484,21 @@ export const DiningTablesTab: FC = () => {
 
       {/* Modal: Add Dining Area */}
       {isZoneModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-sm w-full p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm modal-backdrop-animate"
+            onClick={() => setIsZoneModalOpen(false)}
+          />
+          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-sm w-full p-6 sm:p-7 space-y-4 shadow-2xl modal-dialog-animate z-10 my-auto">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <h2 className="text-base sm:text-lg font-bold text-zinc-950 dark:text-zinc-50">
                 {language === 'km' ? 'បន្ថែមតំបន់ / បន្ទប់' : 'Add Dining Area'}
               </h2>
               <button
                 type="button"
                 onClick={() => setIsZoneModalOpen(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                aria-label="Close"
+                className="p-2 rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -563,16 +568,21 @@ export const DiningTablesTab: FC = () => {
 
       {/* Modal: Batch Generate Tables */}
       {isBatchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-zinc-950 dark:text-zinc-50">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm modal-backdrop-animate"
+            onClick={() => setIsBatchModalOpen(false)}
+          />
+          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-4 shadow-2xl modal-dialog-animate z-10 my-auto">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <h2 className="text-base sm:text-lg font-bold text-zinc-950 dark:text-zinc-50">
                 {language === 'km' ? 'បង្កើតតុជាក្រុម' : 'Batch Generate Tables'}
               </h2>
               <button
                 type="button"
                 onClick={() => setIsBatchModalOpen(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                aria-label="Close"
+                className="p-2 rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -698,16 +708,21 @@ export const DiningTablesTab: FC = () => {
 
       {/* Modal: Single Table QR Stand Print View */}
       {isPrintModalOpen && selectedTableForPrint && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl max-w-sm w-full p-6 text-center space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm modal-backdrop-animate"
+            onClick={() => setIsPrintModalOpen(false)}
+          />
+          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-sm w-full p-6 sm:p-7 text-center space-y-4 shadow-2xl modal-dialog-animate z-10 my-auto">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
                 {language === 'km' ? 'បោះពុម្ព QR តុ' : 'Print Table QR Stand'}
               </h3>
               <button
                 type="button"
                 onClick={() => setIsPrintModalOpen(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                aria-label="Close"
+                className="p-2 rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>

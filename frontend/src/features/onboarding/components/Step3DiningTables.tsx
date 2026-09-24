@@ -131,8 +131,8 @@ export const Step3DiningTables: FC = () => {
               type="text"
               value={newAreaNameEn}
               onChange={(e) => setNewAreaNameEn(e.target.value)}
-              placeholder="e.g. 2nd Floor Balcony"
-              className="w-full px-3.5 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
+              placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះតំបន់' : 'Enter zone name'}
+              className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
             />
           </div>
 
@@ -145,7 +145,7 @@ export const Step3DiningTables: FC = () => {
               value={newPrefix}
               onChange={(e) => setNewPrefix(e.target.value.toUpperCase())}
               placeholder="B-"
-              className="w-full px-3.5 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-mono focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
+              className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm font-mono text-center focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
             />
           </div>
 
@@ -159,7 +159,7 @@ export const Step3DiningTables: FC = () => {
               max={100}
               value={newTablesCount}
               onChange={(e) => setNewTablesCount(Number(e.target.value))}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-center focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
+              className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-center focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
             />
           </div>
 
@@ -173,7 +173,7 @@ export const Step3DiningTables: FC = () => {
               max={50}
               value={newCapacity}
               onChange={(e) => setNewCapacity(Number(e.target.value))}
-              className="w-full px-3.5 py-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-center focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
+              className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-sm text-center focus:border-zinc-900 dark:focus:border-zinc-300 outline-none transition-colors"
             />
           </div>
         </div>

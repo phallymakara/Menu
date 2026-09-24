@@ -268,17 +268,17 @@ export const POSMenuCatalog: FC<POSMenuCatalogProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                    <div className="flex items-center rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-1 py-0.5">
                       <button
                         onClick={() => onUpdateCartQty(item.cart_item_id, item.quantity - 1)}
-                        className="px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
+                        className="px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
                       >
                         -
                       </button>
                       <span className="w-5 text-center font-mono font-bold text-xs">{item.quantity}</span>
                       <button
                         onClick={() => onUpdateCartQty(item.cart_item_id, item.quantity + 1)}
-                        className="px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100"
+                        className="px-1.5 py-0.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
                       >
                         +
                       </button>
@@ -306,8 +306,8 @@ export const POSMenuCatalog: FC<POSMenuCatalogProps> = ({
             type="text"
             value={guestNotes}
             onChange={(e) => setGuestNotes(e.target.value)}
-            placeholder={language === 'km' ? 'ឧ. តុខួបកំណើត...' : 'e.g. Birthday table...'}
-            className="w-full px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs outline-none"
+            placeholder={language === 'km' ? 'បញ្ចូលចំណាំតុ...' : 'Enter table notes...'}
+            className="w-full px-4 py-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs outline-none transition-colors"
           />
         </div>
 
@@ -392,8 +392,8 @@ export const POSMenuCatalog: FC<POSMenuCatalogProps> = ({
                 type="text"
                 value={specialInstructions}
                 onChange={(e) => setSpecialInstructions(e.target.value)}
-                placeholder="e.g. Less ice, extra sauce..."
-                className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs outline-none"
+                placeholder={language === 'km' ? 'បញ្ចូលចំណាំបន្ថែមលើមុខម្ហូប...' : 'Enter special instructions...'}
+                className="w-full px-4 py-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs outline-none transition-colors"
               />
             </div>
 

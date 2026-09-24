@@ -482,20 +482,21 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
 
       {/* Modal: Create New Branch in PostgreSQL Database */}
       {isCreateBranchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm modal-backdrop-animate"
             onClick={() => setIsCreateBranchModalOpen(false)}
           />
-          <div className="relative w-full max-w-md bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 space-y-4 z-10">
+          <div className="relative w-full max-w-md bg-white dark:bg-zinc-950 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-6 sm:p-7 space-y-4 shadow-2xl modal-dialog-animate z-10 my-auto">
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              <h3 className="font-bold text-base text-zinc-950 dark:text-zinc-50">
+              <h3 className="font-bold text-base sm:text-lg text-zinc-950 dark:text-zinc-50">
                 {language === 'km' ? 'បង្កើតសាខាថ្មី' : 'Create New Branch'}
               </h3>
               <button
                 type="button"
                 onClick={() => setIsCreateBranchModalOpen(false)}
-                className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                aria-label="Close"
+                className="p-2 rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -513,8 +514,8 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                     setNewBranchForm({ ...newBranchForm, name_km: e.target.value })
                     if (branchErrors.name_km) setBranchErrors((prev) => ({ ...prev, name_km: '' }))
                   }}
-                  placeholder="e.g. សាខាទួលគោក"
-                  className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm outline-none ${
+                  placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះសាខាជាភាសាខ្មែរ' : 'Enter branch name in Khmer'}
+                  className={`w-full px-4 py-2.5 rounded-full border bg-white dark:bg-zinc-950 text-sm outline-none transition-colors ${
                     branchErrors.name_km
                       ? 'border-red-500 focus:border-red-500'
                       : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
@@ -538,8 +539,8 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                     setNewBranchForm({ ...newBranchForm, name_en: e.target.value })
                     if (branchErrors.name_en) setBranchErrors((prev) => ({ ...prev, name_en: '' }))
                   }}
-                  placeholder="e.g. Toul Kork Branch"
-                  className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm outline-none ${
+                  placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះសាខាជាភាសាអង់គ្លេស' : 'Enter branch name in English'}
+                  className={`w-full px-4 py-2.5 rounded-full border bg-white dark:bg-zinc-950 text-sm outline-none transition-colors ${
                     branchErrors.name_en
                       ? 'border-red-500 focus:border-red-500'
                       : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
@@ -565,7 +566,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                       if (branchErrors.code) setBranchErrors((prev) => ({ ...prev, code: '' }))
                     }}
                     placeholder="TK-02"
-                    className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm font-mono outline-none ${
+                    className={`w-full px-4 py-2.5 rounded-full border bg-white dark:bg-zinc-950 text-sm font-mono outline-none transition-colors ${
                       branchErrors.code
                         ? 'border-red-500 focus:border-red-500'
                         : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
@@ -587,7 +588,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                     value={newBranchForm.phone}
                     onChange={(e) => setNewBranchForm({ ...newBranchForm, phone: e.target.value })}
                     placeholder="012 345 678"
-                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                    className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors"
                   />
                 </div>
               </div>
@@ -600,8 +601,8 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                   type="text"
                   value={newBranchForm.address}
                   onChange={(e) => setNewBranchForm({ ...newBranchForm, address: e.target.value })}
-                  placeholder="e.g. St 315, Toul Kork, Phnom Penh"
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                  placeholder={language === 'km' ? 'បញ្ចូលអាសយដ្ឋានទីតាំង' : 'Enter physical address'}
+                  className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors"
                 />
               </div>
 
@@ -609,14 +610,14 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                 <button
                   type="button"
                   onClick={() => setIsCreateBranchModalOpen(false)}
-                  className="px-3 py-2 rounded-lg text-sm font-semibold border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
+                  className="px-4 py-2.5 rounded-full text-sm font-semibold border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors"
                 >
                   {language === 'km' ? 'បោះបង់' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={isCreatingBranch}
-                  className="text-sm font-semibold px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2"
+                  className="text-sm font-semibold px-5 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2 transition-colors"
                 >
                   {isCreatingBranch && <Loader2 className="w-4 h-4 animate-spin" />}
                   <span>{language === 'km' ? 'បង្កើតសាខា' : 'Create Branch'}</span>

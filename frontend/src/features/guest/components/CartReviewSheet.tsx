@@ -93,10 +93,10 @@ export const CartReviewSheet: FC<CartReviewSheetProps> = ({
 
                   {/* Quantity Stepper & Subtotal */}
                   <div className="flex items-center justify-between pt-1 border-t border-zinc-200/60 dark:border-zinc-800/60">
-                    <div className="flex items-center rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
+                    <div className="flex items-center rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-1 py-0.5">
                       <button
                         onClick={() => updateQuantity(item.cart_item_id, item.quantity - 1)}
-                        className="p-1 px-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-l-lg transition-colors"
+                        className="p-1 px-1.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
                       >
                         <Minus className="w-3 h-3" />
                       </button>
@@ -105,7 +105,7 @@ export const CartReviewSheet: FC<CartReviewSheetProps> = ({
                       </span>
                       <button
                         onClick={() => updateQuantity(item.cart_item_id, item.quantity + 1)}
-                        className="p-1 px-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-r-lg transition-colors"
+                        className="p-1 px-1.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
                       >
                         <Plus className="w-3 h-3" />
                       </button>

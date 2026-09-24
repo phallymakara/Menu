@@ -182,7 +182,7 @@ export const POSCashPaymentModal: FC<POSCashPaymentModalProps> = ({
                 setErrorMsg(null)
               }}
               placeholder="0.00"
-              className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm font-mono font-bold outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm font-mono font-bold outline-none focus:ring-1 focus:ring-emerald-500 transition-colors"
             />
           </div>
 
@@ -199,7 +199,7 @@ export const POSCashPaymentModal: FC<POSCashPaymentModalProps> = ({
                 setErrorMsg(null)
               }}
               placeholder="0"
-              className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm font-mono font-bold outline-none focus:ring-1 focus:ring-emerald-500"
+              className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm font-mono font-bold outline-none focus:ring-1 focus:ring-emerald-500 transition-colors"
             />
           </div>
         </div>

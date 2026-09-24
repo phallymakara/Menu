@@ -115,7 +115,7 @@ export const AdminSidebar: FC<{ onCloseMobile?: () => void }> = ({ onCloseMobile
               {language === 'km' ? section.titleKm : section.titleEn}
             </div>
 
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {section.items.map((item) => {
                 const Icon = item.icon
                 const isActive = isCurrentPath(item.path, item.exact)
@@ -124,9 +124,9 @@ export const AdminSidebar: FC<{ onCloseMobile?: () => void }> = ({ onCloseMobile
                     key={item.path}
                     to={item.path}
                     onClick={onCloseMobile}
-                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-full text-sm font-semibold transition-all ${
                       isActive
-                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 font-bold'
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 font-bold shadow-xs'
                         : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900'
                     }`}
                   >

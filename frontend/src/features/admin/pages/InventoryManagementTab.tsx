@@ -405,20 +405,21 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
 
       {/* Modal: Add Raw Ingredient */}
       {isAddIngredientModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm modal-backdrop-animate"
             onClick={() => setIsAddIngredientModalOpen(false)}
           />
-          <div className="relative w-full max-w-md bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 space-y-4 z-10">
+          <div className="relative w-full max-w-lg bg-white dark:bg-zinc-950 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-6 sm:p-7 space-y-4 shadow-2xl modal-dialog-animate z-10 my-auto max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              <h3 className="font-bold text-base text-zinc-950 dark:text-zinc-50">
+              <h3 className="font-bold text-base sm:text-lg text-zinc-950 dark:text-zinc-50">
                 {language === 'km' ? 'បន្ថែមគ្រឿងផ្សំដើម' : 'Add Raw Ingredient'}
               </h3>
               <button
                 type="button"
                 onClick={() => setIsAddIngredientModalOpen(false)}
-                className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                aria-label="Close"
+                className="p-2 rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -436,8 +437,8 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
                     setNewIngredient({ ...newIngredient, name_en: e.target.value })
                     if (ingredientErrors.name_en) setIngredientErrors((prev) => ({ ...prev, name_en: '' }))
                   }}
-                  placeholder="e.g. Kampot Black Pepper"
-                  className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm outline-none ${
+                  placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះគ្រឿងផ្សំជាភាសាអង់គ្លេស' : 'Enter ingredient name (English)'}
+                  className={`w-full px-4 py-2.5 rounded-full border bg-white dark:bg-zinc-950 text-sm outline-none transition-colors ${
                     ingredientErrors.name_en
                       ? 'border-red-500 focus:border-red-500'
                       : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
@@ -458,8 +459,8 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
                   type="text"
                   value={newIngredient.name_km}
                   onChange={(e) => setNewIngredient({ ...newIngredient, name_km: e.target.value })}
-                  placeholder="ឧ. ម្រេចខ្មៅកំពត"
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                  placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះគ្រឿងផ្សំជាភាសាខ្មែរ' : 'Enter ingredient name (Khmer)'}
+                  className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors"
                 />
               </div>
 
@@ -471,7 +472,7 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
                   <select
                     value={newIngredient.unit}
                     onChange={(e) => setNewIngredient({ ...newIngredient, unit: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                    className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors"
                   >
                     <option value="KG">KG (គីឡូក្រាម)</option>
                     <option value="GRAM">GRAM (ក្រាម)</option>
@@ -497,7 +498,7 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
                       if (ingredientErrors.cost_usd) setIngredientErrors((prev) => ({ ...prev, cost_usd: '' }))
                     }}
                     placeholder="0.00"
-                    className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm outline-none ${
+                    className={`w-full px-4 py-2.5 rounded-full border bg-white dark:bg-zinc-950 text-sm outline-none transition-colors ${
                       ingredientErrors.cost_usd
                         ? 'border-red-500 focus:border-red-500'
                         : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
@@ -526,7 +527,7 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
                       if (ingredientErrors.in_stock) setIngredientErrors((prev) => ({ ...prev, in_stock: '' }))
                     }}
                     placeholder="0"
-                    className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm outline-none ${
+                    className={`w-full px-4 py-2.5 rounded-full border bg-white dark:bg-zinc-950 text-sm outline-none transition-colors ${
                       ingredientErrors.in_stock
                         ? 'border-red-500 focus:border-red-500'
                         : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
@@ -552,7 +553,7 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
                       setNewIngredient({ ...newIngredient, reorder_threshold: parseFloat(e.target.value) || 0 })
                     }
                     placeholder="0"
-                    className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                    className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors"
                   />
                 </div>
               </div>
@@ -582,20 +583,21 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
 
       {/* Modal: New Stock Transfer */}
       {isNewTransferModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm modal-backdrop-animate"
             onClick={() => setIsNewTransferModalOpen(false)}
           />
-          <div className="relative w-full max-w-md bg-white dark:bg-zinc-950 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 space-y-4 z-10">
+          <div className="relative w-full max-w-md bg-white dark:bg-zinc-950 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-6 sm:p-7 space-y-4 shadow-2xl modal-dialog-animate z-10 my-auto">
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
-              <h3 className="font-bold text-base text-zinc-950 dark:text-zinc-50">
+              <h3 className="font-bold text-base sm:text-lg text-zinc-950 dark:text-zinc-50">
                 {language === 'km' ? 'ផ្ទេរស្តុកទំនិញ' : 'New Stock Transfer'}
               </h3>
               <button
                 type="button"
                 onClick={() => setIsNewTransferModalOpen(false)}
-                className="p-1 rounded text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                aria-label="Close"
+                className="p-2 rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -610,7 +612,8 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
                   type="text"
                   value={newTransfer.from_branch}
                   onChange={(e) => setNewTransfer({ ...newTransfer, from_branch: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                  placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះសាខាដើម' : 'Enter source branch'}
+                  className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors"
                 />
               </div>
 
@@ -625,8 +628,8 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
                     setNewTransfer({ ...newTransfer, to_branch: e.target.value })
                     if (transferErrors.to_branch) setTransferErrors((prev) => ({ ...prev, to_branch: '' }))
                   }}
-                  placeholder="e.g. Toul Kork Branch"
-                  className={`w-full px-3 py-2 rounded-lg border bg-white dark:bg-zinc-950 text-sm outline-none ${
+                  placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះសាខាទទួល' : 'Enter destination branch'}
+                  className={`w-full px-4 py-2.5 rounded-full border bg-white dark:bg-zinc-950 text-sm outline-none transition-colors ${
                     transferErrors.to_branch
                       ? 'border-red-500 focus:border-red-500'
                       : 'border-zinc-300 dark:border-zinc-700 focus:border-zinc-900 dark:focus:border-zinc-100'
@@ -648,7 +651,7 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
                   min="1"
                   value={newTransfer.items_count}
                   onChange={(e) => setNewTransfer({ ...newTransfer, items_count: parseInt(e.target.value) || 1 })}
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                  className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors"
                 />
               </div>
 

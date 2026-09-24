@@ -143,7 +143,7 @@ export const ItemCustomizerModal: FC<ItemCustomizerModalProps> = ({
                   <button
                     key={v.id}
                     onClick={() => setSelectedVariant(v)}
-                    className={`p-3 rounded-lg border text-left transition-colors ${
+                    className={`p-3 rounded-xl border text-left transition-colors ${
                       isSelected
                         ? 'border-emerald-600 bg-emerald-50/40 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-100'
                         : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900'
@@ -188,7 +188,7 @@ export const ItemCustomizerModal: FC<ItemCustomizerModalProps> = ({
                     <button
                       key={opt.id}
                       onClick={() => handleModifierToggle(group.id, opt, isSingle)}
-                      className={`w-full p-2.5 rounded-lg border text-left flex items-center justify-between transition-colors ${
+                      className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-colors ${
                         isChecked
                           ? 'border-emerald-600/80 bg-emerald-50/30 dark:bg-emerald-950/20'
                           : 'border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-900'
@@ -232,7 +232,7 @@ export const ItemCustomizerModal: FC<ItemCustomizerModalProps> = ({
                 <button
                   key={stage}
                   onClick={() => setCourseStage(stage)}
-                  className={`py-2 px-1 text-center rounded-lg border transition-colors ${
+                  className={`py-2 px-1 text-center rounded-xl border transition-colors ${
                     isActive
                       ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold border-transparent'
                       : 'border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800'
@@ -257,19 +257,19 @@ export const ItemCustomizerModal: FC<ItemCustomizerModalProps> = ({
             type="text"
             value={specialInstructions}
             onChange={(e) => setSpecialInstructions(e.target.value)}
-            placeholder={language === 'km' ? 'ឧ. ស្ករតិច មិនយកខ្ទឹមបារាំង...' : 'e.g. No onions, less ice...'}
-            className="w-full px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs focus:ring-1 focus:ring-emerald-500 outline-none"
+            placeholder={language === 'km' ? 'បញ្ចូលចំណាំបន្ថែមលើមុខម្ហូប...' : 'Enter special instructions...'}
+            className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs focus:ring-1 focus:ring-emerald-500 outline-none transition-colors"
           />
         </div>
 
         {/* 5. Quantity Stepper & Add to Order Button */}
         <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center gap-3">
           {/* Quantity Controls */}
-          <div className="flex items-center rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900">
+          <div className="flex items-center rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 px-1 py-0.5">
             <button
               onClick={() => setQuantity(Math.max(1, quantity - 1))}
               disabled={quantity <= 1}
-              className="p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 disabled:opacity-30 rounded-l-lg transition-colors"
+              className="p-1.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 disabled:opacity-30 rounded-full transition-colors"
             >
               <Minus className="w-4 h-4" />
             </button>
@@ -278,7 +278,7 @@ export const ItemCustomizerModal: FC<ItemCustomizerModalProps> = ({
             </span>
             <button
               onClick={() => setQuantity(quantity + 1)}
-              className="p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-r-lg transition-colors"
+              className="p-1.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-full transition-colors"
             >
               <Plus className="w-4 h-4" />
             </button>
