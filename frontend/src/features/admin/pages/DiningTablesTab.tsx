@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type FC } from 'react'
+import { useState, useEffect, type FC } from 'react'
 import {
   Plus,
   Printer,
@@ -9,9 +9,13 @@ import {
   Loader2,
   Download,
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
+import { apiFetch } from '@/lib/api-client'
+import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
+import { useDiningAreas, useTables, useBatchCreateTables } from '../hooks/useTableQueries'
 import type { DiningZone, DiningTable } from '../types/admin.types'
 
 const isUuid = (id?: string | null): boolean =>
@@ -19,6 +23,7 @@ const isUuid = (id?: string | null): boolean =>
 
 export const DiningTablesTab: FC = () => {
   const { language } = useLanguageStore()
+  const queryClient = useQueryClient()
 
   const [businessId, setBusinessId] = useState<string | null>(
     localStorage.getItem('emenu_business_id')
@@ -29,10 +34,9 @@ export const DiningTablesTab: FC = () => {
 
   const [zones, setZones] = useState<DiningZone[]>([])
   const [tables, setTables] = useState<DiningTable[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDownloadingZip, setIsDownloadingZip] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [errorMessage] = useState<string | null>(null)
 
   const [activeZone, setActiveZone] = useState<string>('all')
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
@@ -50,97 +54,57 @@ export const DiningTablesTab: FC = () => {
   const [zoneForm, setZoneForm] = useState({ name_en: '', name_km: '' })
   const [zoneErrors, setZoneErrors] = useState<Record<string, string>>({})
 
-
-
-  // 1. Resolve Tenant Context
-  const resolveTenant = useCallback(async () => {
-    let biz = businessId
-    let br = branchId
-
-    if (!isUuid(biz)) {
-      try {
-        const bizRes = await api.get('/businesses')
-        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
-          biz = bizRes.data[0].id
-          setBusinessId(biz)
-          localStorage.setItem('emenu_business_id', biz!)
-        }
-      } catch {
-        // Handled in catch
-      }
-    }
-
-    if (isUuid(biz) && !isUuid(br)) {
-      try {
-        const brRes = await api.get(`/businesses/${biz}/branches`)
-        if (Array.isArray(brRes.data) && brRes.data.length > 0) {
-          br = brRes.data[0].id
-          setBranchId(br)
-          localStorage.setItem('emenu_branch_id', br!)
-        }
-      } catch {
-        // Handled in catch
-      }
-    }
-
-    return { biz, br }
-  }, [branchId, businessId])
-
-  // 2. Fetch Isolated Tenant Zones and Tables
-  const loadData = useCallback(async () => {
-    setIsLoading(true)
-    setErrorMessage(null)
-
-    try {
-      const { biz, br } = await resolveTenant()
-
-      if (!isUuid(biz) || !isUuid(br)) {
-        setIsLoading(false)
-        return
-      }
-
-      const [zonesRes, tablesRes] = await Promise.all([
-        api.get(`/businesses/${biz}/branches/${br}/dining-areas`).catch(() => ({ data: [] })),
-        api.get(`/businesses/${biz}/branches/${br}/tables`).catch(() => ({ data: [] })),
-      ])
-
-      const rawZones: any[] = Array.isArray(zonesRes.data) ? zonesRes.data : []
-      const mappedZones: DiningZone[] = rawZones.map((z) => ({
-        id: z.id,
-        name_en: z.name_en,
-        name_km: z.name_km || z.name_en,
-        tables_count: z.tables_count || 0,
-      }))
-      setZones(mappedZones)
-      if (mappedZones.length > 0 && !batchZoneId) {
-        setBatchZoneId(mappedZones[0].id)
-      }
-
-      const rawTables: any[] = Array.isArray(tablesRes.data) ? tablesRes.data : []
-      const mappedTables: DiningTable[] = rawTables.map((t) => ({
-        id: t.id,
-        table_number: t.table_number,
-        zone_id: t.dining_area_id,
-        zone_name: t.dining_area?.name_en || 'Main Area',
-        capacity: t.capacity || 4,
-        qr_token: t.qr_code_token || t.id,
-        status: t.status || 'AVAILABLE',
-      }))
-      setTables(mappedTables)
-    } catch {
-      setErrorMessage(
-        language === 'km'
-          ? 'មិនអាចទាញយកទិន្នន័យតុបានទេ។'
-          : 'Unable to load dining tables. Please try again.'
-      )
-    } finally {
-      setIsLoading(false)
-    }
-  }, [batchZoneId, language, resolveTenant])
+  // 1. TanStack Query: Tenant Resolution
+  const { data: businesses = [] } = useBusinesses()
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    if (!businessId && businesses.length > 0) {
+      setBusinessId(businesses[0].id)
+      localStorage.setItem('emenu_business_id', businesses[0].id)
+    }
+  }, [businesses, businessId])
+
+  const { data: branches = [] } = useBranches(businessId)
+
+  useEffect(() => {
+    if (!branchId && branches.length > 0) {
+      setBranchId(branches[0].id)
+      localStorage.setItem('emenu_branch_id', branches[0].id)
+    }
+  }, [branches, branchId])
+
+  // 2. TanStack Query: Fetch Dining Areas & Tables
+  const { data: rawAreas = [], isLoading: isAreasLoading } = useDiningAreas(businessId, branchId)
+  const { data: rawTables = [], isLoading: isTablesLoading } = useTables(businessId, branchId)
+  const batchCreateMutation = useBatchCreateTables(businessId, branchId)
+
+  const isLoading = (isAreasLoading || isTablesLoading) && tables.length === 0
+
+  useEffect(() => {
+    const mappedZones: DiningZone[] = rawAreas.map((z) => ({
+      id: z.id,
+      name_en: z.name_en,
+      name_km: z.name_km || z.name_en,
+      tables_count: (z as any).tables_count || 0,
+    }))
+    setZones(mappedZones)
+    if (!batchZoneId && mappedZones.length > 0) {
+      setBatchZoneId(mappedZones[0].id)
+    }
+  }, [rawAreas, batchZoneId])
+
+  useEffect(() => {
+    const mappedTables: DiningTable[] = rawTables.map((t) => ({
+      id: t.id,
+      table_number: t.table_number,
+      zone_id: t.dining_area_id || '',
+      zone_name: rawAreas.find((a) => a.id === t.dining_area_id)?.name_en || 'Main Area',
+      capacity: t.max_capacity || 4,
+      qr_token: t.qr_code_token || t.id,
+      status: (t.status || 'AVAILABLE') as any,
+    }))
+    setTables(mappedTables)
+  }, [rawTables, rawAreas])
 
   // 3. Delete Table from Tenant DB
   const handleDeleteTable = async (tableId: string) => {
@@ -154,9 +118,9 @@ export const DiningTablesTab: FC = () => {
     }
 
     try {
-      const { biz, br } = await resolveTenant()
-      if (isUuid(biz) && isUuid(br)) {
-        await api.delete(`/businesses/${biz}/branches/${br}/tables/${tableId}`)
+      if (isUuid(businessId) && isUuid(branchId)) {
+        await api.delete(`/businesses/${businessId}/branches/${branchId}/tables/${tableId}`)
+        queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
       }
       setTables(tables.filter((t) => t.id !== tableId))
     } catch {
@@ -174,20 +138,17 @@ export const DiningTablesTab: FC = () => {
 
     setIsSubmitting(true)
     try {
-      const { biz, br } = await resolveTenant()
-      if (isUuid(biz) && isUuid(br)) {
-        const res = await api.post(`/businesses/${biz}/branches/${br}/dining-areas`, {
-          name_en: zoneForm.name_en.trim(),
-          name_km: zoneForm.name_km.trim() || zoneForm.name_en.trim(),
+      if (isUuid(businessId) && isUuid(branchId)) {
+        await apiFetch.POST('/api/v1/businesses/{business_id}/branches/{branch_id}/areas', {
+          params: { path: { business_id: businessId!, branch_id: branchId! } },
+          body: {
+            name_en: zoneForm.name_en.trim(),
+            name_km: zoneForm.name_km.trim() || zoneForm.name_en.trim(),
+            display_order: rawAreas.length + 1,
+            is_active: true,
+          },
         })
-        const newZ: DiningZone = {
-          id: res.data.id,
-          name_en: res.data.name_en,
-          name_km: res.data.name_km,
-          tables_count: 0,
-        }
-        setZones((prev) => [...prev, newZ])
-        if (!batchZoneId) setBatchZoneId(newZ.id)
+        queryClient.invalidateQueries({ queryKey: ['dining-areas', businessId, branchId] })
       }
       setZoneForm({ name_en: '', name_km: '' })
       setIsZoneModalOpen(false)
@@ -222,29 +183,18 @@ export const DiningTablesTab: FC = () => {
 
     setIsSubmitting(true)
     try {
-      const { biz, br } = await resolveTenant()
-      if (isUuid(biz) && isUuid(br)) {
-        const res = await api.post(`/businesses/${biz}/branches/${br}/tables/batch`, {
+      if (isUuid(businessId) && isUuid(branchId)) {
+        const start = tables.length + 1
+        await batchCreateMutation.mutateAsync({
           prefix: 'T-',
-          start_number: tables.length + 1,
-          end_number: tables.length + countNum,
-          count: countNum,
-          capacity: capNum,
+          start_number: start,
+          end_number: start + countNum - 1,
+          min_capacity: 1,
+          max_capacity: capNum,
+          shape: 'rectangle',
+          digits: 2,
           dining_area_id: isUuid(batchZoneId) ? batchZoneId : null,
         })
-
-        if (Array.isArray(res.data)) {
-          const generated: DiningTable[] = res.data.map((t: any) => ({
-            id: t.id,
-            table_number: t.table_number,
-            zone_id: t.dining_area_id,
-            zone_name: zones.find((z) => z.id === t.dining_area_id)?.name_en || 'Main Area',
-            capacity: t.capacity || capNum,
-            qr_token: t.qr_code_token || t.id,
-            status: t.status || 'AVAILABLE',
-          }))
-          setTables((prev) => [...prev, ...generated])
-        }
       }
       setBatchErrors({})
       setBatchCount('')
@@ -261,16 +211,15 @@ export const DiningTablesTab: FC = () => {
   const handleDownloadBatchZip = async () => {
     setIsDownloadingZip(true)
     try {
-      const { biz, br } = await resolveTenant()
-      if (isUuid(biz) && isUuid(br)) {
-        const response = await api.get(`/businesses/${biz}/branches/${br}/tables/qr/batch`, {
+      if (isUuid(businessId) && isUuid(branchId)) {
+        const response = await api.get(`/businesses/${businessId}/branches/${branchId}/tables/qr/batch`, {
           responseType: 'blob',
         })
         const blob = new Blob([response.data], { type: 'application/zip' })
         const downloadUrl = window.URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = downloadUrl
-        const branchCode = br ? br.slice(0, 8) : 'export'
+        const branchCode = branchId ? branchId.slice(0, 8) : 'export'
         link.download = `table_qr_codes_${branchCode}.zip`
 
         document.body.appendChild(link)

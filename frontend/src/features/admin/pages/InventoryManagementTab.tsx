@@ -1,4 +1,4 @@
-import { useState, type FC } from 'react'
+import { useState, useEffect, type FC } from 'react'
 import {
   Boxes,
   Plus,
@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
+import { useBusinesses } from '../hooks/useTenantQueries'
+import { useInventoryItems } from '../hooks/useInventoryQueries'
 
 interface RawIngredient {
   id: string
@@ -37,6 +39,19 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
   const { language } = useLanguageStore()
   const [activeSubTab, setActiveSubTab] = useState<'ingredients' | 'transfers'>(defaultSection)
   const [searchQuery, setSearchQuery] = useState('')
+
+  const [businessId, setBusinessId] = useState<string | null>(
+    localStorage.getItem('emenu_business_id')
+  )
+  const { data: businesses = [] } = useBusinesses()
+  useEffect(() => {
+    if (!businessId && businesses.length > 0) {
+      setBusinessId(businesses[0].id)
+      localStorage.setItem('emenu_business_id', businesses[0].id)
+    }
+  }, [businesses, businessId])
+
+  const { data: serverItems = [] } = useInventoryItems(businessId)
 
   // Ingredients State
   const [ingredients, setIngredients] = useState<RawIngredient[]>([
@@ -91,6 +106,23 @@ export const InventoryTab: FC<{ defaultSection?: 'ingredients' | 'transfers' }> 
       reorder_threshold: 10.0,
     },
   ])
+
+  useEffect(() => {
+    if (serverItems.length > 0) {
+      setIngredients(
+        (serverItems as any[]).map((item: any) => ({
+          id: item.id,
+          name_en: item.name_en,
+          name_km: item.name_km || item.name_en,
+          sku: item.sku || 'SKU-001',
+          unit: item.unit || 'UNIT',
+          cost_usd: Number(item.cost_usd || 0),
+          in_stock: Number(item.current_stock_level || 0),
+          reorder_threshold: Number(item.min_reorder_level || 5),
+        }))
+      )
+    }
+  }, [serverItems])
 
   // Transfers State
   const [transfers, setTransfers] = useState<StockTransfer[]>([
