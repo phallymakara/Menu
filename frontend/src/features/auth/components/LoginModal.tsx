@@ -6,6 +6,7 @@ import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useAuthModalStore } from '@/stores/useAuthModalStore'
 import { api } from '@/lib/api'
+import { useQueryClient } from '@tanstack/react-query'
 
 export interface LoginModalProps {
   isOpen: boolean
@@ -18,6 +19,7 @@ export const LoginModal: FC<LoginModalProps> = ({ isOpen, onClose }) => {
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
   const { switchToRegister } = useAuthModalStore()
+  const queryClient = useQueryClient()
 
   const [emailOrPhone, setEmailOrPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -88,6 +90,7 @@ export const LoginModal: FC<LoginModalProps> = ({ isOpen, onClose }) => {
           localStorage.setItem('emenu_organization_id', orgId)
         }
         localStorage.setItem('emenu_onboarding_completed', 'true')
+        queryClient.invalidateQueries()
       }
 
       onClose()

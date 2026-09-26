@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/Button'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { api } from '@/lib/api'
+import { useQueryClient } from '@tanstack/react-query'
 
 export const LoginPage: FC = () => {
   const { language, t } = useLanguageStore()
   const navigate = useNavigate()
   const { setAuth } = useAuthStore()
+  const queryClient = useQueryClient()
 
   const [emailOrPhone, setEmailOrPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -61,6 +63,7 @@ export const LoginPage: FC = () => {
           localStorage.setItem('emenu_organization_id', orgId)
         }
         localStorage.setItem('emenu_onboarding_completed', 'true')
+        queryClient.invalidateQueries()
       }
 
       // Existing user: direct directly to dashboard page
