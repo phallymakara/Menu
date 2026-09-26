@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback, useMemo, type FC } from 'react'
+import { useEffect, useState, useMemo, type FC } from 'react'
 import { RefreshCw, AlertCircle } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   KDSTicket,
-  OrderItemStatus,
 } from './types/kds.types'
 import { KDSHeader } from './components/KDSHeader'
 import { KDSStationTabs } from './components/KDSStationTabs'
@@ -13,6 +13,8 @@ import { useLanguageStore } from '@/stores/useLanguageStore'
 import { api } from '@/lib/api'
 import { useWebSocket } from '@/lib/websocket'
 import { playChime } from '@/lib/audio'
+import { useBusinesses, useBranches } from '@/features/admin/hooks/useTenantQueries'
+import { useKitchenStations, useKDSTickets, useBumpItemStatus } from './hooks/useKDSQueries'
 
 const isUuid = (id?: string | null): boolean =>
   !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
@@ -36,8 +38,8 @@ export const KDSPage: FC = () => {
     addTicket,
   } = useKDSStore()
 
-  const [isLoading, setIsLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const [loadError] = useState<string | null>(null)
 
   // Context identifiers
   const [tenantBizId, setTenantBizId] = useState<string | null>(
@@ -53,135 +55,65 @@ export const KDSPage: FC = () => {
   })
   const accessToken = localStorage.getItem('emenu_access_token') || ''
 
-  // 1. Resolve Active Business and Branch IDs dynamically
-  const resolveTenantContext = useCallback(async () => {
-    let bizId = tenantBizId
-    let branchId = tenantBranchId
-
-    if (!isUuid(bizId)) {
-      try {
-        const bizRes = await api.get('/businesses')
-        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
-          const biz = bizRes.data[0]
-          bizId = biz.id
-          setTenantBizId(bizId)
-          localStorage.setItem('emenu_business_id', bizId!)
-          const nameEn = biz.name_en || ''
-          const nameKm = biz.name_km || nameEn
-          const logo = biz.logo_url || null
-          setStoreInfo({ nameEn, nameKm, logoUrl: logo })
-          if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
-          if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
-          if (logo) localStorage.setItem('emenu_business_logo', logo)
-        }
-      } catch {
-        // Handled in catch
-      }
-    } else if (!storeInfo.nameEn && !storeInfo.nameKm) {
-      try {
-        const singleBiz = await api.get(`/businesses/${bizId}`)
-        if (singleBiz.data) {
-          const nameEn = singleBiz.data.name_en || ''
-          const nameKm = singleBiz.data.name_km || nameEn
-          const logo = singleBiz.data.logo_url || null
-          setStoreInfo({ nameEn, nameKm, logoUrl: logo })
-          if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
-          if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
-          if (logo) localStorage.setItem('emenu_business_logo', logo)
-        }
-      } catch {
-        // Ignore
-      }
-    }
-
-    if (isUuid(bizId) && !isUuid(branchId)) {
-      try {
-        const branchRes = await api.get(`/businesses/${bizId}/branches`)
-        if (Array.isArray(branchRes.data) && branchRes.data.length > 0) {
-          branchId = branchRes.data[0].id
-          setTenantBranchId(branchId)
-          localStorage.setItem('emenu_branch_id', branchId!)
-        }
-      } catch {
-        // Handled in catch
-      }
-    }
-
-    return { bizId, branchId }
-  }, [tenantBizId, tenantBranchId, storeInfo.nameEn, storeInfo.nameKm])
-
-  // 2. Fetch Kitchen Stations and Live Tickets for the Isolated Tenant
-  const fetchKDSData = useCallback(async (silent = false) => {
-    setLoadError(null)
-
-    try {
-      const { bizId, branchId } = await resolveTenantContext()
-
-      if (!isUuid(bizId) || !isUuid(branchId)) {
-        setIsLoading(false)
-        return
-      }
-
-      // Fetch kitchen stations
-      const stationsRes = await api.get(
-        `/businesses/${bizId}/branches/${branchId}/kitchen-stations`
-      ).catch(() => ({ data: [] }))
-
-      if (Array.isArray(stationsRes.data)) {
-        setStations(stationsRes.data)
-      } else {
-        setStations([])
-      }
-
-      // Fetch live KDS tickets
-      const ticketUrl =
-        selectedStationId === 'expo'
-          ? `/businesses/${bizId}/branches/${branchId}/kds/expo/tickets`
-          : selectedStationId && isUuid(selectedStationId)
-          ? `/businesses/${bizId}/branches/${branchId}/kds/stations/${selectedStationId}/tickets`
-          : `/businesses/${bizId}/branches/${branchId}/kds/expo/tickets`
-
-      const ticketsRes = await api.get(ticketUrl).catch(() => ({ data: [] }))
-      if (Array.isArray(ticketsRes.data)) {
-        setTickets(ticketsRes.data)
-      } else if (ticketsRes.data?.tickets && Array.isArray(ticketsRes.data.tickets)) {
-        setTickets(ticketsRes.data.tickets)
-      } else {
-        setTickets([])
-      }
-    } catch {
-      if (!silent) {
-        setLoadError(
-          language === 'km'
-            ? 'មិនអាចទាញយកសំបុត្រពីផ្ទះបាយបានទេ។ សូមព្យាយាមម្តងទៀត។'
-            : 'Could not fetch kitchen tickets. Please try again.'
-        )
-      }
-    } finally {
-      setIsLoading(false)
-    }
-  }, [language, resolveTenantContext, selectedStationId, setStations, setTickets])
-
-  // Continuous real-time synchronization
+  // 1. Resolve Active Business and Branch IDs dynamically via TanStack Query
+  const { data: businesses = [] } = useBusinesses()
   useEffect(() => {
-    fetchKDSData()
-    const interval = setInterval(() => {
-      fetchKDSData(true)
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [fetchKDSData])
+    if (!tenantBizId && businesses.length > 0) {
+      const biz = businesses[0]
+      setTenantBizId(biz.id)
+      localStorage.setItem('emenu_business_id', biz.id)
+      const nameEn = biz.name_en || ''
+      const nameKm = biz.name_km || nameEn
+      const logo = biz.logo_url || null
+      setStoreInfo({ nameEn, nameKm, logoUrl: logo })
+      if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
+      if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
+      if (logo) localStorage.setItem('emenu_business_logo', logo)
+    }
+  }, [businesses, tenantBizId])
+
+  const { data: branches = [] } = useBranches(tenantBizId)
+  useEffect(() => {
+    if (!tenantBranchId && branches.length > 0) {
+      const b = branches[0]
+      setTenantBranchId(b.id)
+      localStorage.setItem('emenu_branch_id', b.id)
+    }
+  }, [branches, tenantBranchId])
+
+  // 2. Fetch Kitchen Stations and Live Tickets via TanStack Query
+  const { data: rawStations = [], isLoading: isStationsLoading } = useKitchenStations(tenantBizId, tenantBranchId)
+  const { data: rawTickets = [], isLoading: isTicketsLoading } = useKDSTickets(tenantBizId, tenantBranchId, selectedStationId)
+
+  const isLoading = (isStationsLoading || isTicketsLoading) && tickets.length === 0
+
+  useEffect(() => {
+    if (rawStations.length > 0) {
+      setStations(rawStations as any[])
+    }
+  }, [rawStations, setStations])
+
+  useEffect(() => {
+    if (Array.isArray(rawTickets)) {
+      setTickets(rawTickets as any[])
+    } else if ((rawTickets as any)?.tickets && Array.isArray((rawTickets as any).tickets)) {
+      setTickets((rawTickets as any).tickets)
+    }
+  }, [rawTickets, setTickets])
+
+  const bumpItemMutation = useBumpItemStatus(tenantBizId, tenantBranchId)
 
   useEffect(() => {
     const handleBranchChanged = (e: any) => {
       const newBranchId = e.detail?.branchId
       if (newBranchId) {
         setTenantBranchId(newBranchId)
-        fetchKDSData(true)
+        queryClient.invalidateQueries({ queryKey: ['kds'] })
       }
     }
     window.addEventListener('emenu:branch-changed', handleBranchChanged)
     return () => window.removeEventListener('emenu:branch-changed', handleBranchChanged)
-  }, [fetchKDSData])
+  }, [queryClient])
 
   // 3. Real-Time WebSocket Connection for Staff Room
   const wsRoomType = selectedStationId === 'expo' ? 'expo' : 'station'
@@ -213,7 +145,7 @@ export const KDSPage: FC = () => {
           if ((evt === 'order.created' || evt === 'NEW_ORDER') && !isMuted) {
             playChime(587.33, 880, 0.5)
           }
-          fetchKDSData(true)
+          queryClient.invalidateQueries({ queryKey: ['kds', 'tickets', tenantBizId, tenantBranchId] })
         }
       } catch {
         // Ignore parse error
@@ -238,16 +170,16 @@ export const KDSPage: FC = () => {
   // Handlers for Bumping and Recalling Items/Tickets
   const handleItemStatusBump = async (
     orderItemId: string,
-    targetStatus: OrderItemStatus
+    targetStatus: any
   ) => {
     bumpItemStatus(orderItemId, targetStatus)
 
     if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       try {
-        await api.patch(
-          `/businesses/${tenantBizId}/branches/${tenantBranchId}/kds/items/${orderItemId}/status`,
-          { status: targetStatus }
-        )
+        await bumpItemMutation.mutateAsync({
+          orderItemId,
+          status: targetStatus,
+        })
       } catch {
         // Ignore non-blocking error
       }
@@ -266,6 +198,7 @@ export const KDSPage: FC = () => {
         await api.post(
           `/businesses/${tenantBizId}/branches/${tenantBranchId}/kds/orders/${orderId}/bump`
         ).catch(() => null)
+        queryClient.invalidateQueries({ queryKey: ['kds', 'tickets', tenantBizId, tenantBranchId] })
       } catch {
         // Non-blocking
       }
@@ -312,7 +245,7 @@ export const KDSPage: FC = () => {
             <p className="text-sm text-zinc-600 dark:text-zinc-300">{loadError}</p>
             <button
               type="button"
-              onClick={() => fetchKDSData()}
+              onClick={() => queryClient.invalidateQueries({ queryKey: ['kds'] })}
               className="px-4 py-2 rounded-lg bg-amber-500 text-black font-bold text-xs uppercase tracking-wider hover:bg-amber-400 cursor-pointer"
             >
               {language === 'km' ? 'ព្យាយាមម្តងទៀត' : 'Try Again'}
