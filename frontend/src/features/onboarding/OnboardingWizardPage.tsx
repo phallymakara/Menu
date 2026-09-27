@@ -8,6 +8,8 @@ import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useOnboardingStore } from './stores/useOnboardingStore'
 import { api } from '@/lib/api'
+import { useBusinesses, useBranches } from '@/features/admin/hooks/useTenantQueries'
+import { useQueryClient } from '@tanstack/react-query'
 
 export const OnboardingWizardPage: FC = () => {
   const { language } = useLanguageStore()
@@ -23,6 +25,11 @@ export const OnboardingWizardPage: FC = () => {
   const navigate = useNavigate()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const queryClient = useQueryClient()
+  const { data: businesses = [] } = useBusinesses()
+  const activeBizId = localStorage.getItem('emenu_business_id') || (businesses.length > 0 ? businesses[0].id : null)
+  const { data: branches = [] } = useBranches(activeBizId)
 
   // Redirect existing user who already finished onboarding or has an active store session
   useEffect(() => {
@@ -137,22 +144,17 @@ export const OnboardingWizardPage: FC = () => {
 
     setIsSubmitting(true)
     try {
-      let bizId = localStorage.getItem('emenu_business_id')
-      let branchId = localStorage.getItem('emenu_branch_id')
-
-      if (!bizId) {
-        const bizRes = await api.get('/businesses').catch(() => ({ data: [] }))
-        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
-          bizId = bizRes.data[0].id
-          localStorage.setItem('emenu_business_id', bizId!)
-          if (bizRes.data[0].branches && bizRes.data[0].branches.length > 0) {
-            branchId = bizRes.data[0].branches[0].id
-            localStorage.setItem('emenu_branch_id', branchId!)
-          }
-        }
-      }
+      let bizId = activeBizId || (businesses.length > 0 ? businesses[0].id : null)
+      let branchId =
+        localStorage.getItem('emenu_branch_id') ||
+        (branches.length > 0 ? branches[0].id : null)
 
       if (bizId) {
+        localStorage.setItem('emenu_business_id', bizId)
+        if (branchId) {
+          localStorage.setItem('emenu_branch_id', branchId)
+        }
+
         // Sync Business Profile to backend
         await api.patch(`/businesses/${bizId}`, {
           name_en: businessProfile.name_en || undefined,
@@ -160,14 +162,6 @@ export const OnboardingWizardPage: FC = () => {
           business_type: businessProfile.business_type || undefined,
           logo_url: businessProfile.logo_url || undefined,
         }).catch(() => null)
-
-        if (!branchId) {
-          const branchRes = await api.get(`/businesses/${bizId}/branches`).catch(() => ({ data: [] }))
-          if (Array.isArray(branchRes.data) && branchRes.data.length > 0) {
-            branchId = branchRes.data[0].id
-            localStorage.setItem('emenu_branch_id', branchId!)
-          }
-        }
 
         if (branchId) {
           // Sync Branch to backend
@@ -182,6 +176,8 @@ export const OnboardingWizardPage: FC = () => {
             },
           }).catch(() => null)
         }
+        queryClient.invalidateQueries({ queryKey: ['businesses'] })
+        queryClient.invalidateQueries({ queryKey: ['branches'] })
       }
 
       if (businessProfile.name_en) {

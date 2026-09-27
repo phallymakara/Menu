@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect, useCallback, type FC } from 'react'
+import { useState, useMemo, useEffect, type FC } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { Bell, Utensils, RefreshCw, AlertCircle } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Category, MenuItem, PlacedOrderRound, TableContextInfo } from './types/guest.types'
 import { GuestHeader } from './components/GuestHeader'
 import { CategoryTabs } from './components/CategoryTabs'
@@ -20,6 +21,13 @@ import { useLanguageStore } from '@/stores/useLanguageStore'
 import { playChime } from '@/lib/audio'
 import { api } from '@/lib/api'
 import { useWebSocket } from '@/lib/websocket'
+import {
+  useVerifyTable,
+  useOpenTableSession,
+  useGuestCatalog,
+  useGuestSessionOrders,
+  useCreateGuestOrder,
+} from './hooks/useGuestOrderQueries'
 
 // Fallback Rich Bilingual Demonstration Catalog for Demo & Sandbox
 const SAMPLE_CATEGORIES: Category[] = [
@@ -165,8 +173,6 @@ export const GuestOrderPage: FC = () => {
 
   // State
   const [categories, setCategories] = useState<Category[]>(SAMPLE_CATEGORIES)
-  const [isLoading, setIsLoading] = useState(true)
-  const [verifyError, setVerifyError] = useState<string | null>(null)
   const [orderError, setOrderError] = useState<string | null>(null)
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
 
@@ -184,13 +190,42 @@ export const GuestOrderPage: FC = () => {
   const effectiveToken = tokenParam || qr_token
   const isDemo = !effectiveBranchId || effectiveToken?.includes('demo')
 
-  // 1. Table Verification & Session Initialization
-  const initializeTableSession = useCallback(async () => {
-    setIsLoading(true)
-    setVerifyError(null)
+  const queryClient = useQueryClient()
+  const tokenVal = !isDemo && effectiveToken ? effectiveToken : null
 
+  // 1. TanStack Query Hooks
+  const {
+    data: verifyData,
+    isLoading: isVerifyLoading,
+    error: verifyQueryError,
+  } = useVerifyTable(
+    !isDemo ? effectiveBranchId : null,
+    !isDemo ? effectiveTableId : null,
+    tokenVal
+  )
+
+  const openSessionMutation = useOpenTableSession()
+  const createGuestOrderMutation = useCreateGuestOrder()
+
+  const activeBusinessId = !isDemo ? (verifyData?.business_id || table?.business_id || null) : null
+  const { data: catalogData, isLoading: isCatalogLoading } = useGuestCatalog(activeBusinessId)
+
+  const { data: sessionOrdersData } = useGuestSessionOrders(
+    !isDemo ? effectiveBranchId : null,
+    !isDemo ? effectiveTableId : null,
+    tokenVal
+  )
+
+  const isLoading = !isDemo && (isVerifyLoading || isCatalogLoading) && categories.length === 0
+  const verifyError = !isDemo && verifyQueryError
+    ? (language === 'km'
+        ? 'មិនអាចស្វែងរកតុនេះបានទេ។ សូមទាក់ទងបុគ្គលិកដើម្បីទទួលបាន QR កូដត្រឹមត្រូវ។'
+        : 'Could not verify table QR code. Please ask our staff for assistance.')
+    : null
+
+  // Initialize Demo Session
+  useEffect(() => {
     if (isDemo) {
-      // Demo Table Fallback
       const demoTableContext: TableContextInfo = {
         table_id: 'demo-table-08',
         table_number: '08',
@@ -210,26 +245,20 @@ export const GuestOrderPage: FC = () => {
       }
       setTableContext('demo-token', demoTableContext, 'demo-session-1', 'demo-session-token-1', 'DEMO-8')
       setCategories(SAMPLE_CATEGORIES)
-      setIsLoading(false)
-      return
     }
+  }, [isDemo, setTableContext])
 
-    try {
-      // Verify Table QR
-      const verifyRes = await api.get('/public/tables/verify', {
-        params: {
-          branch_id: effectiveBranchId,
-          table_id: effectiveTableId,
-          token: effectiveToken,
-        },
-      })
-
-      const verifyData = verifyRes.data
+  // Sync Live Table Context & Open Session
+  useEffect(() => {
+    if (!isDemo && verifyData) {
       const tableContext: TableContextInfo = {
         table_id: verifyData.table_id,
         table_number: verifyData.table_number,
-        table_name: verifyData.table_name,
-        dining_area_name: language === 'km' && verifyData.dining_area_name_km ? verifyData.dining_area_name_km : verifyData.dining_area_name_en,
+        table_name: verifyData.table_name || null,
+        dining_area_name:
+          (language === 'km' && verifyData.dining_area_name_km
+            ? verifyData.dining_area_name_km
+            : verifyData.dining_area_name_en) || null,
         business_id: verifyData.business_id,
         business_name: verifyData.business_name_en,
         branch_id: verifyData.branch_id,
@@ -243,72 +272,68 @@ export const GuestOrderPage: FC = () => {
         bakong_merchant_name: verifyData.business_name_en,
       }
 
-      // Open or Connect to Active Table Session
-      const sessionRes = await api.post(
-        '/public/tables/sessions/open',
-        { guest_count: 2 },
-        {
-          params: {
-            branch_id: effectiveBranchId,
-            table_id: effectiveTableId,
+      if (!sessionId && effectiveBranchId && effectiveTableId && effectiveToken) {
+        openSessionMutation
+          .mutateAsync({
+            branchId: effectiveBranchId,
+            tableId: effectiveTableId,
             token: effectiveToken,
-          },
-        }
-      )
+            guestCount: 2,
+          })
+          .then((sessionData) => {
+            setTableContext(
+              effectiveToken || '',
+              tableContext,
+              sessionData.id,
+              sessionData.session_token,
+              sessionData.session_code || sessionData.id?.slice(0, 6)
+            )
+          })
+          .catch((err) => {
+            console.warn('Could not auto-open session', err)
+          })
+      }
+    }
+  }, [
+    isDemo,
+    verifyData,
+    sessionId,
+    effectiveBranchId,
+    effectiveTableId,
+    effectiveToken,
+    language,
+    openSessionMutation,
+    setTableContext,
+  ])
 
-      const sessionData = sessionRes.data
-      setTableContext(
-        effectiveToken || '',
-        tableContext,
-        sessionData.id,
-        sessionData.session_token,
-        sessionData.session_code || sessionData.id?.slice(0, 6)
-      )
-
-      // Fetch Live Catalog
-      const [catRes, itemRes] = await Promise.all([
-        api.get(`/businesses/${verifyData.business_id}/categories`).catch(() => ({ data: [] })),
-        api.get(`/businesses/${verifyData.business_id}/items`).catch(() => ({ data: [] })),
-      ])
-
-      const rawCats: Array<{ id: string; name_en: string; name_km: string | null; display_order: number }> = catRes.data || []
-      const rawItems: Array<{
-        id: string
-        category_id: string
-        name_en: string
-        name_km: string | null
-        description_en: string | null
-        description_km: string | null
-        base_price_usd: number
-        image_url: string | null
-        is_available: boolean
-        spicy_level?: number
-        is_vegetarian?: boolean
-        variants?: Array<{ id: string; name_en: string; name_km: string | null; price_usd: number; is_default: boolean }>
-        modifier_groups?: Array<any>
-      }> = itemRes.data || []
+  // Sync Live Catalog into Category state
+  useEffect(() => {
+    if (!isDemo && catalogData) {
+      const rawCats = catalogData.categories || []
+      const rawItems = catalogData.items || []
 
       if (rawCats.length > 0 || rawItems.length > 0) {
-        const builtCategories: Category[] = rawCats.map((c) => ({
+        const builtCategories: Category[] = rawCats.map((c: any) => ({
           id: c.id,
           name_en: c.name_en,
-          name_km: c.name_km,
-          display_order: c.display_order,
+          name_km: c.name_km || c.name_en,
+          display_order: c.display_order ?? 0,
           items: rawItems
-            .filter((i) => i.category_id === c.id)
-            .map((i) => ({
+            .filter((i: any) => i.category_id === c.id)
+            .map((i: any) => ({
               id: i.id,
               category_id: i.category_id,
               name_en: i.name_en,
-              name_km: i.name_km,
-              description_en: i.description_en,
-              description_km: i.description_km,
+              name_km: i.name_km || i.name_en,
+              description_en: i.description_en || '',
+              description_km: i.description_km || '',
               base_price_usd: Number(i.base_price_usd) || 0,
-              image_url: i.image_url,
+              image_url: i.image_url || null,
               is_available: i.is_available ?? true,
               spicy_level: i.spicy_level,
+              is_popular: i.is_popular,
               is_vegetarian: i.is_vegetarian,
-              variants: (i.variants || []).map((v) => ({
+              variants: (i.variants || []).map((v: any) => ({
                 id: v.id,
                 name_en: v.name_en,
                 name_km: v.name_km,
@@ -322,51 +347,33 @@ export const GuestOrderPage: FC = () => {
       } else {
         setCategories([])
       }
-
-      // Fetch existing session orders if any
-      const ordersRes = await api.get('/public/tables/sessions/orders', {
-        params: {
-          branch_id: effectiveBranchId,
-          table_id: effectiveTableId,
-          token: effectiveToken,
-        },
-      }).catch(() => null)
-
-      if (ordersRes?.data?.orders) {
-        const formattedRounds: PlacedOrderRound[] = ordersRes.data.orders.map((o: any, idx: number) => ({
-          id: o.id || `order-${idx}`,
-          round_number: o.round_number || idx + 1,
-          placed_at: o.created_at || new Date().toISOString(),
-          round_subtotal_usd: Number(o.subtotal_usd) || 0,
-          items: (o.items || []).map((it: any) => ({
-            id: it.id,
-            item_name_en: it.item_name_en,
-            item_name_km: it.item_name_km,
-            variant_name_en: it.variant_name_en,
-            quantity: it.quantity,
-            unit_price_usd: Number(it.unit_price) || 0,
-            subtotal_usd: Number(it.subtotal_price) || 0,
-            course_stage: it.course_stage || 'MAINS',
-            status: it.status || 'QUEUED',
-            modifiers_summary: (it.modifiers || []).map((m: any) => m.name_en).join(', '),
-          })),
-        }))
-        setOrderRounds(formattedRounds)
-      }
-    } catch (err: any) {
-      const msg =
-        language === 'km'
-          ? 'មិនអាចស្វែងរកតុនេះបានទេ។ សូមទាក់ទងបុគ្គលិកដើម្បីទទួលបាន QR កូដត្រឹមត្រូវ។'
-          : 'Could not verify table QR code. Please ask our staff for assistance.'
-      setVerifyError(msg)
-    } finally {
-      setIsLoading(false)
     }
-  }, [effectiveBranchId, effectiveTableId, effectiveToken, isDemo, language, setOrderRounds, setTableContext])
+  }, [isDemo, catalogData])
 
+  // Sync Live Session Orders
   useEffect(() => {
-    initializeTableSession()
-  }, [initializeTableSession])
+    if (!isDemo && sessionOrdersData?.orders) {
+      const formattedRounds: PlacedOrderRound[] = sessionOrdersData.orders.map((o: any, idx: number) => ({
+        id: o.id || `order-${idx}`,
+        round_number: o.round_number || idx + 1,
+        placed_at: o.created_at || new Date().toISOString(),
+        round_subtotal_usd: Number(o.subtotal_usd) || 0,
+        items: (o.items || []).map((it: any) => ({
+          id: it.id,
+          item_name_en: it.item_name_en,
+          item_name_km: it.item_name_km,
+          variant_name_en: it.variant_name_en,
+          quantity: it.quantity,
+          unit_price_usd: Number(it.unit_price) || 0,
+          subtotal_usd: Number(it.subtotal_price) || 0,
+          course_stage: it.course_stage || 'MAINS',
+          status: it.status || 'QUEUED',
+          modifiers_summary: (it.modifiers || []).map((m: any) => m.name_en).join(', '),
+        })),
+      }))
+      setOrderRounds(formattedRounds)
+    }
+  }, [isDemo, sessionOrdersData, setOrderRounds])
 
   // 2. Real-Time WebSocket Listener
   const wsUrl = sessionId && sessionToken ? `/ws/sessions/${sessionId}?session_token=${sessionToken}` : null
@@ -471,15 +478,12 @@ export const GuestOrderPage: FC = () => {
         })),
       }
 
-      const res = await api.post('/public/tables/orders', orderPayload, {
-        params: {
-          branch_id: effectiveBranchId,
-          table_id: effectiveTableId,
-          token: effectiveToken,
-        },
+      const placedOrder = await createGuestOrderMutation.mutateAsync({
+        branchId: effectiveBranchId!,
+        tableId: effectiveTableId!,
+        token: effectiveToken!,
+        payload: orderPayload as any,
       })
-
-      const placedOrder = res.data
       const newRound: PlacedOrderRound = {
         id: placedOrder.id,
         round_number: placedOrder.round_number || orderRounds.length + 1,
@@ -613,7 +617,7 @@ export const GuestOrderPage: FC = () => {
           </p>
         </div>
         <button
-          onClick={initializeTableSession}
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['guest'] })}
           className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-800 dark:text-zinc-200 transition-colors"
         >
           {language === 'km' ? 'ព្យាយាមម្តងទៀត' : 'Try Again'}

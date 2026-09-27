@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     )
 
     # CORS settings
-    cors_origins: list[str] = Field(
+    cors_origins: list[str] | str = Field(
         default=["*"],
         description="Allowed CORS origins (comma-separated string or list)",
     )
@@ -52,6 +52,15 @@ class Settings(BaseSettings):
     @classmethod
     def parse_cors_origins(cls, v: Any) -> list[str]:
         if isinstance(v, str):
+            v = v.strip()
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    import json
+                    parsed = json.loads(v)
+                    if isinstance(parsed, list):
+                        return [str(x).strip() for x in parsed if str(x).strip()]
+                except Exception:
+                    pass
             return [x.strip() for x in v.split(",") if x.strip()]
         return v
 

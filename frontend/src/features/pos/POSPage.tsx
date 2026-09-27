@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, type FC } from 'react'
 import { RefreshCw } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import {
   POSDiningZone,
@@ -17,6 +18,8 @@ import { usePOSStore } from './stores/usePOSStore'
 import { api } from '@/lib/api'
 import { useWebSocket } from '@/lib/websocket'
 import { playSuccessSound, playChime } from '@/lib/audio'
+import { useBusinesses, useBranches } from '@/features/admin/hooks/useTenantQueries'
+import { useDiningAreas, useTables } from '@/features/admin/hooks/useTableQueries'
 
 const isUuid = (id?: string | null): boolean =>
   !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
@@ -49,7 +52,6 @@ export const POSPage: FC = () => {
   } = usePOSStore()
   const { language } = useLanguageStore()
 
-  const [isLoading, setIsLoading] = useState(true)
   const [storeInfo, setStoreInfo] = useState({
     nameEn: localStorage.getItem('emenu_business_name_en') || '',
     nameKm: localStorage.getItem('emenu_business_name_km') || '',
@@ -57,6 +59,7 @@ export const POSPage: FC = () => {
   })
 
   // Context identifiers
+  const queryClient = useQueryClient()
   const [tenantBizId, setTenantBizId] = useState<string | null>(
     localStorage.getItem('emenu_business_id')
   )
@@ -65,109 +68,72 @@ export const POSPage: FC = () => {
   )
   const accessToken = localStorage.getItem('emenu_access_token') || ''
 
-  // 1. Resolve Active Business and Branch IDs dynamically
-  const resolveTenantContext = useCallback(async () => {
-    let bizId = tenantBizId
-    let branchId = tenantBranchId
-
-    if (!isUuid(bizId)) {
-      try {
-        const bizRes = await api.get('/businesses')
-        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
-          const biz = bizRes.data[0]
-          bizId = biz.id
-          setTenantBizId(bizId)
-          localStorage.setItem('emenu_business_id', bizId!)
-          const nameEn = biz.name_en || ''
-          const nameKm = biz.name_km || nameEn
-          const logo = biz.logo_url || null
-          setStoreInfo({ nameEn, nameKm, logoUrl: logo })
-          if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
-          if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
-          if (logo) localStorage.setItem('emenu_business_logo', logo)
-        }
-      } catch {
-        // Handled in catch
-      }
-    } else if (!storeInfo.nameEn && !storeInfo.nameKm) {
-      try {
-        const singleBiz = await api.get(`/businesses/${bizId}`)
-        if (singleBiz?.data) {
-          const nameEn = singleBiz.data.name_en || ''
-          const nameKm = singleBiz.data.name_km || nameEn
-          const logo = singleBiz.data.logo_url || null
-          setStoreInfo({ nameEn, nameKm, logoUrl: logo })
-          if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
-          if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
-          if (logo) localStorage.setItem('emenu_business_logo', logo)
-        }
-      } catch {
-        // Handled in catch
-      }
+  // 1. Resolve Active Business and Branch IDs dynamically via TanStack Query
+  const { data: businesses = [] } = useBusinesses()
+  useEffect(() => {
+    if (!tenantBizId && businesses.length > 0) {
+      const biz = businesses[0]
+      setTenantBizId(biz.id)
+      localStorage.setItem('emenu_business_id', biz.id)
+      const nameEn = biz.name_en || ''
+      const nameKm = biz.name_km || nameEn
+      const logo = biz.logo_url || null
+      setStoreInfo({ nameEn, nameKm, logoUrl: logo })
+      if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
+      if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
+      if (logo) localStorage.setItem('emenu_business_logo', logo)
     }
+  }, [businesses, tenantBizId])
 
-    if (isUuid(bizId) && !isUuid(branchId)) {
-      try {
-        const branchRes = await api.get(`/businesses/${bizId}/branches`)
-        if (Array.isArray(branchRes.data) && branchRes.data.length > 0) {
-          branchId = branchRes.data[0].id
-          setTenantBranchId(branchId)
-          localStorage.setItem('emenu_branch_id', branchId!)
-        }
-      } catch {
-        // Handled in catch
-      }
+  const { data: branches = [] } = useBranches(tenantBizId)
+  useEffect(() => {
+    if (!tenantBranchId && branches.length > 0) {
+      const b = branches[0]
+      setTenantBranchId(b.id)
+      localStorage.setItem('emenu_branch_id', b.id)
     }
+  }, [branches, tenantBranchId])
 
-    return { bizId, branchId }
-  }, [tenantBizId, tenantBranchId, storeInfo.nameEn, storeInfo.nameKm])
+  // 2. Fetch Dining Areas and Tables via TanStack Query
+  const { data: rawAreas = [], isLoading: isAreasLoading } = useDiningAreas(tenantBizId, tenantBranchId)
+  const { data: rawTables = [], isLoading: isTablesLoading } = useTables(tenantBizId, tenantBranchId)
 
-  // 2. Fetch POS Data (Zones, Tables, Categories, Items) for the Isolated Tenant
-  const fetchPOSData = useCallback(async () => {
-    try {
-      const { bizId, branchId } = await resolveTenantContext()
+  const isLoading = (isAreasLoading || isTablesLoading) && tables.length === 0
 
-      if (!isUuid(bizId) || !isUuid(branchId)) {
-        setIsLoading(false)
-        return
-      }
-
-      const [zonesRes, tablesRes] = await Promise.all([
-        api.get(`/businesses/${bizId}/branches/${branchId}/dining-areas`).catch(() => ({ data: [] })),
-        api.get(`/businesses/${bizId}/branches/${branchId}/tables`).catch(() => ({ data: [] })),
-      ])
-
-      const rawZones: any[] = Array.isArray(zonesRes.data) ? zonesRes.data : []
-      const builtZones: POSDiningZone[] = rawZones.map((z) => ({
+  useEffect(() => {
+    if (rawAreas.length > 0) {
+      const builtZones: POSDiningZone[] = rawAreas.map((z) => ({
         id: z.id,
         name_en: z.name_en,
         name_km: z.name_km || z.name_en,
       }))
       setZones(builtZones)
+    }
+  }, [rawAreas, setZones])
 
-      const rawTables: any[] = Array.isArray(tablesRes.data) ? tablesRes.data : []
+  useEffect(() => {
+    if (rawTables.length > 0) {
       const builtTables: POSTable[] = rawTables.map((t) => ({
         id: t.id,
         table_number: t.table_number,
-        status: (t.status || 'AVAILABLE').toLowerCase(),
-        capacity: t.capacity || 4,
+        status: (t.status || 'AVAILABLE').toLowerCase() as any,
+        capacity: t.max_capacity || 4,
         dining_area_id: t.dining_area_id,
-        dining_area_name: t.dining_area?.name_en || 'Main Area',
-        session_id: t.active_session_id || null,
+        dining_area_name: rawAreas.find((a) => a.id === t.dining_area_id)?.name_en || 'Main Area',
+        session_id: (t as any).active_session_id || null,
         session_elapsed_minutes: 0,
         session_subtotal_usd: 0,
-        guest_count: t.capacity || 2,
+        guest_count: t.max_capacity || 2,
         active_orders_count: 0,
       }))
       setTables(builtTables)
-    } finally {
-      setIsLoading(false)
     }
-  }, [resolveTenantContext, setTables, setZones])
+  }, [rawTables, rawAreas, setTables])
 
-  useEffect(() => {
-    fetchPOSData()
-  }, [fetchPOSData])
+  const fetchPOSData = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['dining-areas', tenantBizId, tenantBranchId] })
+    queryClient.invalidateQueries({ queryKey: ['tables', tenantBizId, tenantBranchId] })
+  }, [queryClient, tenantBizId, tenantBranchId])
 
   // 3. Select Table & Load its Live Order Rounds
   const handleSelectTable = useCallback((table: POSTable) => {
@@ -271,11 +237,14 @@ export const POSPage: FC = () => {
         const data = typeof rawMsg === 'object' && rawMsg !== null ? (rawMsg as any) : {}
         if (data.event === 'TABLE_STATUS_CHANGED') {
           updateTableStatus(data.table_id, data.status)
+          fetchPOSData()
         } else if (data.event === 'BILL_REQUESTED') {
           updateTableStatus(data.table_id, 'bill_requested')
+          fetchPOSData()
           playChime(659.25, 880, 0.4)
         } else if (data.event === 'PAYMENT_SETTLED') {
           updateTableStatus(data.table_id, 'dirty_cleaning')
+          fetchPOSData()
           playSuccessSound()
         }
       } catch {

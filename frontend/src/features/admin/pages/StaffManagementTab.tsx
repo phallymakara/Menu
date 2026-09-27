@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type FC } from 'react'
+import { useState, useEffect, type FC } from 'react'
 import {
   Plus,
   Trash2,
@@ -11,9 +11,12 @@ import {
   Loader2,
   Building2,
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
+import { useCurrentUser, useStaffMembers, useRevokeStaffMember } from '../hooks/useStaffQueries'
+import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
 import type { StaffMember } from '../types/admin.types'
 
 const isUuid = (id?: string | null): boolean =>
@@ -28,8 +31,12 @@ interface BranchOption {
 export const StaffManagementTab: FC = () => {
   const { language } = useLanguageStore()
 
+  const queryClient = useQueryClient()
   const [orgId, setOrgId] = useState<string | null>(
     localStorage.getItem('emenu_tenant_id') || localStorage.getItem('emenu_organization_id')
+  )
+  const [businessId, setBusinessId] = useState<string | null>(
+    localStorage.getItem('emenu_business_id')
   )
   const [activeBranchId, setActiveBranchId] = useState<string>(
     localStorage.getItem('emenu_branch_id') || ''
@@ -37,14 +44,98 @@ export const StaffManagementTab: FC = () => {
 
   const [branches, setBranches] = useState<BranchOption[]>([])
   const [staffList, setStaffList] = useState<StaffMember[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [errorMessage] = useState<string | null>(null)
 
   const [isAddStaffModalOpen, setIsAddStaffModalOpen] = useState(false)
   const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({})
   const [selectedStaffIdForPhoto, setSelectedStaffIdForPhoto] = useState<string | null>(null)
+
+  // 1. TanStack Query: Current User & Org
+  const { data: currentUser } = useCurrentUser()
+  useEffect(() => {
+    const userOrg = currentUser?.memberships?.[0]?.organization_id
+    if (userOrg && userOrg !== orgId) {
+      setOrgId(userOrg)
+      localStorage.setItem('emenu_tenant_id', userOrg)
+      localStorage.setItem('emenu_organization_id', userOrg)
+    }
+  }, [currentUser, orgId])
+
+  // 2. TanStack Query: Businesses & Branches
+  const { data: businesses = [] } = useBusinesses()
+  useEffect(() => {
+    if (!businessId && businesses.length > 0) {
+      setBusinessId(businesses[0].id)
+      localStorage.setItem('emenu_business_id', businesses[0].id)
+    }
+  }, [businesses, businessId])
+
+  const { data: rawBranches = [] } = useBranches(businessId)
+  useEffect(() => {
+    if (rawBranches.length > 0) {
+      const mappedBranches: BranchOption[] = rawBranches.map((b) => ({
+        id: b.id,
+        name_en: b.name_en,
+        name_km: b.name_km || b.name_en,
+      }))
+      setBranches(mappedBranches)
+      if (!activeBranchId) {
+        const stored = localStorage.getItem('emenu_branch_id')
+        const matched = mappedBranches.find((b) => b.id === stored)
+        const targetBranchId = matched ? matched.id : mappedBranches[0].id
+        setActiveBranchId(targetBranchId)
+      }
+    }
+  }, [rawBranches, activeBranchId])
+
+  // 3. TanStack Query: Staff Members
+  const { data: rawStaff = [], isLoading: isStaffLoading } = useStaffMembers(
+    orgId,
+    activeBranchId && isUuid(activeBranchId) ? activeBranchId : undefined
+  )
+  const revokeStaffMutation = useRevokeStaffMember(orgId)
+
+  const isLoading = isStaffLoading && staffList.length === 0
+
+  useEffect(() => {
+    if (rawStaff.length > 0) {
+      const mapped: StaffMember[] = (rawStaff as any[]).map((m: any) => ({
+        id: m.id,
+        organization_id: m.organization_id,
+        user_id: m.user_id,
+        branch_id: m.branch_id,
+        full_name: m.full_name,
+        phone: m.phone || '',
+        email: m.email || null,
+        avatar_url: m.avatar_url || null,
+        role: m.role || 'WAITER',
+        job_title: m.job_title || null,
+        pos_pin: m.pos_pin || null,
+        pin_code: m.pos_pin || '••••',
+        is_owner: m.is_owner || false,
+        is_active: (m.status || '').toUpperCase() === 'ACTIVE',
+        status: m.status || 'active',
+        created_at: m.created_at ? m.created_at.split('T')[0] : '2026-08-01',
+      }))
+      const branchMembers = activeBranchId && isUuid(activeBranchId)
+        ? mapped.filter((m) => m.branch_id === activeBranchId)
+        : mapped
+      setStaffList(branchMembers)
+    }
+  }, [rawStaff, activeBranchId])
+
+  useEffect(() => {
+    const handleBranchChanged = (e: any) => {
+      const newBranchId = e.detail?.branchId
+      if (newBranchId) {
+        setActiveBranchId(newBranchId)
+      }
+    }
+    window.addEventListener('emenu:branch-changed', handleBranchChanged)
+    return () => window.removeEventListener('emenu:branch-changed', handleBranchChanged)
+  }, [])
 
   // Form State for Adding Staff
   const [newStaff, setNewStaff] = useState({
@@ -58,135 +149,6 @@ export const StaffManagementTab: FC = () => {
     password: '',
   })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-
-  // 1. Resolve Organization & Branches
-  const resolveTenantContext = useCallback(async () => {
-    let currentOrg = orgId
-    let bizId = localStorage.getItem('emenu_business_id')
-
-    if (!isUuid(currentOrg)) {
-      try {
-        const meRes = await api.get('/auth/me')
-        if (meRes.data?.memberships?.[0]?.organization_id) {
-          currentOrg = meRes.data.memberships[0].organization_id
-          setOrgId(currentOrg)
-          localStorage.setItem('emenu_tenant_id', currentOrg!)
-        }
-      } catch {
-        // Handled in catch
-      }
-    }
-
-    if (!isUuid(bizId)) {
-      try {
-        const bizRes = await api.get('/businesses')
-        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
-          bizId = bizRes.data[0].id
-          localStorage.setItem('emenu_business_id', bizId!)
-        }
-      } catch {
-        // Handled in catch
-      }
-    }
-
-    if (isUuid(bizId)) {
-      try {
-        const branchRes = await api.get(`/businesses/${bizId}/branches`)
-        if (Array.isArray(branchRes.data) && branchRes.data.length > 0) {
-          const mappedBranches = branchRes.data.map((b: any) => ({
-            id: b.id,
-            name_en: b.name_en,
-            name_km: b.name_km || b.name_en,
-          }))
-          setBranches(mappedBranches)
-
-          const stored = localStorage.getItem('emenu_branch_id')
-          const matched = mappedBranches.find((b: any) => b.id === stored)
-          const targetBranchId = matched ? matched.id : mappedBranches[0].id
-          setActiveBranchId(targetBranchId)
-          localStorage.setItem('emenu_branch_id', targetBranchId)
-        }
-      } catch {
-        // Handled in catch
-      }
-    }
-
-    return currentOrg
-  }, [orgId])
-
-  // 2. Fetch Isolated Staff Members for Current Branch Only
-  const loadStaff = useCallback(async () => {
-    setIsLoading(true)
-    setErrorMessage(null)
-
-    try {
-      const currentOrg = await resolveTenantContext()
-      if (!isUuid(currentOrg)) {
-        setIsLoading(false)
-        return
-      }
-
-      const currentBranch =
-        (isUuid(activeBranchId) ? activeBranchId : null) ||
-        (isUuid(localStorage.getItem('emenu_branch_id')) ? localStorage.getItem('emenu_branch_id') : null)
-
-      const params: Record<string, string> = {}
-      if (currentBranch) {
-        params.branch_id = currentBranch
-      }
-
-      const res = await api.get(`/organizations/${currentOrg}/members`, { params })
-      if (Array.isArray(res.data)) {
-        const mapped: StaffMember[] = res.data.map((m: any) => ({
-          id: m.id,
-          organization_id: m.organization_id,
-          user_id: m.user_id,
-          branch_id: m.branch_id,
-          full_name: m.full_name,
-          phone: m.phone || '',
-          email: m.email || null,
-          avatar_url: m.avatar_url || null,
-          role: m.role || 'WAITER',
-          job_title: m.job_title || null,
-          pos_pin: m.pos_pin || null,
-          pin_code: m.pos_pin || '••••',
-          is_owner: m.is_owner || false,
-          is_active: (m.status || '').toUpperCase() === 'ACTIVE',
-          status: m.status || 'active',
-          created_at: m.created_at ? m.created_at.split('T')[0] : '2026-08-01',
-        }))
-        const branchMembers = currentBranch && isUuid(currentBranch)
-          ? mapped.filter((m) => m.branch_id === currentBranch)
-          : mapped
-        setStaffList(branchMembers)
-      } else {
-        setStaffList([])
-      }
-    } catch {
-      setErrorMessage(
-        language === 'km'
-          ? 'មិនអាចទាញយកទិន្នន័យបុគ្គលិកបានទេ។'
-          : 'Unable to load staff members. Please try again.'
-      )
-    } finally {
-      setIsLoading(false)
-    }
-  }, [activeBranchId, language, resolveTenantContext])
-
-  useEffect(() => {
-    loadStaff()
-  }, [loadStaff])
-
-  useEffect(() => {
-    const handleBranchChanged = (e: any) => {
-      const newBranchId = e.detail?.branchId
-      if (newBranchId) {
-        setActiveBranchId(newBranchId)
-      }
-    }
-    window.addEventListener('emenu:branch-changed', handleBranchChanged)
-    return () => window.removeEventListener('emenu:branch-changed', handleBranchChanged)
-  }, [])
 
   const togglePinVisibility = (staffId: string) => {
     setRevealedPins((prev) => ({ ...prev, [staffId]: !prev[staffId] }))
@@ -214,8 +176,7 @@ export const StaffManagementTab: FC = () => {
 
     setIsSubmitting(true)
     try {
-      const currentOrg = await resolveTenantContext()
-      if (!isUuid(currentOrg)) {
+      if (!isUuid(orgId)) {
         alert('Organization context missing')
         setIsSubmitting(false)
         return
@@ -226,7 +187,7 @@ export const StaffManagementTab: FC = () => {
         (isUuid(localStorage.getItem('emenu_branch_id')) ? localStorage.getItem('emenu_branch_id') : null) ||
         (branches.length > 0 ? branches[0].id : null)
 
-      await api.post(`/organizations/${currentOrg}/members`, {
+      await api.post(`/organizations/${orgId}/members`, {
         full_name: newStaff.full_name.trim(),
         phone: newStaff.phone.trim() || null,
         email: newStaff.email.trim() || null,
@@ -237,6 +198,7 @@ export const StaffManagementTab: FC = () => {
         password: newStaff.password.trim() || '12345678',
       })
 
+      queryClient.invalidateQueries({ queryKey: ['staff', orgId] })
 
       setNewStaff({
         full_name: '',
@@ -250,7 +212,6 @@ export const StaffManagementTab: FC = () => {
       })
       setFormErrors({})
       setIsAddStaffModalOpen(false)
-      loadStaff()
     } catch {
       alert(language === 'km' ? 'មិនអាចបង្កើតបុគ្គលិកបានទេ' : 'Failed to create staff member')
     } finally {
@@ -270,9 +231,8 @@ export const StaffManagementTab: FC = () => {
     }
 
     try {
-      const currentOrg = await resolveTenantContext()
-      if (isUuid(currentOrg)) {
-        await api.delete(`/organizations/${currentOrg}/members/${memberId}`)
+      if (isUuid(orgId)) {
+        await revokeStaffMutation.mutateAsync(memberId)
       }
       setStaffList(staffList.filter((s) => s.id !== memberId))
     } catch {

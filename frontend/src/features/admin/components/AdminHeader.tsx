@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, type FC } from 'react'
+import { useState, useEffect, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   LogOut,
   Menu as MenuIcon,
@@ -15,6 +16,7 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { api } from '@/lib/api'
+import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
 
 const isUuid = (id?: string | null): boolean =>
   !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
@@ -50,11 +52,14 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
     localStorage.getItem('emenu_business_logo') || null
   )
 
+  const queryClient = useQueryClient()
+  const { data: businesses = [] } = useBusinesses()
+  const { data: rawBranches = [], isLoading: isLoadingBranches } = useBranches(businessId)
+
   const [branches, setBranches] = useState<RealBranch[]>([])
   const [activeBranchId, setActiveBranchId] = useState<string | null>(
     localStorage.getItem('emenu_branch_id')
   )
-  const [isLoadingBranches, setIsLoadingBranches] = useState(false)
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false)
   const [isCreateBranchModalOpen, setIsCreateBranchModalOpen] = useState(false)
   const [isCreatingBranch, setIsCreatingBranch] = useState(false)
@@ -68,91 +73,56 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
   })
   const [branchErrors, setBranchErrors] = useState<Record<string, string>>({})
 
-  // 1. Fetch Real Business Profile & Branches from PostgreSQL Database
-  const fetchBranches = useCallback(async () => {
-    const token = localStorage.getItem('emenu_access_token')
-    if (!token) {
-      setIsLoadingBranches(false)
-      return
-    }
+  // 1. Sync Business Profile from TanStack Query
+  useEffect(() => {
+    if (businesses.length > 0) {
+      const targetBiz =
+        (isUuid(businessId) ? businesses.find((b) => b.id === businessId) : null) ||
+        businesses[0]
 
-    setIsLoadingBranches(true)
-    try {
-      let bizId = businessId
+      if (targetBiz) {
+        const bizId = targetBiz.id
+        setBusinessId(bizId)
+        localStorage.setItem('emenu_business_id', bizId)
 
-      // Always fetch business profile to ensure the real store name is shown
-      const bizRes = await api.get('/businesses').catch(() => ({ data: [] }))
-      if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
-        const targetBiz =
-          (isUuid(bizId) ? bizRes.data.find((b: any) => b.id === bizId) : null) ||
-          bizRes.data[0]
-
-        if (targetBiz) {
-          bizId = targetBiz.id
-          setBusinessId(bizId)
-          localStorage.setItem('emenu_business_id', bizId!)
-
-          const nameEn = targetBiz.name_en || ''
-          const nameKm = targetBiz.name_km || nameEn
-          if (nameEn || nameKm) {
-            setBusinessName({ en: nameEn, km: nameKm })
-            if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
-            if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
-          }
-
-          if (targetBiz.logo_url) {
-            setLogoUrl(targetBiz.logo_url)
-            localStorage.setItem('emenu_business_logo', targetBiz.logo_url)
-          }
+        const nameEn = targetBiz.name_en || ''
+        const nameKm = targetBiz.name_km || nameEn
+        if (nameEn || nameKm) {
+          setBusinessName({ en: nameEn, km: nameKm })
+          if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
+          if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
         }
-      } else if (isUuid(bizId)) {
-        const singleBiz = await api.get(`/businesses/${bizId}`).catch(() => null)
-        if (singleBiz?.data) {
-          const nameEn = singleBiz.data.name_en || ''
-          const nameKm = singleBiz.data.name_km || nameEn
-          if (nameEn || nameKm) {
-            setBusinessName({ en: nameEn, km: nameKm })
-            if (nameEn) localStorage.setItem('emenu_business_name_en', nameEn)
-            if (nameKm) localStorage.setItem('emenu_business_name_km', nameKm)
-          }
-          if (singleBiz.data.logo_url) {
-            setLogoUrl(singleBiz.data.logo_url)
-            localStorage.setItem('emenu_business_logo', singleBiz.data.logo_url)
-          }
+
+        if (targetBiz.logo_url) {
+          setLogoUrl(targetBiz.logo_url)
+          localStorage.setItem('emenu_business_logo', targetBiz.logo_url)
         }
       }
-
-      if (isUuid(bizId)) {
-        const branchRes = await api.get(`/businesses/${bizId}/branches`)
-        if (Array.isArray(branchRes.data)) {
-          setBranches(branchRes.data)
-
-          const savedBranchId = localStorage.getItem('emenu_branch_id')
-          const exists = branchRes.data.some((b: RealBranch) => b.id === savedBranchId)
-
-          if (!savedBranchId || !exists) {
-            if (branchRes.data.length > 0) {
-              const defaultBranch = branchRes.data[0].id
-              setActiveBranchId(defaultBranch)
-              localStorage.setItem('emenu_branch_id', defaultBranch)
-            }
-          } else {
-            setActiveBranchId(savedBranchId)
-          }
-        }
-      }
-    } catch {
-      // Handled cleanly
-    } finally {
-      setIsLoadingBranches(false)
     }
-  }, [businessId])
+  }, [businesses, businessId])
+
+  // 2. Sync Branches from TanStack Query
+  useEffect(() => {
+    if (rawBranches.length > 0) {
+      setBranches(rawBranches as RealBranch[])
+      const savedBranchId = localStorage.getItem('emenu_branch_id')
+      const exists = rawBranches.some((b) => b.id === savedBranchId)
+
+      if (!savedBranchId || !exists) {
+        const defaultBranch = rawBranches[0].id
+        setActiveBranchId(defaultBranch)
+        localStorage.setItem('emenu_branch_id', defaultBranch)
+      } else {
+        setActiveBranchId(savedBranchId)
+      }
+    }
+  }, [rawBranches])
 
   useEffect(() => {
-    fetchBranches()
-
     const handleBranchesUpdated = () => {
-      fetchBranches()
+      if (businessId) {
+        queryClient.invalidateQueries({ queryKey: ['branches', businessId] })
+      }
     }
 
     const handleBusinessUpdated = (e: any) => {
@@ -166,25 +136,18 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
         if (d.logo_url) {
           setLogoUrl(d.logo_url)
         }
-      } else {
-        fetchBranches()
       }
-    }
-
-    const handleFocus = () => {
-      fetchBranches()
+      queryClient.invalidateQueries({ queryKey: ['businesses'] })
     }
 
     window.addEventListener('emenu:branches-updated', handleBranchesUpdated)
     window.addEventListener('emenu:business-updated', handleBusinessUpdated)
-    window.addEventListener('focus', handleFocus)
 
     return () => {
       window.removeEventListener('emenu:branches-updated', handleBranchesUpdated)
       window.removeEventListener('emenu:business-updated', handleBusinessUpdated)
-      window.removeEventListener('focus', handleFocus)
     }
-  }, [fetchBranches])
+  }, [businessId, queryClient])
 
   const currentBranch = branches.find((b) => b.id === activeBranchId) || branches[0]
 
@@ -241,7 +204,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
         })
         setBranchErrors({})
         setIsCreateBranchModalOpen(false)
-        await fetchBranches()
+        await queryClient.invalidateQueries({ queryKey: ['branches', businessId] })
         handleSwitchBranch(res.data.id)
         window.dispatchEvent(new CustomEvent('emenu:branches-updated'))
       }
@@ -308,8 +271,8 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                   <button
                     type="button"
                     onClick={() => {
-                      if (!isBranchDropdownOpen) {
-                        fetchBranches()
+                      if (!isBranchDropdownOpen && businessId) {
+                        queryClient.invalidateQueries({ queryKey: ['branches', businessId] })
                       }
                       setIsBranchDropdownOpen(!isBranchDropdownOpen)
                     }}

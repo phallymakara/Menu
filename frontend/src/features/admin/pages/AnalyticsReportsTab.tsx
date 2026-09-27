@@ -1,41 +1,107 @@
-import { useState, type FC } from 'react'
+import { useState, useEffect, useMemo, type FC } from 'react'
 import {
   TrendingUp,
   DollarSign,
   ShoppingBag,
 } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
+import { useSalesOverview, usePaymentBreakdown } from '../hooks/useAnalyticsQueries'
 
 export const AnalyticsReportsTab: FC = () => {
   const { language } = useLanguageStore()
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today')
 
-  const summary = {
-    today: {
-      revenueUsd: '$348.50',
-      revenueKhr: '1,428,850 ៛',
-      orders: 42,
-      avgTicket: '$8.30',
-      avgTicketKhr: '34,000 ៛',
-      netProfit: '$218.00',
-    },
-    week: {
-      revenueUsd: '$2,450.00',
-      revenueKhr: '10,045,000 ៛',
-      orders: 298,
-      avgTicket: '$8.22',
-      avgTicketKhr: '33,700 ៛',
-      netProfit: '$1,520.00',
-    },
-    month: {
-      revenueUsd: '$10,850.00',
-      revenueKhr: '44,485,000 ៛',
-      orders: 1320,
-      avgTicket: '$8.21',
-      avgTicketKhr: '33,650 ៛',
-      netProfit: '$6,750.00',
-    },
-  }[timeRange]
+  const [businessId, setBusinessId] = useState<string | null>(
+    localStorage.getItem('emenu_business_id')
+  )
+  const [branchId, setBranchId] = useState<string | null>(
+    localStorage.getItem('emenu_branch_id')
+  )
+
+  const { data: businesses = [] } = useBusinesses()
+  useEffect(() => {
+    if (!businessId && businesses.length > 0) {
+      setBusinessId(businesses[0].id)
+      localStorage.setItem('emenu_business_id', businesses[0].id)
+    }
+  }, [businesses, businessId])
+
+  const { data: branches = [] } = useBranches(businessId)
+  useEffect(() => {
+    if (!branchId && branches.length > 0) {
+      setBranchId(branches[0].id)
+      localStorage.setItem('emenu_branch_id', branches[0].id)
+    }
+  }, [branches, branchId])
+
+  const { data: overviewData } = useSalesOverview(businessId, branchId)
+  const { data: paymentData } = usePaymentBreakdown(businessId, branchId)
+
+  const summary = useMemo(() => {
+    if (overviewData) {
+      const revUsd = Number(overviewData.total_gross_sales_usd || 0)
+      const revKhr = Number(overviewData.total_net_revenue_khr || Math.round(revUsd * 4100))
+      const orders = Number(overviewData.total_completed_orders || 0)
+      const avg = Number(overviewData.average_order_value_usd || (orders > 0 ? revUsd / orders : 0))
+      const net = Number(overviewData.total_net_revenue_usd || revUsd * 0.7)
+
+      return {
+        revenueUsd: `$${revUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        revenueKhr: `${revKhr.toLocaleString()} ៛`,
+        orders,
+        avgTicket: `$${avg.toFixed(2)}`,
+        avgTicketKhr: `${Math.round(avg * 4100).toLocaleString()} ៛`,
+        netProfit: `$${net.toFixed(2)}`,
+      }
+    }
+
+    return {
+      today: {
+        revenueUsd: '$348.50',
+        revenueKhr: '1,428,850 ៛',
+        orders: 42,
+        avgTicket: '$8.30',
+        avgTicketKhr: '34,000 ៛',
+        netProfit: '$218.00',
+      },
+      week: {
+        revenueUsd: '$2,450.00',
+        revenueKhr: '10,045,000 ៛',
+        orders: 298,
+        avgTicket: '$8.22',
+        avgTicketKhr: '33,700 ៛',
+        netProfit: '$1,520.00',
+      },
+      month: {
+        revenueUsd: '$10,850.00',
+        revenueKhr: '44,485,000 ៛',
+        orders: 1320,
+        avgTicket: '$8.21',
+        avgTicketKhr: '33,650 ៛',
+        netProfit: '$6,750.00',
+      },
+    }[timeRange]
+  }, [overviewData, timeRange])
+
+  const paymentBreakdown = useMemo(() => {
+    const rawMethods = (paymentData as any)?.methods
+    if (Array.isArray(rawMethods) && rawMethods.length > 0) {
+      return rawMethods.map((m: any) => ({
+        method: m.payment_method === 'khqr' ? 'Bakong KHQR (Dynamic)' : m.payment_method === 'cash' ? 'Cash' : m.payment_method,
+        percentage: `${m.share_percentage || 0}%`,
+        amount: `$${Number(m.total_amount_usd || 0).toFixed(2)}`,
+        count: m.transaction_count || 0,
+      }))
+    }
+
+    return [
+      { method: 'Bakong KHQR (Dynamic)', percentage: '62%', amount: '$216.00', count: 26 },
+      { method: 'Cash (USD)', percentage: '20%', amount: '$69.50', count: 9 },
+      { method: 'Cash (KHR)', percentage: '14%', amount: '$49.00', count: 5 },
+      { method: 'Credit/Debit Card', percentage: '4%', amount: '$14.00', count: 2 },
+    ]
+  }, [paymentData])
 
   const hourlyBreakdown = [
     { hour: '07:00 - 09:00', orders: 4, revenue: '$24.00' },
@@ -44,13 +110,6 @@ export const AnalyticsReportsTab: FC = () => {
     { hour: '13:00 - 15:00', orders: 3, revenue: '$21.00' },
     { hour: '15:00 - 17:00', orders: 2, revenue: '$14.00' },
     { hour: '17:00 - 20:00', orders: 8, revenue: '$79.00' },
-  ]
-
-  const paymentBreakdown = [
-    { method: 'Bakong KHQR (Dynamic)', percentage: '62%', amount: '$216.00', count: 26 },
-    { method: 'Cash (USD)', percentage: '20%', amount: '$69.50', count: 9 },
-    { method: 'Cash (KHR)', percentage: '14%', amount: '$49.00', count: 5 },
-    { method: 'Credit/Debit Card', percentage: '4%', amount: '$14.00', count: 2 },
   ]
 
   return (

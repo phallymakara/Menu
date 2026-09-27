@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type FC } from 'react'
+import { useState, useEffect, type FC } from 'react'
 import {
   Plus,
   Search,
@@ -10,13 +10,18 @@ import {
   MoreVertical,
   Check,
 } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
 import { api } from '@/lib/api'
+import { apiFetch } from '@/lib/api-client'
+import { useBusinesses } from '../hooks/useTenantQueries'
+import { useCategories, useMenuItems } from '../hooks/useMenuQueries'
 import type { Category, MenuItem, ModifierGroup, ModifierOption } from '../types/admin.types'
 
 export const MenuManagementTab: FC = () => {
   const { language } = useLanguageStore()
+  const queryClient = useQueryClient()
 
   // State
   const [businessId, setBusinessId] = useState<string | null>(
@@ -24,7 +29,6 @@ export const MenuManagementTab: FC = () => {
   )
   const [categories, setCategories] = useState<Category[]>([])
   const [items, setItems] = useState<MenuItem[]>([])
-  const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -89,115 +93,54 @@ export const MenuManagementTab: FC = () => {
     name_km: '',
   })
 
-  // Fetch Business ID and Initial Data
-  const loadInitialData = useCallback(async () => {
-    const token = localStorage.getItem('emenu_access_token')
-    if (!token) {
-      return
-    }
-
-    setIsLoading(true)
-    setErrorMessage(null)
-    try {
-      // 1. Resolve Active Business ID
-      let currentBizId = businessId || localStorage.getItem('emenu_business_id')
-      if (!currentBizId) {
-        const bizRes = await api.get('/businesses')
-        const businesses = bizRes.data
-        if (Array.isArray(businesses) && businesses.length > 0) {
-          currentBizId = businesses[0].id
-          setBusinessId(currentBizId)
-          localStorage.setItem('emenu_business_id', currentBizId!)
-        }
-      }
-
-      if (!currentBizId) {
-        setIsLoading(false)
-        return
-      }
-
-      // 2. Fetch Categories & Menu Items in parallel
-      const [catsRes, itemsRes] = await Promise.all([
-        api.get(`/businesses/${currentBizId}/categories`).catch(() => ({ data: [] })),
-        api.get(`/businesses/${currentBizId}/items`).catch(() => ({ data: [] })),
-      ])
-
-      if (Array.isArray(catsRes.data) && catsRes.data.length > 0) {
-        const fetchedCategories: Category[] = catsRes.data.map((c: any) => ({
-          id: c.id,
-          name_en: c.name_en,
-          name_km: c.name_km || c.name_en,
-          display_order: c.display_order || 0,
-          is_active: c.is_active ?? true,
-        }))
-        setCategories(fetchedCategories)
-      }
-
-      const rawItems = Array.isArray(itemsRes.data)
-        ? itemsRes.data
-        : itemsRes.data?.items || []
-
-      if (rawItems.length > 0) {
-        const fetchedItems: MenuItem[] = await Promise.all(
-          rawItems.map(async (it: any) => {
-            let modifier_groups: ModifierGroup[] = []
-            if (isUuid(it.id)) {
-              try {
-                const mgRes = await api.get(`/businesses/${currentBizId}/items/${it.id}/modifier-groups`)
-                if (Array.isArray(mgRes.data)) {
-                  modifier_groups = mgRes.data.map((g: any) => ({
-                    id: g.id,
-                    name_en: g.name_en,
-                    name_km: g.name_km || g.name_en,
-                    is_required: (g.min_selections || 0) > 0,
-                    min_selections: g.min_selections || 0,
-                    max_selections: g.max_selections || 1,
-                    options: (g.options || []).map((o: any) => ({
-                      id: o.id,
-                      name_en: o.name_en,
-                      name_km: o.name_km || o.name_en,
-                      price_usd: parseFloat(o.price || 0),
-                      is_default: o.is_default || false,
-                    })),
-                  }))
-                }
-              } catch {
-                // Ignore fallback
-              }
-            }
-
-            return {
-              id: it.id,
-              category_id: it.category_id,
-              name_en: it.name_en,
-              name_km: it.name_km || it.name_en,
-              description_en: it.description_en || '',
-              description_km: it.description_km || '',
-              image_url: it.image_url || null,
-              price_usd: parseFloat(it.base_price || it.price_usd || 0),
-              price_khr: Math.round(parseFloat(it.base_price || it.price_usd || 0) * 4100),
-              is_available: it.is_active ?? it.is_available ?? true,
-              kitchen_station: it.kitchen_station || 'KITCHEN',
-              modifier_groups,
-            }
-          })
-        )
-        setItems(fetchedItems)
-      }
-    } catch {
-      setErrorMessage(
-        language === 'km'
-          ? 'មិនអាចទាញយកទិន្នន័យមុខម្ហូបបានទេ។'
-          : 'Unable to load menu items. Please try again.'
-      )
-    } finally {
-      setIsLoading(false)
-    }
-  }, [businessId, language])
+  // 1. TanStack Query: Tenant Resolution
+  const { data: businesses = [] } = useBusinesses()
 
   useEffect(() => {
-    loadInitialData()
-  }, [loadInitialData])
+    if (!businessId && businesses.length > 0) {
+      setBusinessId(businesses[0].id)
+      localStorage.setItem('emenu_business_id', businesses[0].id)
+    }
+  }, [businesses, businessId])
+
+  // 2. TanStack Query: Fetch Categories & Menu Items
+  const { data: rawCategories = [], isLoading: isCategoriesLoading } = useCategories(businessId)
+  const { data: rawItems = [], isLoading: isItemsLoading } = useMenuItems(businessId)
+
+  const isLoading = (isCategoriesLoading || isItemsLoading) && items.length === 0
+
+  useEffect(() => {
+    if (rawCategories.length > 0) {
+      const fetchedCategories: Category[] = rawCategories.map((c) => ({
+        id: c.id,
+        name_en: c.name_en,
+        name_km: c.name_km || c.name_en,
+        display_order: c.display_order || 0,
+        is_active: c.is_active ?? true,
+      }))
+      setCategories(fetchedCategories)
+    }
+  }, [rawCategories])
+
+  useEffect(() => {
+    if (rawItems.length > 0) {
+      const fetchedItems: MenuItem[] = (rawItems as any[]).map((it: any) => ({
+        id: it.id,
+        category_id: it.category_id,
+        name_en: it.name_en,
+        name_km: it.name_km || it.name_en,
+        description_en: it.description_en || '',
+        description_km: it.description_km || '',
+        image_url: it.image_url || null,
+        price_usd: parseFloat(it.base_price || it.price_usd || '0'),
+        price_khr: Math.round(parseFloat(it.base_price || it.price_usd || '0') * 4100),
+        is_available: it.is_active ?? it.is_available ?? true,
+        kitchen_station: it.kitchen_station || 'KITCHEN',
+        modifier_groups: [],
+      }))
+      setItems(fetchedItems)
+    }
+  }, [rawItems])
 
   // Helper to detect real database UUID vs mock items/categories
   const isUuid = (id?: string | null) =>
@@ -222,6 +165,7 @@ export const MenuManagementTab: FC = () => {
               name_km: categoryForm.name_km || categoryForm.name_en,
             }
           )
+          queryClient.invalidateQueries({ queryKey: ['categories', businessId] })
           setCategories((prev) =>
             prev.map((c) => (c.id === editingCategory.id ? { ...c, ...res.data } : c))
           )
@@ -232,6 +176,7 @@ export const MenuManagementTab: FC = () => {
             display_order: categories.length + 1,
             is_active: true,
           })
+          queryClient.invalidateQueries({ queryKey: ['categories', businessId] })
           const newCat: Category = {
             id: res.data.id,
             name_en: res.data.name_en,
@@ -336,6 +281,7 @@ export const MenuManagementTab: FC = () => {
     if (businessId && token && isUuid(categoryId)) {
       try {
         await api.delete(`/businesses/${businessId}/categories/${categoryId}`)
+        queryClient.invalidateQueries({ queryKey: ['categories', businessId] })
       } catch (err: any) {
         if (err.response?.status !== 401) {
           setErrorMessage(
@@ -725,12 +671,24 @@ export const MenuManagementTab: FC = () => {
     })
     setIsAddItemModalOpen(true)
 
-    // If backend item with valid UUID, fetch latest modifier groups
+    // If backend item with valid UUID, fetch latest modifier groups via queryClient
     if (businessId && isUuid(item.id)) {
       try {
-        const mgRes = await api.get(`/businesses/${businessId}/items/${item.id}/modifier-groups`)
-        if (Array.isArray(mgRes.data) && mgRes.data.length > 0) {
-          const fetchedGroups: ModifierGroup[] = mgRes.data.map((g: any) => ({
+        const fetchedData = await queryClient.fetchQuery({
+          queryKey: ['modifier-groups', businessId, item.id],
+          queryFn: async () => {
+            const { data, error } = await apiFetch.GET(
+              '/api/v1/businesses/{business_id}/items/{item_id}/modifier-groups',
+              {
+                params: { path: { business_id: businessId, item_id: item.id } },
+              }
+            )
+            if (error) throw error
+            return (data as any) || []
+          },
+        })
+        if (Array.isArray(fetchedData) && fetchedData.length > 0) {
+          const fetchedGroups: ModifierGroup[] = fetchedData.map((g: any) => ({
             id: g.id,
             name_en: g.name_en,
             name_km: g.name_km || g.name_en,

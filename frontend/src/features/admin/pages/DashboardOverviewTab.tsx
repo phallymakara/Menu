@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type FC } from 'react'
+import { useState, useEffect, useMemo, type FC } from 'react'
 import { Link } from 'react-router-dom'
 import {
   DollarSign,
@@ -9,100 +9,67 @@ import {
   Loader2,
 } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
-import { api } from '@/lib/api'
-
-const isUuid = (id?: string | null): boolean =>
-  !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
+import { useSalesOverview, useTopSellingItems } from '../hooks/useAnalyticsQueries'
+import { useTables } from '../hooks/useTableQueries'
 
 export const DashboardOverviewTab: FC = () => {
   const { language } = useLanguageStore()
 
-  const [isLoading, setIsLoading] = useState(true)
-  const [metrics, setMetrics] = useState({
-    totalRevenueUsd: 0,
-    totalRevenueKhr: 0,
-    totalOrders: 0,
-    averageBillUsd: 0,
-    occupiedTables: 0,
-    totalTables: 0,
-  })
-  const [topDishes, setTopDishes] = useState<
-    Array<{ nameEn: string; nameKm: string; count: number; totalSales: number }>
-  >([])
+  const [businessId, setBusinessId] = useState<string | null>(
+    localStorage.getItem('emenu_business_id')
+  )
+  const [branchId, setBranchId] = useState<string | null>(
+    localStorage.getItem('emenu_branch_id')
+  )
 
-
-  const loadDashboardData = useCallback(async () => {
-    setIsLoading(true)
-
-    try {
-      let bizId = localStorage.getItem('emenu_business_id')
-      let branchId = localStorage.getItem('emenu_branch_id')
-
-      if (!isUuid(bizId)) {
-        const bizRes = await api.get('/businesses').catch(() => ({ data: [] }))
-        if (Array.isArray(bizRes.data) && bizRes.data.length > 0) {
-          bizId = bizRes.data[0].id
-          localStorage.setItem('emenu_business_id', bizId!)
-        }
-      }
-
-      if (isUuid(bizId) && !isUuid(branchId)) {
-        const brRes = await api.get(`/businesses/${bizId}/branches`).catch(() => ({ data: [] }))
-        if (Array.isArray(brRes.data) && brRes.data.length > 0) {
-          branchId = brRes.data[0].id
-          localStorage.setItem('emenu_branch_id', branchId!)
-        }
-      }
-
-      if (isUuid(bizId)) {
-        const [overviewRes, topItemsRes, tablesRes] = await Promise.all([
-          api.get(`/businesses/${bizId}/analytics/overview`).catch(() => ({ data: null })),
-          api.get(`/businesses/${bizId}/analytics/top-items`).catch(() => ({ data: [] })),
-          isUuid(branchId)
-            ? api.get(`/businesses/${bizId}/branches/${branchId}/tables`).catch(() => ({ data: [] }))
-            : Promise.resolve({ data: [] }),
-        ])
-
-        if (overviewRes.data) {
-          const d = overviewRes.data
-          const revUsd = Number(d.gross_sales_usd || d.net_sales_usd || 0)
-          const totalOrd = Number(d.total_orders || 0)
-          const avgUsd = totalOrd > 0 ? revUsd / totalOrd : 0
-
-          const tablesList: any[] = Array.isArray(tablesRes.data) ? tablesRes.data : []
-          const occupied = tablesList.filter((t) => (t.status || '').toUpperCase() === 'OCCUPIED').length
-
-          setMetrics({
-            totalRevenueUsd: revUsd,
-            totalRevenueKhr: Math.round(revUsd * 4100),
-            totalOrders: totalOrd,
-            averageBillUsd: avgUsd,
-            occupiedTables: occupied,
-            totalTables: tablesList.length,
-          })
-        }
-
-        if (Array.isArray(topItemsRes.data)) {
-          setTopDishes(
-            topItemsRes.data.slice(0, 5).map((it: any) => ({
-              nameEn: it.menu_item_name_en || it.name_en || 'Item',
-              nameKm: it.menu_item_name_km || it.name_km || it.name_en || 'មុខម្ហូប',
-              count: Number(it.quantity_sold || it.count || 0),
-              totalSales: Number(it.total_revenue_usd || it.revenue || 0),
-            }))
-          )
-        }
-      }
-    } catch {
-      // Handled cleanly
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
+  const { data: businesses = [] } = useBusinesses()
   useEffect(() => {
-    loadDashboardData()
-  }, [loadDashboardData])
+    if (!businessId && businesses.length > 0) {
+      setBusinessId(businesses[0].id)
+      localStorage.setItem('emenu_business_id', businesses[0].id)
+    }
+  }, [businesses, businessId])
+
+  const { data: branches = [] } = useBranches(businessId)
+  useEffect(() => {
+    if (!branchId && branches.length > 0) {
+      setBranchId(branches[0].id)
+      localStorage.setItem('emenu_branch_id', branches[0].id)
+    }
+  }, [branches, branchId])
+
+  const { data: overviewData, isLoading: isOverviewLoading } = useSalesOverview(businessId, branchId)
+  const { data: topItemsData = [], isLoading: isTopItemsLoading } = useTopSellingItems(businessId, branchId)
+  const { data: tablesData = [], isLoading: isTablesLoading } = useTables(businessId, branchId)
+
+  const isLoading = (isOverviewLoading || isTopItemsLoading || isTablesLoading) && !overviewData
+
+  const metrics = useMemo(() => {
+    const revUsd = Number(overviewData?.total_gross_sales_usd || overviewData?.total_net_revenue_usd || 0)
+    const revKhr = Number(overviewData?.total_net_revenue_khr || Math.round(revUsd * 4100))
+    const totalOrd = Number(overviewData?.total_completed_orders || 0)
+    const avgUsd = Number(overviewData?.average_order_value_usd || (totalOrd > 0 ? revUsd / totalOrd : 0))
+    const occupied = tablesData.filter((t) => (t.status || '').toUpperCase() === 'OCCUPIED').length
+
+    return {
+      totalRevenueUsd: revUsd,
+      totalRevenueKhr: revKhr,
+      totalOrders: totalOrd,
+      averageBillUsd: avgUsd,
+      occupiedTables: occupied,
+      totalTables: tablesData.length,
+    }
+  }, [overviewData, tablesData])
+
+  const topDishes = useMemo(() => {
+    return (topItemsData as any[]).slice(0, 5).map((it: any) => ({
+      nameEn: it.menu_item_name_en || it.name_en || 'Item',
+      nameKm: it.menu_item_name_km || it.name_km || it.name_en || 'មុខម្ហូប',
+      count: Number(it.quantity_sold || it.count || 0),
+      totalSales: Number(it.total_revenue_usd || it.revenue || 0),
+    }))
+  }, [topItemsData])
 
   const stats = [
     {
