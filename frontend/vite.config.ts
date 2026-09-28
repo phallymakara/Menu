@@ -5,9 +5,9 @@ import path from 'path'
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const backendUrl = env.VITE_BACKEND_URL || 'http://127.0.0.1:8001'
+  const backendUrl = env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
   const wsBackendUrl = backendUrl.replace(/^http/, 'ws')
-  const port = Number(env.PORT) || 5174
+  const port = Number(env.PORT) || 3000
 
   return {
     plugins: [react()],
