@@ -19,7 +19,6 @@ import { useCartStore } from './stores/useCartStore'
 import { useGuestSessionStore } from './stores/useGuestSessionStore'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { playChime } from '@/lib/audio'
-import { api } from '@/lib/api'
 import { useWebSocket } from '@/lib/websocket'
 import {
   useVerifyTable,
@@ -27,6 +26,7 @@ import {
   useGuestCatalog,
   useGuestSessionOrders,
   useCreateGuestOrder,
+  useRequestBill,
 } from './hooks/useGuestOrderQueries'
 
 // Fallback Rich Bilingual Demonstration Catalog for Demo & Sandbox
@@ -206,6 +206,7 @@ export const GuestOrderPage: FC = () => {
 
   const openSessionMutation = useOpenTableSession()
   const createGuestOrderMutation = useCreateGuestOrder()
+  const requestBillMutation = useRequestBill()
 
   const activeBusinessId = !isDemo ? (verifyData?.business_id || table?.business_id || null) : null
   const { data: catalogData, isLoading: isCatalogLoading } = useGuestCatalog(activeBusinessId)
@@ -510,7 +511,7 @@ export const GuestOrderPage: FC = () => {
       playChime(587.33, 880, 0.4)
       setNotificationMsg(language === 'km' ? 'បានបញ្ជូនការកុម្ម៉ង់ទៅផ្ទះបាយ!' : 'Order submitted to kitchen!')
       setTimeout(() => setNotificationMsg(null), 4000)
-    } catch (err: any) {
+    } catch {
       setOrderError(
         language === 'km'
           ? 'មិនអាចបញ្ជូនការកុម្ម៉ង់បានទេ។ សូមព្យាយាមម្តងទៀត។'
@@ -524,17 +525,13 @@ export const GuestOrderPage: FC = () => {
   // 4. Handle Request Bill
   const handleRequestBill = async () => {
     if (!isDemo && effectiveBranchId && effectiveTableId && effectiveToken) {
-      await api.post(
-        '/public/tables/sessions/request-bill',
-        {},
-        {
-          params: {
-            branch_id: effectiveBranchId,
-            table_id: effectiveTableId,
-            token: effectiveToken,
-          },
-        }
-      ).catch(() => null)
+      await requestBillMutation
+        .mutateAsync({
+          branchId: effectiveBranchId,
+          tableId: effectiveTableId,
+          token: effectiveToken,
+        })
+        .catch(() => null)
     }
     setIsPayModalOpen(true)
   }
@@ -569,23 +566,7 @@ export const GuestOrderPage: FC = () => {
     setCustomerRequest(newReq)
     addRequest(newReq)
     playChime(659.25, 880, 0.3)
-
-    if (effectiveToken && effectiveTableId) {
-      await api.post(
-        '/public/tables/sessions/call-waiter',
-        {
-          request_type: requestType,
-          note: note || null,
-        },
-        {
-          params: {
-            branch_id: effectiveBranchId,
-            table_id: effectiveTableId,
-            token: effectiveToken,
-          },
-        }
-      ).catch(() => null)
-    }
+    // Service requests are client-side only until the backend endpoint exists (issue #9).
   }
 
   const totalSessionUSD = orderRounds.reduce((sum, r) => sum + r.round_subtotal_usd, 0)

@@ -10,14 +10,16 @@ import { KDSTicketCard } from './components/KDSTicketCard'
 import { KDSRecallDrawer } from './components/KDSRecallDrawer'
 import { useKDSStore } from './stores/useKDSStore'
 import { useLanguageStore } from '@/stores/useLanguageStore'
-import { api } from '@/lib/api'
 import { useWebSocket } from '@/lib/websocket'
 import { playChime } from '@/lib/audio'
 import { useBusinesses, useBranches } from '@/features/admin/hooks/useTenantQueries'
-import { useKitchenStations, useKDSTickets, useBumpItemStatus } from './hooks/useKDSQueries'
-
-const isUuid = (id?: string | null): boolean =>
-  !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+import {
+  useKitchenStations,
+  useKDSTickets,
+  useBumpItemStatus,
+  useBumpStationTicket,
+} from './hooks/useKDSQueries'
+import { isUuid } from '@/lib/utils'
 
 export const KDSPage: FC = () => {
   const { language } = useLanguageStore()
@@ -102,6 +104,7 @@ export const KDSPage: FC = () => {
   }, [rawTickets, setTickets])
 
   const bumpItemMutation = useBumpItemStatus(tenantBizId, tenantBranchId)
+  const bumpStationTicketMutation = useBumpStationTicket(tenantBizId, tenantBranchId)
 
   useEffect(() => {
     const handleBranchChanged = (e: any) => {
@@ -195,12 +198,21 @@ export const KDSPage: FC = () => {
 
     if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       try {
-        await api.post(
-          `/businesses/${tenantBizId}/branches/${tenantBranchId}/kds/orders/${orderId}/bump`
-        ).catch(() => null)
-        queryClient.invalidateQueries({ queryKey: ['kds', 'tickets', tenantBizId, tenantBranchId] })
+        if (isUuid(selectedStationId)) {
+          await bumpStationTicketMutation.mutateAsync({ orderId, stationId: selectedStationId })
+        } else if (targetTicket) {
+          // Expo has no order-level bump route: mark each remaining item as served.
+          const pendingItems = targetTicket.items.filter(
+            (item) => !['served', 'voided', 'SERVED', 'VOIDED'].includes(item.status)
+          )
+          await Promise.all(
+            pendingItems.map((item) =>
+              bumpItemMutation.mutateAsync({ orderItemId: item.id, status: 'served' })
+            )
+          )
+        }
       } catch {
-        // Non-blocking
+        // Non-blocking: the ticket is already removed locally and the next refetch reconciles it.
       }
     }
   }

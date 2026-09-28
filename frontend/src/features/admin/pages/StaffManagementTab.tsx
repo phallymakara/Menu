@@ -14,13 +14,22 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
-import { api } from '@/lib/api'
-import { useCurrentUser, useStaffMembers, useRevokeStaffMember } from '../hooks/useStaffQueries'
+import {
+  useCurrentUser,
+  useStaffMembers,
+  useInviteStaffMember,
+  useUpdateStaffMember,
+  useRevokeStaffMember,
+} from '../hooks/useStaffQueries'
+import { useUploadMedia } from '../hooks/useMediaQueries'
 import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
 import type { StaffMember } from '../types/admin.types'
+import type { components } from '@/types/api'
+import { isUuid } from '@/lib/utils'
 
-const isUuid = (id?: string | null): boolean =>
-  !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+/** The UI offers CHEF, which the backend models as the KITCHEN role. */
+const toStaffRole = (role: StaffMember['role']): components['schemas']['StaffRole'] =>
+  role === 'CHEF' ? 'kitchen' : (role.toLowerCase() as components['schemas']['StaffRole'])
 
 interface BranchOption {
   id: string
@@ -96,6 +105,9 @@ export const StaffManagementTab: FC = () => {
     activeBranchId && isUuid(activeBranchId) ? activeBranchId : undefined
   )
   const revokeStaffMutation = useRevokeStaffMember(orgId)
+  const inviteStaffMutation = useInviteStaffMember(orgId)
+  const updateStaffMutation = useUpdateStaffMember(orgId)
+  const uploadMedia = useUploadMedia(isUuid(businessId) ? businessId : null)
 
   const isLoading = isStaffLoading && staffList.length === 0
 
@@ -187,11 +199,11 @@ export const StaffManagementTab: FC = () => {
         (isUuid(localStorage.getItem('emenu_branch_id')) ? localStorage.getItem('emenu_branch_id') : null) ||
         (branches.length > 0 ? branches[0].id : null)
 
-      await api.post(`/organizations/${orgId}/members`, {
+      await inviteStaffMutation.mutateAsync({
         full_name: newStaff.full_name.trim(),
         phone: newStaff.phone.trim() || null,
         email: newStaff.email.trim() || null,
-        role: newStaff.role.toLowerCase(),
+        role: toStaffRole(newStaff.role),
         branch_id: assignedBranch,
         pos_pin: newStaff.pin_code.trim() || null,
         avatar_url: newStaff.avatar_url || null,
@@ -244,12 +256,8 @@ export const StaffManagementTab: FC = () => {
   const handleUploadPhoto = async (file: File): Promise<string | null> => {
     setIsUploadingPhoto(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await api.post('/media/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      return res.data?.url || res.data?.media_url || null
+      const { url } = await uploadMedia.mutateAsync(file)
+      return url
     } catch {
       alert('Failed to upload image')
       return null
@@ -273,9 +281,9 @@ export const StaffManagementTab: FC = () => {
     if (file && selectedStaffIdForPhoto) {
       const uploadedUrl = await handleUploadPhoto(file)
       if (uploadedUrl && isUuid(orgId)) {
-        await api.patch(`/organizations/${orgId}/members/${selectedStaffIdForPhoto}`, {
-          avatar_url: uploadedUrl,
-        }).catch(() => null)
+        await updateStaffMutation
+          .mutateAsync({ memberId: selectedStaffIdForPhoto, payload: { avatar_url: uploadedUrl } })
+          .catch(() => null)
 
         setStaffList((prev) =>
           prev.map((s) => (s.id === selectedStaffIdForPhoto ? { ...s, avatar_url: uploadedUrl } : s))

@@ -2845,7 +2845,7 @@ export interface components {
              * Token Type
              * @default bearer
              */
-            token_type: string;
+            token_type?: string;
             /** Expires In */
             expires_in: number;
         };
@@ -2976,19 +2976,19 @@ export interface components {
              * @description Current page number
              * @default 1
              */
-            page: number;
+            page?: number;
             /**
              * Page Size
              * @description Items per page
              * @default 50
              */
-            page_size: number;
+            page_size?: number;
             /**
              * Total Pages
              * @description Total available pages
              * @default 1
              */
-            total_pages: number;
+            total_pages?: number;
         };
         /**
          * AdminBranchBrief
@@ -3023,7 +3023,7 @@ export interface components {
              * Tables Count
              * @default 0
              */
-            tables_count: number;
+            tables_count?: number;
             /** Is Active */
             is_active: boolean;
         };
@@ -3049,7 +3049,7 @@ export interface components {
              * Branches Count
              * @default 0
              */
-            branches_count: number;
+            branches_count?: number;
             /** Is Active */
             is_active: boolean;
         };
@@ -3118,12 +3118,12 @@ export interface components {
              * Tables Count
              * @default 0
              */
-            tables_count: number;
+            tables_count?: number;
             /**
              * Staff Count
              * @default 0
              */
-            staff_count: number;
+            staff_count?: number;
             subscription?: components["schemas"]["AdminSubscriptionBrief"] | null;
             /**
              * Created At
@@ -3189,25 +3189,25 @@ export interface components {
              * @description Total restaurant brands under this organization
              * @default 0
              */
-            businesses_count: number;
+            businesses_count?: number;
             /**
              * Branches Count
              * @description Total physical branch outlets under this organization
              * @default 0
              */
-            branches_count: number;
+            branches_count?: number;
             /**
              * Tables Count
              * @description Total restaurant tables configured
              * @default 0
              */
-            tables_count: number;
+            tables_count?: number;
             /**
              * Staff Count
              * @description Total staff members in this organization
              * @default 0
              */
-            staff_count: number;
+            staff_count?: number;
             /**
              * Plan Id
              * @description Current subscription plan ID
@@ -3258,19 +3258,19 @@ export interface components {
              * @description Current page number
              * @default 1
              */
-            page: number;
+            page?: number;
             /**
              * Page Size
              * @description Number of items per page
              * @default 20
              */
-            page_size: number;
+            page_size?: number;
             /**
              * Total Pages
              * @description Total available pages
              * @default 1
              */
-            total_pages: number;
+            total_pages?: number;
         };
         /**
          * AdminOrganizationStatusUpdate
@@ -3339,25 +3339,25 @@ export interface components {
              * @description Monthly price in USD
              * @default 0.00
              */
-            price_usd_monthly: number | string;
+            price_usd_monthly?: number | string;
             /**
              * Price Usd Annually
              * @description Annual price in USD
              * @default 0.00
              */
-            price_usd_annually: number | string;
+            price_usd_annually?: number | string;
             /**
              * Max Branches
              * @description Max branches (-1 for unlimited)
              * @default 1
              */
-            max_branches: number;
+            max_branches?: number;
             /**
              * Max Staff
              * @description Max staff (-1 for unlimited)
              * @default 5
              */
-            max_staff: number;
+            max_staff?: number;
             /**
              * Feature Flags
              * @description Feature gates e.g. has_kds, has_inventory
@@ -3370,13 +3370,13 @@ export interface components {
              * @description Whether plan is active
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Is Public
              * @description Whether plan is publicly selectable
              * @default true
              */
-            is_public: boolean;
+            is_public?: boolean;
         };
         /**
          * AdminPlanDetail
@@ -3481,19 +3481,19 @@ export interface components {
              * @description Whether plan is active
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Is Public
              * @description Whether plan is visible on public pricing
              * @default true
              */
-            is_public: boolean;
+            is_public?: boolean;
             /**
              * Active Subscribers Count
              * @description Total active organization subscribers
              * @default 0
              */
-            active_subscribers_count: number;
+            active_subscribers_count?: number;
             /**
              * Created At
              * Format: date-time
@@ -3700,7 +3700,7 @@ export interface components {
              * @description Preferred UI language
              * @default km
              */
-            preferred_language: string;
+            preferred_language?: string;
             /**
              * Is Platform Admin
              * @description Whether user is a Platform Super Admin
@@ -3711,13 +3711,13 @@ export interface components {
              * @description Whether phone/email is verified
              * @default false
              */
-            is_verified: boolean;
+            is_verified?: boolean;
             /**
              * Organizations Count
              * @description Total organizations the user belongs to
              * @default 0
              */
-            organizations_count: number;
+            organizations_count?: number;
             /**
              * Created At
              * Format: date-time
@@ -3751,19 +3751,19 @@ export interface components {
              * @description Current page number
              * @default 1
              */
-            page: number;
+            page?: number;
             /**
              * Page Size
              * @description Number of items per page
              * @default 20
              */
-            page_size: number;
+            page_size?: number;
             /**
              * Total Pages
              * @description Total available pages
              * @default 1
              */
-            total_pages: number;
+            total_pages?: number;
         };
         /**
          * AdminUserPlatformAdminToggle
@@ -3865,7 +3865,7 @@ export interface components {
              * Details
              * @default {}
              */
-            details: {
+            details?: {
                 [key: string]: unknown;
             };
             /**
@@ -3914,7 +3914,7 @@ export interface components {
              * Discount Usd
              * @default 0.00
              */
-            discount_usd: string;
+            discount_usd?: string;
             /** Discount Percent */
             discount_percent?: string | null;
             /** Taxable Amount Usd */
@@ -4118,7 +4118,7 @@ export interface components {
              * Items
              * @default []
              */
-            items: components["schemas"]["BranchMenuItemDisplayResponse"][];
+            items?: components["schemas"]["BranchMenuItemDisplayResponse"][];
         };
         /**
          * BranchComparisonItem
@@ -4207,19 +4207,19 @@ export interface components {
              * @description Branch time zone
              * @default Asia/Phnom_Penh
              */
-            timezone: string;
+            timezone?: string;
             /**
              * Default Language
              * @description Default operational language ('km' or 'en')
              * @default km
              */
-            default_language: string;
+            default_language?: string;
             /**
              * Base Currency
              * @description Base billing currency ('USD' or 'KHR')
              * @default USD
              */
-            base_currency: string;
+            base_currency?: string;
             /**
              * Exchange Rate
              * @description Custom branch exchange rate (1 USD = X KHR override)
@@ -4257,7 +4257,7 @@ export interface components {
              * @description Active status toggle (open / temporarily closed)
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
         };
         /**
          * BranchItemOverrideCreate
@@ -4273,7 +4273,7 @@ export interface components {
              * @description Branch item stock and visibility status
              * @default AVAILABLE
              */
-            availability_status: components["schemas"]["ItemAvailabilityStatus"];
+            availability_status?: components["schemas"]["ItemAvailabilityStatus"];
             /**
              * Is Featured Override
              * @description Branch-specific featured banner override
@@ -4300,7 +4300,7 @@ export interface components {
              * @description Branch item stock and visibility status
              * @default AVAILABLE
              */
-            availability_status: components["schemas"]["ItemAvailabilityStatus"];
+            availability_status?: components["schemas"]["ItemAvailabilityStatus"];
             /**
              * Is Featured Override
              * @description Branch-specific featured banner override
@@ -4365,24 +4365,24 @@ export interface components {
              * Currency
              * @default USD
              */
-            currency: string;
+            currency?: string;
             /** Image Url */
             image_url?: string | null;
             /**
              * Prep Time Minutes
              * @default 15
              */
-            prep_time_minutes: number | null;
+            prep_time_minutes?: number | null;
             /**
              * Is Active
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Display Order
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
         };
         /**
          * BranchMenuCatalogResponse
@@ -4414,7 +4414,7 @@ export interface components {
              * Categories
              * @default []
              */
-            categories: components["schemas"]["BranchCategoryMenuResponse"][];
+            categories?: components["schemas"]["BranchCategoryMenuResponse"][];
             /** Total Items */
             total_items: number;
         };
@@ -4454,69 +4454,69 @@ export interface components {
              * Gallery Images
              * @default []
              */
-            gallery_images: string[];
+            gallery_images?: string[];
             /**
              * Prep Time Minutes
              * @default 0
              */
-            prep_time_minutes: number;
+            prep_time_minutes?: number;
             /** Kitchen Station */
             kitchen_station?: string | null;
             /**
              * Is Vegetarian
              * @default false
              */
-            is_vegetarian: boolean;
+            is_vegetarian?: boolean;
             /**
              * Is Vegan
              * @default false
              */
-            is_vegan: boolean;
+            is_vegan?: boolean;
             /**
              * Is Halal
              * @default false
              */
-            is_halal: boolean;
+            is_halal?: boolean;
             /**
              * Is Gluten Free
              * @default false
              */
-            is_gluten_free: boolean;
+            is_gluten_free?: boolean;
             /**
              * Contains Nuts
              * @default false
              */
-            contains_nuts: boolean;
+            contains_nuts?: boolean;
             /**
              * Contains Dairy
              * @default false
              */
-            contains_dairy: boolean;
+            contains_dairy?: boolean;
             /**
              * Spice Level
              * @default 0
              */
-            spice_level: number;
+            spice_level?: number;
             /**
              * Is Featured
              * @default false
              */
-            is_featured: boolean;
+            is_featured?: boolean;
             /**
              * Is Popular
              * @default false
              */
-            is_popular: boolean;
+            is_popular?: boolean;
             /**
              * Is New
              * @default false
              */
-            is_new: boolean;
+            is_new?: boolean;
             /**
              * Display Order
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /** Availability Status */
             availability_status: string;
             /** Is Available */
@@ -4525,19 +4525,19 @@ export interface components {
              * Is Local Item
              * @default false
              */
-            is_local_item: boolean;
+            is_local_item?: boolean;
             /** Branch Id */
             branch_id?: string | null;
             /**
              * Variants
              * @default []
              */
-            variants: components["schemas"]["ItemVariantResponse"][];
+            variants?: components["schemas"]["ItemVariantResponse"][];
             /**
              * Modifier Groups
              * @default []
              */
-            modifier_groups: components["schemas"]["ModifierGroupDetailResponse"][];
+            modifier_groups?: components["schemas"]["ModifierGroupDetailResponse"][];
         };
         /**
          * BranchPriceDetail
@@ -4563,7 +4563,7 @@ export interface components {
              * Is Local Item
              * @default false
              */
-            is_local_item: boolean;
+            is_local_item?: boolean;
         };
         /**
          * BranchResponse
@@ -4641,7 +4641,7 @@ export interface components {
              */
             quantity_change: number | string;
             /** @default stock_take_audit */
-            reason: components["schemas"]["StockAdjustmentReason"];
+            reason?: components["schemas"]["StockAdjustmentReason"];
             /** Notes */
             notes?: string | null;
         };
@@ -4681,12 +4681,12 @@ export interface components {
              * Is Low Stock
              * @default false
              */
-            is_low_stock: boolean;
+            is_low_stock?: boolean;
             /**
              * Is Out Of Stock
              * @default false
              */
-            is_out_of_stock: boolean;
+            is_out_of_stock?: boolean;
             /** Cost Per Unit Usd */
             cost_per_unit_usd: string;
             /** Total Stock Value Usd */
@@ -4806,39 +4806,39 @@ export interface components {
              * Base Currency
              * @default USD
              */
-            base_currency: string;
+            base_currency?: string;
             /**
              * Exchange Rate
              * @default 4100.00
              */
-            exchange_rate: string;
+            exchange_rate?: string;
             /**
              * Tax Percentage
              * @default 0.00
              */
-            tax_percentage: string;
+            tax_percentage?: string;
             /**
              * Is Tax Inclusive
              * @default true
              */
-            is_tax_inclusive: boolean;
+            is_tax_inclusive?: boolean;
             /**
              * Service Charge Percentage
              * @default 0.00
              */
-            service_charge_percentage: string;
+            service_charge_percentage?: string;
             /**
              * Is Service Charge Inclusive
              * @default false
              */
-            is_service_charge_inclusive: boolean;
+            is_service_charge_inclusive?: boolean;
             /** Is Active */
             is_active: boolean;
             /**
              * Branches
              * @default []
              */
-            branches: components["schemas"]["BranchResponse"][];
+            branches?: components["schemas"]["BranchResponse"][];
             /**
              * Created At
              * Format: date-time
@@ -4927,18 +4927,18 @@ export interface components {
              * @description Amount of USD cash tendered by customer
              * @default 0.00
              */
-            amount_tendered_usd: number | string;
+            amount_tendered_usd?: number | string;
             /**
              * Amount Tendered Khr
              * @description Amount of KHR cash tendered by customer
              * @default 0
              */
-            amount_tendered_khr: number;
+            amount_tendered_khr?: number;
             /**
              * @description Change return mode: 'khr' (all in Riel), 'usd' (all in USD), or 'split' (USD whole + KHR cents)
              * @default khr
              */
-            preferred_change_currency: components["schemas"]["ChangeCurrencyPreference"];
+            preferred_change_currency?: components["schemas"]["ChangeCurrencyPreference"];
             /**
              * Promo Code
              * @description Optional coupon code (e.g. WELCOME10)
@@ -5060,13 +5060,13 @@ export interface components {
              * @description Sorting order index (lower numbers display first)
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Is Active
              * @description Active visibility toggle on menus
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
         };
         /**
          * CategoryReorderItem
@@ -5193,7 +5193,7 @@ export interface components {
              * Subcategories
              * @default []
              */
-            subcategories: components["schemas"]["CategoryResponse"][];
+            subcategories?: components["schemas"]["CategoryResponse"][];
         };
         /**
          * CategoryUpdate
@@ -5238,7 +5238,7 @@ export interface components {
              * @description Billing cycle ('monthly' or 'annual')
              * @default monthly
              */
-            billing_cycle: components["schemas"]["BillingCycle"];
+            billing_cycle?: components["schemas"]["BillingCycle"];
         };
         /**
          * ComboCreate
@@ -5280,25 +5280,25 @@ export interface components {
              * @description Pricing strategy: 'FIXED' or 'DISCOUNT_PERCENTAGE'
              * @default FIXED
              */
-            pricing_type: string;
+            pricing_type?: string;
             /**
              * Base Price
              * @description Fixed bundle price (when pricing_type is 'FIXED')
              * @default 0.00
              */
-            base_price: number | string;
+            base_price?: number | string;
             /**
              * Discount Percentage
              * @description Discount % (when pricing_type is 'DISCOUNT_PERCENTAGE')
              * @default 0.00
              */
-            discount_percentage: number | string;
+            discount_percentage?: number | string;
             /**
              * Currency
              * @description Currency code ('USD' or 'KHR')
              * @default USD
              */
-            currency: string;
+            currency?: string;
             /**
              * Image Url
              * @description Combo promotional banner or image URL
@@ -5309,13 +5309,13 @@ export interface components {
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Groups
              * @description Choice groups and eligible items for this bundle
@@ -5362,25 +5362,25 @@ export interface components {
              * @description Pricing strategy: 'FIXED' or 'DISCOUNT_PERCENTAGE'
              * @default FIXED
              */
-            pricing_type: string;
+            pricing_type?: string;
             /**
              * Base Price
              * @description Fixed bundle price (when pricing_type is 'FIXED')
              * @default 0.00
              */
-            base_price: string;
+            base_price?: string;
             /**
              * Discount Percentage
              * @description Discount % (when pricing_type is 'DISCOUNT_PERCENTAGE')
              * @default 0.00
              */
-            discount_percentage: string;
+            discount_percentage?: string;
             /**
              * Currency
              * @description Currency code ('USD' or 'KHR')
              * @default USD
              */
-            currency: string;
+            currency?: string;
             /**
              * Image Url
              * @description Combo promotional banner or image URL
@@ -5391,13 +5391,13 @@ export interface components {
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Id
              * Format: uuid
@@ -5427,7 +5427,7 @@ export interface components {
              * Groups
              * @default []
              */
-            groups: components["schemas"]["ComboGroupResponse"][];
+            groups?: components["schemas"]["ComboGroupResponse"][];
         };
         /**
          * ComboGroupCreate
@@ -5449,19 +5449,19 @@ export interface components {
              * @description Minimum selections required
              * @default 1
              */
-            min_quantity: number;
+            min_quantity?: number;
             /**
              * Max Quantity
              * @description Maximum selections allowed
              * @default 1
              */
-            max_quantity: number;
+            max_quantity?: number;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Items
              * @description List of eligible items for this choice group
@@ -5484,19 +5484,19 @@ export interface components {
              * @description Extra surcharge for selecting this item (e.g. 0.50 for +$0.50)
              * @default 0.00
              */
-            additional_price: number | string;
+            additional_price?: number | string;
             /**
              * Is Default
              * @description Recommended default selection
              * @default false
              */
-            is_default: boolean;
+            is_default?: boolean;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
         };
         /**
          * ComboGroupItemResponse
@@ -5514,19 +5514,19 @@ export interface components {
              * @description Extra surcharge for selecting this item (e.g. 0.50 for +$0.50)
              * @default 0.00
              */
-            additional_price: string;
+            additional_price?: string;
             /**
              * Is Default
              * @description Recommended default selection
              * @default false
              */
-            is_default: boolean;
+            is_default?: boolean;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Id
              * Format: uuid
@@ -5562,19 +5562,19 @@ export interface components {
              * @description Minimum selections required
              * @default 1
              */
-            min_quantity: number;
+            min_quantity?: number;
             /**
              * Max Quantity
              * @description Maximum selections allowed
              * @default 1
              */
-            max_quantity: number;
+            max_quantity?: number;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Id
              * Format: uuid
@@ -5589,7 +5589,7 @@ export interface components {
              * Items
              * @default []
              */
-            items: components["schemas"]["ComboGroupItemResponse"][];
+            items?: components["schemas"]["ComboGroupItemResponse"][];
         };
         /**
          * ComboPaginationResponse
@@ -5760,13 +5760,13 @@ export interface components {
              * @description Display order index for floor map sorting
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Is Active
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
         };
         /**
          * DiningAreaReorderRequest
@@ -5819,13 +5819,13 @@ export interface components {
              * @description Display order index for floor map sorting
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Is Active
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Id
              * Format: uuid
@@ -5918,7 +5918,7 @@ export interface components {
              * @default USD
              * @enum {string}
              */
-            currency: "USD" | "KHR";
+            currency?: "USD" | "KHR";
             /**
              * Promo Code
              * @description Optional coupon code (e.g. WELCOME10)
@@ -5951,29 +5951,29 @@ export interface components {
             /** Sku */
             sku?: string | null;
             /** @default piece */
-            unit_of_measure: components["schemas"]["UnitOfMeasure"];
+            unit_of_measure?: components["schemas"]["UnitOfMeasure"];
             /**
              * Cost Per Unit Usd
              * @default 0.00
              */
-            cost_per_unit_usd: number | string;
+            cost_per_unit_usd?: number | string;
             /**
              * Reorder Threshold
              * @default 0.00
              */
-            reorder_threshold: number | string;
+            reorder_threshold?: number | string;
             /**
              * Ideal Stock Quantity
              * @default 0.00
              */
-            ideal_stock_quantity: number | string;
+            ideal_stock_quantity?: number | string;
             /** Menu Item Id */
             menu_item_id?: string | null;
             /**
              * Is Active
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
         };
         /** InventoryItemResponse */
         InventoryItemResponse: {
@@ -6119,7 +6119,7 @@ export interface components {
              * @description Option group label (e.g. 'Size', 'Temperature', 'Portion')
              * @default Size
              */
-            variant_group: string;
+            variant_group?: string;
             /**
              * Name En
              * @description Variant option name in English (e.g. 'Large', 'Iced')
@@ -6140,25 +6140,25 @@ export interface components {
              * @description Price delta relative to base item price (e.g. 0.75 for +$0.75)
              * @default 0.00
              */
-            price_adjustment: number | string;
+            price_adjustment?: number | string;
             /**
              * Is Default
              * @description Default selected variant for this group
              * @default false
              */
-            is_default: boolean;
+            is_default?: boolean;
             /**
              * Is Active
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
         };
         /**
          * ItemVariantResponse
@@ -6284,22 +6284,22 @@ export interface components {
              * Elapsed Minutes
              * @default 0
              */
-            elapsed_minutes: number;
+            elapsed_minutes?: number;
             /**
              * Target Prep Time Minutes
              * @default 15
              */
-            target_prep_time_minutes: number;
+            target_prep_time_minutes?: number;
             /**
              * Is Overdue
              * @default false
              */
-            is_overdue: boolean;
+            is_overdue?: boolean;
             /**
              * Urgency Level
              * @default normal
              */
-            urgency_level: string;
+            urgency_level?: string;
         };
         /** KDSTicketResponse */
         KDSTicketResponse: {
@@ -6334,17 +6334,17 @@ export interface components {
              * Max Target Prep Minutes
              * @default 15
              */
-            max_target_prep_minutes: number;
+            max_target_prep_minutes?: number;
             /**
              * Is Ticket Overdue
              * @default false
              */
-            is_ticket_overdue: boolean;
+            is_ticket_overdue?: boolean;
             /**
              * Ticket Urgency
              * @default normal
              */
-            ticket_urgency: string;
+            ticket_urgency?: string;
             /** Has Held Items */
             has_held_items: boolean;
             /** Items */
@@ -6432,22 +6432,22 @@ export interface components {
             /** Code */
             code: string;
             /** @default prep_station */
-            station_type: components["schemas"]["StationType"];
+            station_type?: components["schemas"]["StationType"];
             /**
              * Color Hex
              * @default #3B82F6
              */
-            color_hex: string;
+            color_hex?: string;
             /**
              * Display Order
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Is Active
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
         };
         /** KitchenStationResponse */
         KitchenStationResponse: {
@@ -6577,19 +6577,19 @@ export interface components {
              * @default ALL_ITEMS
              * @enum {string}
              */
-            sync_scope: "ALL_ITEMS" | "CATEGORIES_ONLY" | "PRICING_ONLY";
+            sync_scope?: "ALL_ITEMS" | "CATEGORIES_ONLY" | "PRICING_ONLY";
             /**
              * Preserve Custom Prices
              * @description If True, keeps existing branch price overrides intact; if False, resets to master prices.
              * @default true
              */
-            preserve_custom_prices: boolean;
+            preserve_custom_prices?: boolean;
             /**
              * Force Availability
              * @description If True, resets all 86'd out-of-stock items back to active in target branches.
              * @default false
              */
-            force_availability: boolean;
+            force_availability?: boolean;
         };
         /**
          * MediaUploadResponse
@@ -6629,7 +6629,7 @@ export interface components {
              * @description Assigned staff role
              * @default waiter
              */
-            role: components["schemas"]["StaffRole"];
+            role?: components["schemas"]["StaffRole"];
             /**
              * Branch Id
              * @description Optional assigned branch ID for branch isolation
@@ -6809,7 +6809,7 @@ export interface components {
              * @description Currency code ('USD' or 'KHR')
              * @default USD
              */
-            currency: string;
+            currency?: string;
             /**
              * Image Url
              * @description Primary item image URL
@@ -6825,7 +6825,7 @@ export interface components {
              * @description Estimated kitchen preparation time in minutes
              * @default 15
              */
-            prep_time_minutes: number;
+            prep_time_minutes?: number;
             /**
              * Kitchen Station
              * @description Target kitchen station tag (e.g. 'bar', 'grill', 'wok', 'salad')
@@ -6836,73 +6836,73 @@ export interface components {
              * @description Vegetarian indicator
              * @default false
              */
-            is_vegetarian: boolean;
+            is_vegetarian?: boolean;
             /**
              * Is Vegan
              * @description Vegan indicator
              * @default false
              */
-            is_vegan: boolean;
+            is_vegan?: boolean;
             /**
              * Is Halal
              * @description Halal certified indicator
              * @default false
              */
-            is_halal: boolean;
+            is_halal?: boolean;
             /**
              * Is Gluten Free
              * @description Gluten-free indicator
              * @default false
              */
-            is_gluten_free: boolean;
+            is_gluten_free?: boolean;
             /**
              * Contains Nuts
              * @description Contains nuts allergen flag
              * @default false
              */
-            contains_nuts: boolean;
+            contains_nuts?: boolean;
             /**
              * Contains Dairy
              * @description Contains dairy allergen flag
              * @default false
              */
-            contains_dairy: boolean;
+            contains_dairy?: boolean;
             /**
              * Spice Level
              * @description Spiciness level: 0 (None), 1 (Mild), 2 (Medium), 3 (Extra Spicy)
              * @default 0
              */
-            spice_level: number;
+            spice_level?: number;
             /**
              * Is Featured
              * @description Featured on top banner / recommendations
              * @default false
              */
-            is_featured: boolean;
+            is_featured?: boolean;
             /**
              * Is Popular
              * @description Popular / Best seller badge
              * @default false
              */
-            is_popular: boolean;
+            is_popular?: boolean;
             /**
              * Is New
              * @description New arrival badge
              * @default false
              */
-            is_new: boolean;
+            is_new?: boolean;
             /**
              * Is Active
              * @description Active visibility toggle on menus
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Display Order
              * @description Sort order index within category
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
         };
         /**
          * MenuItemPaginationResponse
@@ -6962,7 +6962,7 @@ export interface components {
              * Gallery Images
              * @default []
              */
-            gallery_images: string[];
+            gallery_images?: string[];
             /** Prep Time Minutes */
             prep_time_minutes: number;
             /** Kitchen Station */
@@ -7005,7 +7005,7 @@ export interface components {
              * Variants
              * @default []
              */
-            variants: components["schemas"]["ItemVariantResponse"][];
+            variants?: components["schemas"]["ItemVariantResponse"][];
         };
         /**
          * MenuItemUpdate
@@ -7091,25 +7091,25 @@ export interface components {
              * @description Minimum selections required (0 = optional, 1+ = mandatory)
              * @default 0
              */
-            min_selections: number;
+            min_selections?: number;
             /**
              * Max Selections
              * @description Maximum selections allowed (1 = radio, >1 = multi-select)
              * @default 1
              */
-            max_selections: number;
+            max_selections?: number;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Is Active
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
         };
         /**
          * ModifierGroupDetailResponse
@@ -7141,25 +7141,25 @@ export interface components {
              * @description Minimum selections required (0 = optional, 1+ = mandatory)
              * @default 0
              */
-            min_selections: number;
+            min_selections?: number;
             /**
              * Max Selections
              * @description Maximum selections allowed (1 = radio, >1 = multi-select)
              * @default 1
              */
-            max_selections: number;
+            max_selections?: number;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Is Active
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Id
              * Format: uuid
@@ -7189,7 +7189,7 @@ export interface components {
              * Options
              * @default []
              */
-            options: components["schemas"]["ModifierOptionResponse"][];
+            options?: components["schemas"]["ModifierOptionResponse"][];
         };
         /**
          * ModifierGroupUpdate
@@ -7233,25 +7233,25 @@ export interface components {
              * @description Additional add-on price
              * @default 0.00
              */
-            price: number | string;
+            price?: number | string;
             /**
              * Is Default
              * @description Pre-selected default option
              * @default false
              */
-            is_default: boolean;
+            is_default?: boolean;
             /**
              * Is Active
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
         };
         /**
          * ModifierOptionResponse
@@ -7273,25 +7273,25 @@ export interface components {
              * @description Additional add-on price
              * @default 0.00
              */
-            price: string;
+            price?: string;
             /**
              * Is Default
              * @description Pre-selected default option
              * @default false
              */
-            is_default: boolean;
+            is_default?: boolean;
             /**
              * Is Active
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Display Order
              * @description Display order index
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Id
              * Format: uuid
@@ -7369,11 +7369,11 @@ export interface components {
              * Quantity
              * @default 1
              */
-            quantity: number;
+            quantity?: number;
             /** Modifiers */
             modifiers?: components["schemas"]["OrderItemModifierCreate"][];
             /** @default mains */
-            course_stage: components["schemas"]["CourseStage"];
+            course_stage?: components["schemas"]["CourseStage"];
             /** Special Instructions */
             special_instructions?: string | null;
         };
@@ -7388,7 +7388,7 @@ export interface components {
              * Quantity
              * @default 1
              */
-            quantity: number;
+            quantity?: number;
         };
         /** OrderItemModifierResponse */
         OrderItemModifierResponse: {
@@ -7621,13 +7621,13 @@ export interface components {
              * @description Type of business (e.g. Restaurant, Café, Bar)
              * @default Restaurant
              */
-            business_type: string;
+            business_type?: string;
             /**
              * Branch Name En
              * @description Name of the initial physical location
              * @default Main Branch
              */
-            branch_name_en: string;
+            branch_name_en?: string;
             /**
              * Branch Name Km
              * @description Optional Khmer branch name
@@ -7638,7 +7638,7 @@ export interface components {
              * @description Short branch code identifier
              * @default MAIN
              */
-            branch_code: string;
+            branch_code?: string;
         };
         /** OwnerRegistrationResponse */
         OwnerRegistrationResponse: {
@@ -7658,7 +7658,7 @@ export interface components {
              * Token Type
              * @default bearer
              */
-            token_type: string;
+            token_type?: string;
         };
         /**
          * PaymentBreakdownResponse
@@ -7940,7 +7940,7 @@ export interface components {
              */
             branch_id?: string | null;
             /** @default percentage */
-            discount_type: components["schemas"]["DiscountType"];
+            discount_type?: components["schemas"]["DiscountType"];
             /**
              * Discount Value
              * @description Percentage (e.g. 15.00) or fixed amount (e.g. 5.00)
@@ -7956,7 +7956,7 @@ export interface components {
              * @description Min subtotal required
              * @default 0.00
              */
-            minimum_spend_usd: number | string;
+            minimum_spend_usd?: number | string;
             /**
              * Usage Limit
              * @description Total redemption limit
@@ -7970,7 +7970,7 @@ export interface components {
              * Is Active
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
         };
         /**
          * PromotionResponse
@@ -8071,12 +8071,12 @@ export interface components {
              * Reset Prices
              * @default true
              */
-            reset_prices: boolean;
+            reset_prices?: boolean;
             /**
              * Reset Availability
              * @default false
              */
-            reset_availability: boolean;
+            reset_availability?: boolean;
         };
         /**
          * RestaurantTableBatchCreate
@@ -8088,19 +8088,19 @@ export interface components {
              * @description Prefix for table numbers (e.g. 'T-', 'VIP-')
              * @default T-
              */
-            prefix: string;
+            prefix?: string;
             /**
              * Start Number
              * @description Starting table number (e.g. 1)
              * @default 1
              */
-            start_number: number;
+            start_number?: number;
             /**
              * End Number
              * @description Ending table number (e.g. 20)
              * @default 10
              */
-            end_number: number;
+            end_number?: number;
             /**
              * Dining Area Id
              * @description Target Dining Area ID
@@ -8111,24 +8111,24 @@ export interface components {
              * @description Minimum seating capacity
              * @default 2
              */
-            min_capacity: number;
+            min_capacity?: number;
             /**
              * Max Capacity
              * @description Maximum seating capacity
              * @default 4
              */
-            max_capacity: number;
+            max_capacity?: number;
             /**
              * @description Physical table shape
              * @default square
              */
-            shape: components["schemas"]["TableShape"];
+            shape?: components["schemas"]["TableShape"];
             /**
              * Digits
              * @description Number of zero-padding digits (e.g. 2 -> 'T-01')
              * @default 2
              */
-            digits: number;
+            digits?: number;
         };
         /**
          * RestaurantTableCreate
@@ -8155,35 +8155,35 @@ export interface components {
              * @description Minimum seating capacity
              * @default 1
              */
-            min_capacity: number;
+            min_capacity?: number;
             /**
              * Max Capacity
              * @description Maximum seating capacity
              * @default 4
              */
-            max_capacity: number;
+            max_capacity?: number;
             /**
              * @description Physical table shape
              * @default square
              */
-            shape: components["schemas"]["TableShape"];
+            shape?: components["schemas"]["TableShape"];
             /**
              * @description Live table operational status
              * @default available
              */
-            status: components["schemas"]["TableStatus"];
+            status?: components["schemas"]["TableStatus"];
             /**
              * Display Order
              * @description Display order index for floor map sorting
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Is Active
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
         };
         /**
          * RestaurantTableResponse
@@ -8210,35 +8210,35 @@ export interface components {
              * @description Minimum seating capacity
              * @default 1
              */
-            min_capacity: number;
+            min_capacity?: number;
             /**
              * Max Capacity
              * @description Maximum seating capacity
              * @default 4
              */
-            max_capacity: number;
+            max_capacity?: number;
             /**
              * @description Physical table shape
              * @default square
              */
-            shape: components["schemas"]["TableShape"];
+            shape?: components["schemas"]["TableShape"];
             /**
              * @description Live table operational status
              * @default available
              */
-            status: components["schemas"]["TableStatus"];
+            status?: components["schemas"]["TableStatus"];
             /**
              * Display Order
              * @description Display order index for floor map sorting
              * @default 0
              */
-            display_order: number;
+            display_order?: number;
             /**
              * Is Active
              * @description Active visibility toggle
              * @default true
              */
-            is_active: boolean;
+            is_active?: boolean;
             /**
              * Id
              * Format: uuid
@@ -8354,7 +8354,7 @@ export interface components {
             /** Table Session Id */
             table_session_id?: string | null;
             /** @default dine_in */
-            order_type: components["schemas"]["OrderType"];
+            order_type?: components["schemas"]["OrderType"];
             /** Guest Notes */
             guest_notes?: string | null;
             /** Items */
@@ -8398,7 +8398,7 @@ export interface components {
         /** StationTicketBumpRequest */
         StationTicketBumpRequest: {
             /** @default ready_to_serve */
-            target_status: components["schemas"]["OrderItemStatus"];
+            target_status?: components["schemas"]["OrderItemStatus"];
         };
         /**
          * StationType
@@ -8618,7 +8618,7 @@ export interface components {
              * Token Type
              * @default bearer
              */
-            token_type: string;
+            token_type?: string;
             /**
              * Active Branch Id
              * Format: uuid
@@ -8688,7 +8688,7 @@ export interface components {
              * Currency
              * @default USD
              */
-            currency: string;
+            currency?: string;
             /** Ordering Url */
             ordering_url: string;
         };
@@ -8736,7 +8736,7 @@ export interface components {
              * @description Next table operational status (default 'dirty_cleaning')
              * @default dirty_cleaning
              */
-            next_table_status: components["schemas"]["TableStatus"];
+            next_table_status?: components["schemas"]["TableStatus"];
             /**
              * Notes
              * @description Closing remarks or checkout notes
@@ -8753,7 +8753,7 @@ export interface components {
              * @description Number of seated guests
              * @default 1
              */
-            guest_count: number;
+            guest_count?: number;
             /**
              * Notes
              * @description Special seating notes or party tags
@@ -8847,7 +8847,7 @@ export interface components {
              * Duration Minutes
              * @default 0
              */
-            duration_minutes: number;
+            duration_minutes?: number;
             /** Notes */
             notes?: string | null;
             /** Session Token */
@@ -8858,12 +8858,12 @@ export interface components {
              * Merged Table Ids
              * @default []
              */
-            merged_table_ids: string[];
+            merged_table_ids?: string[];
             /**
              * Merged Table Numbers
              * @default []
              */
-            merged_table_numbers: string[];
+            merged_table_numbers?: string[];
             /**
              * Created At
              * Format: date-time
@@ -8906,7 +8906,7 @@ export interface components {
              * @description Mark source table as 'dirty_cleaning'
              * @default true
              */
-            auto_clean_source: boolean;
+            auto_clean_source?: boolean;
         };
         /**
          * TableUnmergeRequest

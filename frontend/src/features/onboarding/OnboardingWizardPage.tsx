@@ -7,8 +7,12 @@ import { Step3VerifyInformation } from './components/Step3VerifyInformation'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useOnboardingStore } from './stores/useOnboardingStore'
-import { api } from '@/lib/api'
-import { useBusinesses, useBranches } from '@/features/admin/hooks/useTenantQueries'
+import {
+  useBusinesses,
+  useBranches,
+  useUpdateBusiness,
+  useUpdateBranch,
+} from '@/features/admin/hooks/useTenantQueries'
 import { useQueryClient } from '@tanstack/react-query'
 
 export const OnboardingWizardPage: FC = () => {
@@ -27,6 +31,8 @@ export const OnboardingWizardPage: FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const queryClient = useQueryClient()
+  const updateBusiness = useUpdateBusiness()
+  const updateBranch = useUpdateBranch()
   const { data: businesses = [] } = useBusinesses()
   const activeBizId = localStorage.getItem('emenu_business_id') || (businesses.length > 0 ? businesses[0].id : null)
   const { data: branches = [] } = useBranches(activeBizId)
@@ -144,8 +150,8 @@ export const OnboardingWizardPage: FC = () => {
 
     setIsSubmitting(true)
     try {
-      let bizId = activeBizId || (businesses.length > 0 ? businesses[0].id : null)
-      let branchId =
+      const bizId = activeBizId || (businesses.length > 0 ? businesses[0].id : null)
+      const branchId =
         localStorage.getItem('emenu_branch_id') ||
         (branches.length > 0 ? branches[0].id : null)
 
@@ -156,25 +162,36 @@ export const OnboardingWizardPage: FC = () => {
         }
 
         // Sync Business Profile to backend
-        await api.patch(`/businesses/${bizId}`, {
-          name_en: businessProfile.name_en || undefined,
-          name_km: businessProfile.name_km || undefined,
-          business_type: businessProfile.business_type || undefined,
-          logo_url: businessProfile.logo_url || undefined,
-        }).catch(() => null)
+        await updateBusiness
+          .mutateAsync({
+            businessId: bizId,
+            payload: {
+              name_en: businessProfile.name_en || undefined,
+              name_km: businessProfile.name_km || undefined,
+              business_type: businessProfile.business_type || undefined,
+              logo_url: businessProfile.logo_url || undefined,
+            },
+          })
+          .catch(() => null)
 
         if (branchId) {
           // Sync Branch to backend
-          await api.patch(`/businesses/${bizId}/branches/${branchId}`, {
-            name_en: branch.name_en || undefined,
-            name_km: branch.name_km || undefined,
-            phone: branch.phone || undefined,
-            address: branch.address || undefined,
-            operating_hours: {
-              opening_time: branch.opening_time,
-              closing_time: branch.closing_time,
-            },
-          }).catch(() => null)
+          await updateBranch
+            .mutateAsync({
+              businessId: bizId,
+              branchId,
+              payload: {
+                name_en: branch.name_en || undefined,
+                name_km: branch.name_km || undefined,
+                phone: branch.phone || undefined,
+                address: branch.address || undefined,
+                operating_hours: {
+                  opening_time: branch.opening_time,
+                  closing_time: branch.closing_time,
+                },
+              },
+            })
+            .catch(() => null)
         }
         queryClient.invalidateQueries({ queryKey: ['businesses'] })
         queryClient.invalidateQueries({ queryKey: ['branches'] })

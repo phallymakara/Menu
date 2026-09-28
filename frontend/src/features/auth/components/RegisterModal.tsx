@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { User, Mail, Lock, Eye, EyeOff, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useLanguageStore } from '@/stores/useLanguageStore'
-import { useAuthStore } from '@/stores/useAuthStore'
 import { useAuthModalStore } from '@/stores/useAuthModalStore'
-import { api } from '@/lib/api'
-import { useOnboardingStore } from '@/features/onboarding/stores/useOnboardingStore'
+import { getApiErrorMessage, getApiErrorStatus } from '@/lib/api-error'
+import { useRegisterOwner } from '../hooks/useAuthMutations'
 
 export interface RegisterModalProps {
   isOpen: boolean
@@ -17,7 +16,7 @@ export const RegisterModal: FC<RegisterModalProps> = ({ isOpen, onClose }) => {
   const { t, language } = useLanguageStore()
   const isKm = language === 'km'
   const navigate = useNavigate()
-  const { setAuth } = useAuthStore()
+  const registerOwner = useRegisterOwner()
   const { switchToLogin } = useAuthModalStore()
 
   const [fullName, setFullName] = useState('')
@@ -114,76 +113,27 @@ export const RegisterModal: FC<RegisterModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(true)
     try {
       const isEmail = emailOrPhone.includes('@')
-      const email = isEmail ? emailOrPhone.trim().toLowerCase() : undefined
-      const phone = !isEmail ? emailOrPhone.trim() : undefined
-
-      const payload: Record<string, unknown> = {
+      await registerOwner.mutateAsync({
         full_name: fullName.trim(),
-        password: password,
+        password,
         business_type: 'Restaurant',
-      }
-      if (email) payload.email = email
-      if (phone) payload.phone = phone
-
-      // 1. Register owner on backend
-      let regRes: any = null
-      try {
-        regRes = await api.post('/auth/register', payload)
-      } catch (err: any) {
-        if (err.response?.status === 409) {
-          setFieldErrors({ emailOrPhone: t('emailAlreadyInUse') })
-          return
-        }
-        throw err
-      }
-
-      // 2. Obtain real JWT token
-      let token = regRes?.data?.access_token
-      if (!token) {
-        const loginPayload = {
-          identifier: email || phone || emailOrPhone.trim(),
-          password: password,
-        }
-        const loginRes = await api.post('/auth/login', loginPayload)
-        token = loginRes?.data?.access_token
-      }
-
-      if (!token) {
-        throw new Error('No access token returned after registration')
-      }
-
-      const user = {
-        id: regRes?.data?.user_id || 'usr_owner',
-        full_name: fullName.trim(),
-        email: email || `${emailOrPhone.trim()}@phone.local`,
-        phone: phone || null,
-        role: 'OWNER' as const,
-        organization_id: regRes?.data?.organization_id || null,
-        created_at: new Date().toISOString(),
-      }
-
-      setAuth(token, user)
-      if (regRes?.data?.organization_id) {
-        localStorage.setItem('emenu_tenant_id', regRes.data.organization_id)
-        localStorage.setItem('emenu_organization_id', regRes.data.organization_id)
-      }
-      if (regRes?.data?.business_id) {
-        localStorage.setItem('emenu_business_id', regRes.data.business_id)
-      }
-      if (regRes?.data?.branch_id) {
-        localStorage.setItem('emenu_branch_id', regRes.data.branch_id)
-      }
-
-      useOnboardingStore.getState().resetOnboarding()
+        email: isEmail ? emailOrPhone.trim().toLowerCase() : null,
+        phone: isEmail ? null : emailOrPhone.trim(),
+      })
       onClose()
       navigate('/onboarding')
-    } catch (err: any) {
+    } catch (err) {
+      if (getApiErrorStatus(err) === 409) {
+        setFieldErrors({ emailOrPhone: t('emailAlreadyInUse') })
+        return
+      }
       setFieldErrors({
-        general:
-          err?.response?.data?.detail ||
-          (isKm
+        general: getApiErrorMessage(
+          err,
+          isKm
             ? 'មានបញ្ហាក្នុងការបង្កើតគណនី សូមព្យាយាមម្តងទៀត'
-            : 'Failed to create account. Please check your details and try again.'),
+            : 'Failed to create account. Please check your details and try again.'
+        ),
       })
     } finally {
       setIsLoading(false)

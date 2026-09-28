@@ -3,10 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useLanguageStore } from '@/stores/useLanguageStore'
-import { useAuthStore } from '@/stores/useAuthStore'
 import { useAuthModalStore } from '@/stores/useAuthModalStore'
-import { api } from '@/lib/api'
-import { useQueryClient } from '@tanstack/react-query'
+import { useLogin } from '../hooks/useAuthMutations'
+import { getLoginErrorMessage } from '../utils/authErrors'
 
 export interface LoginModalProps {
   isOpen: boolean
@@ -17,9 +16,8 @@ export const LoginModal: FC<LoginModalProps> = ({ isOpen, onClose }) => {
   const { t, language } = useLanguageStore()
   const isKm = language === 'km'
   const navigate = useNavigate()
-  const { setAuth } = useAuthStore()
   const { switchToRegister } = useAuthModalStore()
-  const queryClient = useQueryClient()
+  const login = useLogin()
 
   const [emailOrPhone, setEmailOrPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -55,69 +53,14 @@ export const LoginModal: FC<LoginModalProps> = ({ isOpen, onClose }) => {
 
     try {
       const isEmail = emailOrPhone.includes('@')
-      const payload = {
+      await login.mutateAsync({
         identifier: isEmail ? emailOrPhone.trim().toLowerCase() : emailOrPhone.trim(),
-        password: password,
-      }
-
-      const response = await api.post('/auth/login', payload)
-
-      if (response?.data?.access_token) {
-        const token = response.data.access_token
-        // Fetch current user details
-        const meRes = await api.get('/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => null)
-
-        const user = meRes?.data ? {
-          id: meRes.data.user_id,
-          full_name: meRes.data.full_name,
-          email: meRes.data.email,
-          role: 'OWNER' as const,
-          created_at: new Date().toISOString(),
-        } : {
-          id: 'usr_owner',
-          full_name: emailOrPhone.split('@')[0],
-          email: isEmail ? emailOrPhone : 'owner@restaurant.com',
-          role: 'OWNER' as const,
-          created_at: new Date().toISOString(),
-        }
-
-        setAuth(token, user)
-        if (meRes?.data?.memberships?.[0]?.organization_id) {
-          const orgId = meRes.data.memberships[0].organization_id
-          localStorage.setItem('emenu_tenant_id', orgId)
-          localStorage.setItem('emenu_organization_id', orgId)
-        }
-        localStorage.setItem('emenu_onboarding_completed', 'true')
-        queryClient.invalidateQueries()
-      }
-
+        password,
+      })
       onClose()
       navigate('/admin')
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail
-      let msg: string
-      if (typeof detail === 'string') {
-        if (detail.includes('Invalid email, phone number, or password')) {
-          msg =
-            isKm
-              ? 'អ៊ីមែល លេខទូរស័ព្ទ ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ'
-              : 'Invalid email, phone number, or password.'
-        } else if (detail.includes('not active')) {
-          msg = isKm ? 'គណនីនេះត្រូវបានផ្អាកដំណើរការ' : 'This account is not active.'
-        } else {
-          msg = detail
-        }
-      } else if (Array.isArray(detail) && detail.length > 0) {
-        msg = detail[0]?.msg || (isKm ? 'ទិន្នន័យបញ្ចូលមិនត្រឹមត្រូវ' : 'Invalid input format.')
-      } else {
-        msg =
-          isKm
-            ? 'អ៊ីមែល ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវទេ'
-            : 'Invalid email or password. Please try again.'
-      }
-      setErrorMessage(msg)
+    } catch (err) {
+      setErrorMessage(getLoginErrorMessage(err, isKm))
     } finally {
       setIsLoading(false)
     }

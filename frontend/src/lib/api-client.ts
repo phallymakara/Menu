@@ -1,14 +1,19 @@
 import createClient, { type Middleware } from 'openapi-fetch'
 import type { paths } from '@/types/api'
+import { useAuthStore } from '@/stores/useAuthStore'
 
 export const apiFetch = createClient<paths>({
-  baseUrl: '',
+  // Same-origin requests (proxied by Vite in dev); an absolute base also works outside the browser.
+  baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
+  // Resolve fetch per call so tests can stub it after this module loads.
+  fetch: (request) => globalThis.fetch(request),
 })
 
 const authMiddleware: Middleware = {
   async onRequest({ request }) {
     const token = localStorage.getItem('emenu_access_token')
-    if (token) {
+    // An explicit Authorization header (e.g. right after login) wins over the stored token.
+    if (token && !request.headers.has('Authorization')) {
       if (token.startsWith('token_') || token.split('.').length !== 3) {
         localStorage.removeItem('emenu_access_token')
       } else {
@@ -31,7 +36,8 @@ const authMiddleware: Middleware = {
     if (response.status === 401) {
       const path = typeof window !== 'undefined' ? window.location.pathname : ''
       if (!path.startsWith('/t/') && !path.startsWith('/order/')) {
-        localStorage.removeItem('emenu_access_token')
+        // Clear auth state and storage so stale sessions stop retrying.
+        useAuthStore.getState().logout()
         if (
           path.startsWith('/admin') ||
           path.startsWith('/pos') ||
