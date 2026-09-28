@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export interface WebSocketOptions {
   onMessage?: (data: unknown) => void
@@ -9,99 +9,104 @@ export interface WebSocketOptions {
   autoConnect?: boolean
 }
 
+/** Resolve a relative path such as `/ws/branches/1` against the current host. */
+function toWebSocketUrl(url: string): string {
+  if (url.startsWith('ws://') || url.startsWith('wss://')) return url
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}${url.startsWith('/') ? '' : '/'}${url}`
+}
+
+/**
+ * Keep a WebSocket open to `url`, reconnecting after drops while `autoConnect` is on.
+ *
+ * Handlers are read from a ref, so passing inline callbacks does not reconnect the
+ * socket on every render. Messages are JSON-parsed when possible.
+ */
 export function useWebSocket(url: string | null, options: WebSocketOptions = {}) {
-  const {
-    onMessage,
-    onOpen,
-    onClose,
-    onError,
-    reconnectInterval = 3000,
-    autoConnect = true,
-  } = options
+  const { reconnectInterval = 3000, autoConnect = true } = options
 
   const [isConnected, setIsConnected] = useState(false)
   const [lastMessage, setLastMessage] = useState<unknown | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<number | null>(null)
+  const shouldReconnectRef = useRef(false)
+  const handlersRef = useRef(options)
+
+  useEffect(() => {
+    handlersRef.current = options
+  })
+
+  const disconnect = useCallback(() => {
+    shouldReconnectRef.current = false
+    if (reconnectTimeoutRef.current !== null) {
+      window.clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
+    socketRef.current?.close()
+    socketRef.current = null
+    setIsConnected(false)
+  }, [])
 
   const connect = useCallback(() => {
     if (!url) return
+    shouldReconnectRef.current = autoConnect
 
-    // Derive protocol
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = url.startsWith('ws://') || url.startsWith('wss://')
-      ? url
-      : `${protocol}//${window.location.host}${url.startsWith('/') ? '' : '/'}${url}`
-
-    try {
-      const socket = new WebSocket(wsUrl)
+    function open(target: string) {
+      let socket: WebSocket
+      try {
+        socket = new WebSocket(toWebSocketUrl(target))
+      } catch (err) {
+        console.warn('WebSocket connection error:', err)
+        return
+      }
       socketRef.current = socket
 
       socket.onopen = () => {
         setIsConnected(true)
-        onOpen?.()
+        handlersRef.current.onOpen?.()
       }
 
-      socket.onmessage = (event) => {
+      socket.onmessage = (event: MessageEvent) => {
+        let payload: unknown = event.data
         try {
-          const parsed = JSON.parse(event.data)
-          setLastMessage(parsed)
-          onMessage?.(parsed)
+          payload = JSON.parse(event.data)
         } catch {
-          setLastMessage(event.data)
-          onMessage?.(event.data)
+          // Non-JSON frame: pass the raw data through.
         }
+        setLastMessage(payload)
+        handlersRef.current.onMessage?.(payload)
       }
 
       socket.onerror = (event) => {
-        onError?.(event)
+        handlersRef.current.onError?.(event)
       }
 
       socket.onclose = () => {
+        if (socketRef.current === socket) socketRef.current = null
         setIsConnected(false)
-        onClose?.()
-        socketRef.current = null
+        handlersRef.current.onClose?.()
 
-        // Auto-reconnect
-        if (autoConnect) {
-          reconnectTimeoutRef.current = window.setTimeout(() => {
-            connect()
-          }, reconnectInterval)
+        if (shouldReconnectRef.current) {
+          reconnectTimeoutRef.current = window.setTimeout(() => open(target), reconnectInterval)
         }
       }
-    } catch (err) {
-      console.warn('WebSocket connection error:', err)
     }
-  }, [url, autoConnect, reconnectInterval, onMessage, onOpen, onClose, onError])
 
-  const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current)
-      reconnectTimeoutRef.current = null
-    }
-    if (socketRef.current) {
-      socketRef.current.close()
-      socketRef.current = null
-    }
-    setIsConnected(false)
-  }, [])
+    open(url)
+  }, [url, autoConnect, reconnectInterval])
 
   const sendMessage = useCallback((data: unknown) => {
-    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      const payload = typeof data === 'string' ? data : JSON.stringify(data)
-      socketRef.current.send(payload)
+    const socket = socketRef.current
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(typeof data === 'string' ? data : JSON.stringify(data))
       return true
     }
     return false
   }, [])
 
   useEffect(() => {
-    if (autoConnect && url) {
-      connect()
-    }
-    return () => {
-      disconnect()
-    }
+    if (autoConnect && url) connect()
+    return disconnect
   }, [url, autoConnect, connect, disconnect])
 
   return {
