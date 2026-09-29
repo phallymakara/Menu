@@ -15,14 +15,17 @@ import { POSReceiptModal } from './components/POSReceiptModal'
 import { KHQRPaymentModal } from '@/features/guest/components/KHQRPaymentModal'
 import { ServiceHubDrawer } from '@/features/service-hub/components/ServiceHubDrawer'
 import { usePOSStore } from './stores/usePOSStore'
-import { api } from '@/lib/api'
+import {
+  sessionRoundsQuery,
+  useSettleSessionCash,
+  useUpdateTableStatus,
+  useVoidOrderItem,
+} from './hooks/usePOSQueries'
 import { useWebSocket } from '@/lib/websocket'
 import { playSuccessSound, playChime } from '@/lib/audio'
 import { useBusinesses, useBranches } from '@/features/admin/hooks/useTenantQueries'
 import { useDiningAreas, useTables } from '@/features/admin/hooks/useTableQueries'
-
-const isUuid = (id?: string | null): boolean =>
-  !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+import { isUuid } from '@/lib/utils'
 
 export const POSPage: FC = () => {
   const {
@@ -66,6 +69,9 @@ export const POSPage: FC = () => {
   const [tenantBranchId, setTenantBranchId] = useState<string | null>(
     localStorage.getItem('emenu_branch_id')
   )
+  const updateTableStatusMutation = useUpdateTableStatus(tenantBizId, tenantBranchId)
+  const settleCashMutation = useSettleSessionCash(tenantBizId, tenantBranchId)
+  const voidItemMutation = useVoidOrderItem(tenantBizId, tenantBranchId)
   const accessToken = localStorage.getItem('emenu_access_token') || ''
 
   // 1. Resolve Active Business and Branch IDs dynamically via TanStack Query
@@ -140,22 +146,14 @@ export const POSPage: FC = () => {
     setSelectedTable(table)
 
     if (table.session_id && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
-      api
-        .get(`/businesses/${tenantBizId}/branches/${tenantBranchId}/table-sessions/${table.session_id}/orders`)
-        .then((res) => {
-          if (res.data?.orders && Array.isArray(res.data.orders)) {
-            setActiveRounds(res.data.orders)
-          } else if (Array.isArray(res.data)) {
-            setActiveRounds(res.data)
-          } else {
-            setActiveRounds([])
-          }
-        })
+      queryClient
+        .fetchQuery(sessionRoundsQuery(tenantBizId, tenantBranchId, table.id, table.session_id))
+        .then(setActiveRounds)
         .catch(() => setActiveRounds([]))
     } else {
       setActiveRounds([])
     }
-  }, [setActiveRounds, setSelectedTable, tenantBizId, tenantBranchId])
+  }, [queryClient, setActiveRounds, setSelectedTable, tenantBizId, tenantBranchId])
 
   // 4. Mark Table Cleaned Action
   const handleMarkCleaned = async (tableId: string) => {
@@ -163,9 +161,9 @@ export const POSPage: FC = () => {
     playSuccessSound()
 
     if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
-      await api.patch(`/businesses/${tenantBizId}/branches/${tenantBranchId}/tables/${tableId}/status`, {
-        status: 'AVAILABLE',
-      }).catch(() => null)
+      await updateTableStatusMutation
+        .mutateAsync({ tableId, status: 'available' })
+        .catch(() => null)
     }
   }
 
@@ -185,19 +183,21 @@ export const POSPage: FC = () => {
     openReceiptModal(`PAY-${Date.now()}`)
 
     if (selectedTable.session_id && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
-      await api.post(
-        `/businesses/${tenantBizId}/branches/${tenantBranchId}/table-sessions/${selectedTable.session_id}/payments/cash`,
-        {
-          amount_tendered_usd: result.tenderedUSD,
-          amount_tendered_khr: result.tenderedKHR,
-          change_currency_preference: 'khr',
-        }
-      ).catch(() => null)
+      await settleCashMutation
+        .mutateAsync({
+          sessionId: selectedTable.session_id,
+          payload: {
+            amount_tendered_usd: result.tenderedUSD,
+            amount_tendered_khr: result.tenderedKHR,
+            preferred_change_currency: 'khr',
+          },
+        })
+        .catch(() => null)
     }
   }
 
   // 7. Supervisor PIN Void Handler
-  const handleConfirmSupervisorVoid = async (pin: string, reason: string) => {
+  const handleConfirmSupervisorVoid = async (_pin: string, reason: string) => {
     if (!targetVoidItem) return
 
     playSuccessSound()
@@ -212,15 +212,13 @@ export const POSPage: FC = () => {
     setActiveRounds(updatedRounds)
     closeVoidModal()
 
-    if (selectedTable && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
-      await api.post(
-        `/businesses/${tenantBizId}/branches/${tenantBranchId}/orders/void-item`,
-        {
-          order_item_id: targetVoidItem.id,
-          supervisor_pin: pin,
-          void_reason: reason,
-        }
-      ).catch(() => null)
+    // The void route takes the parent order ID; each POS round is one order.
+    const parentOrder = activeRounds.find((r) => r.items.some((i) => i.id === targetVoidItem.id))
+    if (parentOrder && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      // The backend void endpoint has no supervisor PIN check yet, so the PIN is not sent.
+      await voidItemMutation
+        .mutateAsync({ orderId: parentOrder.id, itemId: targetVoidItem.id, reason })
+        .catch(() => null)
     }
   }
 

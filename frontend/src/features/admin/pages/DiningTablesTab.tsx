@@ -12,14 +12,17 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
-import { api } from '@/lib/api'
 import { apiFetch } from '@/lib/api-client'
 import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
-import { useDiningAreas, useTables, useBatchCreateTables } from '../hooks/useTableQueries'
+import {
+  useDiningAreas,
+  useTables,
+  useBatchCreateTables,
+  useDeleteTable,
+  useDownloadTableQrZip,
+} from '../hooks/useTableQueries'
 import type { DiningZone, DiningTable } from '../types/admin.types'
-
-const isUuid = (id?: string | null): boolean =>
-  !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+import { isUuid } from '@/lib/utils'
 
 export const DiningTablesTab: FC = () => {
   const { language } = useLanguageStore()
@@ -77,6 +80,8 @@ export const DiningTablesTab: FC = () => {
   const { data: rawAreas = [], isLoading: isAreasLoading } = useDiningAreas(businessId, branchId)
   const { data: rawTables = [], isLoading: isTablesLoading } = useTables(businessId, branchId)
   const batchCreateMutation = useBatchCreateTables(businessId, branchId)
+  const deleteTableMutation = useDeleteTable(businessId, branchId)
+  const downloadQrZipMutation = useDownloadTableQrZip(businessId, branchId)
 
   const isLoading = (isAreasLoading || isTablesLoading) && tables.length === 0
 
@@ -119,8 +124,7 @@ export const DiningTablesTab: FC = () => {
 
     try {
       if (isUuid(businessId) && isUuid(branchId)) {
-        await api.delete(`/businesses/${businessId}/branches/${branchId}/tables/${tableId}`)
-        queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+        await deleteTableMutation.mutateAsync(tableId)
       }
       setTables(tables.filter((t) => t.id !== tableId))
     } catch {
@@ -212,10 +216,7 @@ export const DiningTablesTab: FC = () => {
     setIsDownloadingZip(true)
     try {
       if (isUuid(businessId) && isUuid(branchId)) {
-        const response = await api.get(`/businesses/${businessId}/branches/${branchId}/tables/qr/batch`, {
-          responseType: 'blob',
-        })
-        const blob = new Blob([response.data], { type: 'application/zip' })
+        const blob = await downloadQrZipMutation.mutateAsync()
         const downloadUrl = window.URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = downloadUrl
@@ -256,7 +257,6 @@ export const DiningTablesTab: FC = () => {
             {errorMessage}
           </p>
         )}
-
 
         <div className="flex items-center gap-2 flex-wrap">
           <Button

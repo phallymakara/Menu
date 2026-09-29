@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-client'
+import { unwrap } from '@/lib/api-error'
 import type { components } from '@/types/api'
 
 export type TablePublicVerifyResponse = components['schemas']['TablePublicVerifyResponse']
@@ -148,5 +149,24 @@ export function useCreateGuestOrder() {
         queryKey: ['guest', 'session-orders', vars.branchId, vars.tableId, vars.token],
       })
     },
+  })
+}
+
+export function useRequestBill() {
+  return useMutation({
+    mutationFn: async ({
+      branchId,
+      tableId,
+      token,
+    }: {
+      branchId: string
+      tableId: string
+      token: string
+    }) =>
+      unwrap(
+        await apiFetch.POST('/api/v1/public/tables/sessions/request-bill', {
+          params: { query: { branch_id: branchId, table_id: tableId, token } },
+        })
+      ),
   })
 }

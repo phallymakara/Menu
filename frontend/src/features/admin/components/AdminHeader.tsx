@@ -15,11 +15,9 @@ import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { api } from '@/lib/api'
-import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
-
-const isUuid = (id?: string | null): boolean =>
-  !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+import { useBusinesses, useBranches, useCreateBranch } from '../hooks/useTenantQueries'
+import { useUploadMedia } from '../hooks/useMediaQueries'
+import { isUuid } from '@/lib/utils'
 
 export interface RealBranch {
   id: string
@@ -55,6 +53,8 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
   const queryClient = useQueryClient()
   const { data: businesses = [] } = useBusinesses()
   const { data: rawBranches = [], isLoading: isLoadingBranches } = useBranches(businessId)
+  const createBranch = useCreateBranch(businessId)
+  const uploadMedia = useUploadMedia(isUuid(businessId) ? businessId : null)
 
   const [branches, setBranches] = useState<RealBranch[]>([])
   const [activeBranchId, setActiveBranchId] = useState<string | null>(
@@ -186,7 +186,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
 
     setIsCreatingBranch(true)
     try {
-      const res = await api.post(`/businesses/${businessId}/branches`, {
+      const created = await createBranch.mutateAsync({
         name_en: newBranchForm.name_en.trim(),
         name_km: newBranchForm.name_km.trim() || newBranchForm.name_en.trim(),
         code: newBranchForm.code.trim().toUpperCase(),
@@ -194,7 +194,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
         address: newBranchForm.address.trim() || null,
       })
 
-      if (res.data?.id) {
+      if (created.id) {
         setNewBranchForm({
           name_en: '',
           name_km: '',
@@ -205,7 +205,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
         setBranchErrors({})
         setIsCreateBranchModalOpen(false)
         await queryClient.invalidateQueries({ queryKey: ['branches', businessId] })
-        handleSwitchBranch(res.data.id)
+        handleSwitchBranch(created.id)
         window.dispatchEvent(new CustomEvent('emenu:branches-updated'))
       }
     } catch {
@@ -348,7 +348,6 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                           })
                         )}
 
-
                         <div className="pt-1.5 border-t border-zinc-100 dark:border-zinc-800">
                           <button
                             type="button"
@@ -401,16 +400,9 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                 onChange={async (e) => {
                   const file = e.target.files?.[0]
                   if (file) {
-                    const formData = new FormData()
-                    formData.append('file', file)
                     try {
-                      const res = await api.post('/media/upload', formData, {
-                        headers: { 'Content-Type': 'multipart/form-data' },
-                      })
-                      const url = res.data?.url || res.data?.media_url
-                      if (url) {
-                        useAuthStore.getState().updateUser({ avatar_url: url })
-                      }
+                      const { url } = await uploadMedia.mutateAsync(file)
+                      useAuthStore.getState().updateUser({ avatar_url: url })
                     } catch {
                       // Fallback preview
                       const url = URL.createObjectURL(file)

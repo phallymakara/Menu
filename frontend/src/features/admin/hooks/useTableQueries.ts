@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-client'
+import { unwrap } from '@/lib/api-error'
 import type { components } from '@/types/api'
 
 export type TableResponse = components['schemas']['RestaurantTableResponse']
@@ -80,6 +81,42 @@ export function useBatchCreateTables(businessId: string | null, branchId: string
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
       queryClient.invalidateQueries({ queryKey: ['tables-dashboard', businessId, branchId] })
+    },
+  })
+}
+
+export function useDeleteTable(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (tableId: string) => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      return unwrap(
+        await apiFetch.DELETE(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/tables/{table_id}',
+          {
+            params: { path: { business_id: businessId, branch_id: branchId, table_id: tableId } },
+          }
+        )
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+    },
+  })
+}
+
+/** Download every table QR code in the branch as a single ZIP archive. */
+export function useDownloadTableQrZip(businessId: string | null, branchId: string | null) {
+  return useMutation({
+    mutationFn: async (): Promise<Blob> => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      const blob = unwrap(
+        await apiFetch.GET('/api/v1/businesses/{business_id}/branches/{branch_id}/tables/qr/batch', {
+          params: { path: { business_id: businessId, branch_id: branchId } },
+          parseAs: 'blob',
+        })
+      )
+      return new Blob([blob], { type: 'application/zip' })
     },
   })
 }

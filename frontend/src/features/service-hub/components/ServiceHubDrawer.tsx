@@ -29,9 +29,9 @@ export const ServiceHubDrawer: FC = () => {
   } = useServiceHubStore()
 
   // Live timer tick
-  const [, setTick] = useState(0)
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const timer = setInterval(() => setTick((t) => t + 1), 1000)
+    const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
 
@@ -68,14 +68,14 @@ export const ServiceHubDrawer: FC = () => {
   }
 
   const formatElapsed = (isoDate: string) => {
-    const totalSecs = Math.max(0, Math.floor((Date.now() - new Date(isoDate).getTime()) / 1000))
+    const totalSecs = Math.max(0, Math.floor((now - new Date(isoDate).getTime()) / 1000))
     const mins = Math.floor(totalSecs / 60)
     const secs = totalSecs % 60
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
   }
 
   const getSLAStyle = (isoDate: string) => {
-    const totalMins = (Date.now() - new Date(isoDate).getTime()) / 1000 / 60
+    const totalMins = (now - new Date(isoDate).getTime()) / 1000 / 60
     if (totalMins >= 5) {
       return 'border-red-500 dark:border-red-600 bg-red-50/40 dark:bg-red-950/20'
     }
