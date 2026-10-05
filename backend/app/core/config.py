@@ -1,6 +1,6 @@
 import sys
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +16,16 @@ class Settings(BaseSettings):
     database_url: str = Field(...)
     redis_url: str = Field(...)
     secret_key: str = Field(...)
+
+    # Real-time WebSocket broadcasting. "memory" only reaches clients connected
+    # to the same process; "redis" fans out through Redis pub/sub on REDIS_URL.
+    realtime_backend: Literal["memory", "redis"] = Field(
+        default="memory",
+        description=(
+            "WebSocket broadcast backend. Production with more than one worker"
+            " or instance must use 'redis'."
+        ),
+    )
 
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60

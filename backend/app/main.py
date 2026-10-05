@@ -10,6 +10,8 @@ from app.api.v1.endpoints.websockets import router as ws_router
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import LoggingMiddleware, setup_logging
+from app.core.ws_broadcaster import create_broadcaster
+from app.core.ws_manager import ws_manager
 
 # Initialize logging configuration
 setup_logging(
@@ -24,14 +26,22 @@ logger = structlog.get_logger("app.main")
 async def lifespan(app: FastAPI):
     """
     Application lifespan context manager for logging startup and shutdown.
+
+    It also runs the real-time broadcaster selected by REALTIME_BACKEND. With
+    "redis" that is this process's single subscriber task, which is cancelled
+    cleanly on shutdown.
     """
     logger.info(
         "Starting backend application",
         app_name=settings.app_name,
         version=settings.app_version,
     )
-    yield
-    logger.info("Shutting down backend application")
+    await ws_manager.start(create_broadcaster(settings))
+    try:
+        yield
+    finally:
+        logger.info("Shutting down backend application")
+        await ws_manager.stop()
 
 
 app = FastAPI(
