@@ -9,6 +9,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.permissions import (
+    Permission,
+    require_permission_for_writes,
+)
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
@@ -19,6 +23,7 @@ logger = structlog.get_logger("app.api.v1.endpoints.media")
 router = APIRouter(
     prefix="/businesses/{business_id}/media",
     tags=["Media & Image Uploads"],
+    dependencies=[Depends(require_permission_for_writes(Permission.MANAGE_MENU))],
 )
 
 UPLOAD_DIR = Path("uploads/menu_items")

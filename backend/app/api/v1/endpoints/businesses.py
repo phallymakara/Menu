@@ -7,6 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.dependencies.permissions import (
+    Permission,
+    require_permission_for_writes,
+)
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
@@ -20,6 +24,7 @@ logger = structlog.get_logger("app.api.v1.endpoints.businesses")
 router = APIRouter(
     prefix="/businesses",
     tags=["Businesses"],
+    dependencies=[Depends(require_permission_for_writes(Permission.MANAGE_BUSINESS))],
 )
 
 
