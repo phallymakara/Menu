@@ -5,6 +5,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.exceptions import (
     EntitlementLimitExceededError,
@@ -16,8 +17,10 @@ from app.core.exceptions import (
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
 from app.models.enums import MembershipStatus, StaffRole
+from app.models.user import User
 from app.schemas.member import (
     InviteAccept,
+    InviteAcceptExisting,
     InviteResponse,
     MemberInvite,
     MemberResponse,
@@ -25,6 +28,7 @@ from app.schemas.member import (
 )
 from app.services.member_service import (
     accept_invitation,
+    accept_invitation_for_user,
     get_member,
     invite_member,
     list_members,
@@ -106,6 +110,42 @@ async def accept_staff_invitation(
     except InvalidTokenError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except PermissionDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/auth/invitations/accept-existing",
+    response_model=MemberResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def accept_staff_invitation_as_current_user(
+    payload: InviteAcceptExisting,
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> MemberResponse:
+    """
+    Accept an invitation addressed to the signed-in account.
+    """
+    try:
+        return await accept_invitation_for_user(
+            session=session,
+            user=current_user,
+            token=payload.token,
+        )
+    except InvalidTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    except PermissionDeniedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=str(exc),
         ) from exc
 

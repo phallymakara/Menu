@@ -94,6 +94,16 @@ class MemberInvite(BaseModel):
 
 
 
+class InviteAcceptExisting(BaseModel):
+    """Schema for a signed-in user accepting an invitation to their existing account."""
+
+    token: str = Field(
+        ...,
+        min_length=1,
+        description="Raw invitation token received in invite link",
+    )
+
+
 class InviteAccept(BaseModel):
     """Schema for an invited staff member to accept an invite and set password."""
 

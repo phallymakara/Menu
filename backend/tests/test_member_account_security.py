@@ -63,23 +63,47 @@ async def test_invite_never_changes_existing_account_credentials():
                 assert invite.status_code == status.HTTP_201_CREATED
                 assert invite.json()["status"] == MembershipStatus.INVITED.value
 
-                accept = await client.post(
+                invite_token = invite.json()["invitation_token"]
+
+                # The inviter holds the token, but the token alone cannot accept
+                # on behalf of an existing account.
+                token_only = await client.post(
                     "/api/v1/auth/invitations/accept",
                     json={
-                        "token": invite.json()["invitation_token"],
+                        "token": invite_token,
                         "password": "attacker-chosen-pass-2",
                         "full_name": "Renamed By Attacker",
                     },
                 )
-                assert accept.status_code == status.HTTP_200_OK
+                assert token_only.status_code == status.HTTP_403_FORBIDDEN
+
+                # Signed in as someone else, the token is still refused.
+                as_inviter = await client.post(
+                    "/api/v1/auth/invitations/accept-existing",
+                    headers=headers,
+                    json={"token": invite_token},
+                )
+                assert as_inviter.status_code == status.HTTP_403_FORBIDDEN
+
+                await session.refresh(victim)
+                assert victim.full_name == "Test Owner"
+                assert verify_password(VICTIM_PASSWORD, victim.password_hash)
+                assert not verify_password("attacker-chosen-pass", victim.password_hash)
+                assert not verify_password("attacker-chosen-pass-2", victim.password_hash)
+
+                # The account owner, signed in, can accept.
+                as_owner = await client.post(
+                    "/api/v1/auth/invitations/accept-existing",
+                    headers={"Authorization": f"Bearer {create_access_token(victim.id)}"},
+                    json={"token": invite_token},
+                )
+                assert as_owner.status_code == status.HTTP_200_OK
+                assert as_owner.json()["status"] == MembershipStatus.ACTIVE.value
         finally:
             app.dependency_overrides.clear()
 
         await session.refresh(victim)
         assert verify_password(VICTIM_PASSWORD, victim.password_hash)
-        assert not verify_password("attacker-chosen-pass", victim.password_hash)
-        assert not verify_password("attacker-chosen-pass-2", victim.password_hash)
-        assert victim.full_name == "Test Owner"
         assert victim.status == UserStatus.ACTIVE
 
 

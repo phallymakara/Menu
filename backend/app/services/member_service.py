@@ -251,9 +251,57 @@ async def accept_invitation(
     payload: InviteAccept,
 ) -> MemberResponse:
     """
-    Accepts an invitation token, sets user password, and activates the membership.
+    Claims an unclaimed account through its invitation token.
+
+    Sets the account password and activates the membership. The token is handed to
+    the inviting organization, so it must never be enough to act on an account that
+    already exists: those accounts accept through accept_invitation_for_user while
+    signed in.
     """
-    token_hash = _hash_token(payload.token)
+    membership = await _get_pending_invitation(session, payload.token)
+
+    user = membership.user
+    if user.status != UserStatus.INVITED:
+        raise PermissionDeniedError(
+            "This invitation is for an existing account. "
+            "Sign in to that account to accept it."
+        )
+
+    user.password_hash = hash_password(payload.password)
+    user.status = UserStatus.ACTIVE
+    user.is_verified = True
+    if payload.full_name:
+        user.full_name = payload.full_name
+
+    return await _activate_invited_membership(session, membership)
+
+
+async def accept_invitation_for_user(
+    session: AsyncSession,
+    user: User,
+    token: str,
+) -> MemberResponse:
+    """
+    Accepts an invitation addressed to the signed-in user's existing account.
+
+    Requires both the invitation token and a session for the invited account, so
+    neither the inviter (who holds the token) nor anyone else signed in can accept
+    on the account owner's behalf.
+    """
+    membership = await _get_pending_invitation(session, token)
+
+    if membership.user_id != user.id:
+        raise PermissionDeniedError("This invitation belongs to a different account.")
+
+    return await _activate_invited_membership(session, membership)
+
+
+async def _get_pending_invitation(
+    session: AsyncSession,
+    token: str,
+) -> OrganizationMembership:
+    """Returns the membership for a valid, unexpired invitation token."""
+    token_hash = _hash_token(token)
     now = datetime.now(UTC)
 
     result = await session.execute(
@@ -276,18 +324,16 @@ async def accept_invitation(
     if expires_at < now:
         raise InvalidTokenError("Invitation token has expired.")
 
-    # Only an unclaimed account gets its credentials set here. An account that
-    # already exists keeps its password and profile; accepting just activates the
-    # membership, so holding an invitation token never grants access to it.
-    user = membership.user
-    if user.status == UserStatus.INVITED:
-        user.password_hash = hash_password(payload.password)
-        user.status = UserStatus.ACTIVE
-        user.is_verified = True
-        if payload.full_name:
-            user.full_name = payload.full_name
+    return membership
 
-    # Activate Membership
+
+async def _activate_invited_membership(
+    session: AsyncSession,
+    membership: OrganizationMembership,
+) -> MemberResponse:
+    """Activates an accepted membership, consumes its token, and records the audit entry."""
+    user = membership.user
+
     membership.status = MembershipStatus.ACTIVE
     membership.invitation_token_hash = None
     membership.invitation_expires_at = None
