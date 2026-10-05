@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.tenant import TenantContext
 from app.core.ws_manager import ws_manager
+from app.models.branch import Branch
 from app.models.enums import OrderItemStatus, OrderStatus
 from app.models.kitchen_station import KitchenStation
 from app.models.order import Order, OrderItem
@@ -34,12 +35,32 @@ logger = structlog.get_logger("app.services.kds_service")
 # ==============================================================================
 
 
-def _enforce_kds_branch_access(tenant: TenantContext, branch_id: UUID) -> None:
+async def _enforce_kds_branch_access(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+) -> None:
     """
     Validates branch access permissions for KDS endpoints.
-    Brand Owners and General Managers can access any branch.
-    Local staff and branch managers are locked to their assigned branch.
+
+    The branch must belong to the business and to the caller's organization.
+    Brand Owners and General Managers can access any branch of their own
+    organization; local staff and branch managers are locked to their assigned branch.
     """
+    branch_res = await session.execute(
+        select(Branch.id).where(
+            Branch.id == branch_id,
+            Branch.business_id == business_id,
+            Branch.organization_id == tenant.organization_id,
+        )
+    )
+    if branch_res.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Branch not found.",
+        )
+
     if can_user_roam_branches(tenant.membership):
         return
     if tenant.membership.branch_id != branch_id:
@@ -162,7 +183,7 @@ async def get_station_tickets(
     Retrieves live order tickets relevant to a specific kitchen preparation station.
     Hides already-served items and orders.
     """
-    _enforce_kds_branch_access(tenant, branch_id)
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
 
     # Verify Station
     station_res = await session.execute(
@@ -234,7 +255,7 @@ async def get_expediter_tickets(
     """
     Expediter / Master Pass view: Shows items across all stations.
     """
-    _enforce_kds_branch_access(tenant, branch_id)
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
 
     active_order_statuses = [
         OrderStatus.PENDING,
@@ -286,7 +307,7 @@ async def bump_item_status(
     Bumps the status of a single dish (e.g. COOKING, READY, SERVED).
     Automatically updates timestamps and syncs parent Order status.
     """
-    _enforce_kds_branch_access(tenant, branch_id)
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
 
     item_res = await session.execute(
         select(OrderItem)
@@ -397,7 +418,7 @@ async def bump_station_ticket(
     """
     Bumps all active items for a station on a single order ticket at once.
     """
-    _enforce_kds_branch_access(tenant, branch_id)
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
 
     order_res = await session.execute(
         select(Order)
@@ -501,7 +522,7 @@ async def undo_item_status(
     """
     Reverts a bumped item back to PREPARING / COOKING.
     """
-    _enforce_kds_branch_access(tenant, branch_id)
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
 
     item_res = await session.execute(
         select(OrderItem)
@@ -586,7 +607,7 @@ async def recall_station_tickets(
     """
     Retrieves recently completed/served tickets for a station within the history window.
     """
-    _enforce_kds_branch_access(tenant, branch_id)
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
 
     since_time = datetime.now(timezone.utc) - timedelta(minutes=minutes_history)
 
@@ -641,7 +662,7 @@ async def get_station_metrics(
     Calculates live metrics for station header:
     active tickets, overdue tickets, avg prep time.
     """
-    _enforce_kds_branch_access(tenant, branch_id)
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
 
     station_res = await session.execute(
         select(KitchenStation).where(
@@ -697,7 +718,7 @@ async def fire_course(
     Fires held items for an order ticket (e.g. Fire Mains or Fire Desserts).
     Changes status from HELD -> PENDING with fired_at timestamp.
     """
-    _enforce_kds_branch_access(tenant, branch_id)
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
 
     order_res = await session.execute(
         select(Order)
@@ -784,7 +805,7 @@ async def reroute_item_station(
     """
     Re-routes an active dish ticket from one station to another on the fly.
     """
-    _enforce_kds_branch_access(tenant, branch_id)
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
 
     # Verify Target Station
     station_res = await session.execute(
