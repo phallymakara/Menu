@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.endpoints.websockets import router as ws_router
 from app.api.v1.router import api_router
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.config import settings
 from app.core.logging import LoggingMiddleware, setup_logging
 from app.core.static_files import UploadStaticFiles
@@ -39,6 +40,12 @@ app = FastAPI(
     version=settings.app_version,
     debug=settings.debug,
     lifespan=lifespan,
+)
+
+# Innermost: reject oversized bodies before they are read (CORS and logging still apply)
+app.add_middleware(
+    BodySizeLimitMiddleware,
+    max_body_bytes=settings.max_request_body_bytes,
 )
 
 # Add HTTP request tracking middleware

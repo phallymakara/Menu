@@ -129,3 +129,40 @@ async def test_uploads_are_served_with_inert_content_headers(upload_client):
     assert served.status_code == status.HTTP_200_OK
     assert served.headers["x-content-type-options"] == "nosniff"
     assert "sandbox" in served.headers["content-security-policy"]
+
+
+def _gif_bytes(frames: int, size: tuple[int, int] = (8, 8)) -> bytes:
+    # Distinct colours: Pillow merges identical consecutive frames when saving.
+    images = [
+        Image.new("RGB", size, (i % 256, (i * 7) % 256, (i * 13) % 256))
+        for i in range(frames)
+    ]
+    buffer = io.BytesIO()
+    images[0].save(buffer, format="GIF", save_all=True, append_images=images[1:])
+    return buffer.getvalue()
+
+
+@pytest.mark.anyio
+async def test_animation_with_too_many_frames_is_rejected(upload_client):
+    res = await _upload(upload_client, "spin.gif", _gif_bytes(150), "image/gif")
+    assert res.status_code == status.HTTP_400_BAD_REQUEST
+
+
+@pytest.mark.anyio
+async def test_small_animation_keeps_its_frames(upload_client):
+    res = await _upload(upload_client, "spin.gif", _gif_bytes(5), "image/gif")
+
+    assert res.status_code == status.HTTP_201_CREATED
+    with Image.open(Path(res.json()["url"].lstrip("/"))) as stored:
+        assert getattr(stored, "n_frames", 1) == 5
+
+
+@pytest.mark.anyio
+async def test_large_photo_is_scaled_down(upload_client):
+    buffer = io.BytesIO()
+    Image.new("RGB", (3000, 2000), (90, 90, 90)).save(buffer, format="PNG")
+    res = await _upload(upload_client, "huge.png", buffer.getvalue(), "image/png")
+
+    assert res.status_code == status.HTTP_201_CREATED
+    with Image.open(Path(res.json()["url"].lstrip("/"))) as stored:
+        assert max(stored.size) == 2048
