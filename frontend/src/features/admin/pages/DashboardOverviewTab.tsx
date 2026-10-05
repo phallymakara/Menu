@@ -63,11 +63,11 @@ export const DashboardOverviewTab: FC = () => {
   }, [overviewData, tablesData])
 
   const topDishes = useMemo(() => {
-    return (topItemsData as any[]).slice(0, 5).map((it: any) => ({
-      nameEn: it.menu_item_name_en || it.name_en || 'Item',
-      nameKm: it.menu_item_name_km || it.name_km || it.name_en || 'មុខម្ហូប',
-      count: Number(it.quantity_sold || it.count || 0),
-      totalSales: Number(it.total_revenue_usd || it.revenue || 0),
+    return topItemsData.slice(0, 5).map((it) => ({
+      nameEn: it.item_name_en || 'Item',
+      nameKm: it.item_name_km || it.item_name_en || 'មុខម្ហូប',
+      count: Number(it.total_quantity_sold || 0),
+      totalSales: Number(it.total_revenue_usd || 0),
     }))
   }, [topItemsData])
 

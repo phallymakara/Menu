@@ -51,7 +51,8 @@ export function useTopSellingItems(businessId: string | null, branchId?: string 
         }
       )
       if (error) throw error
-      return data || []
+      // The endpoint returns an envelope ({ business_id, ..., items }), not a bare list.
+      return data?.items ?? []
     },
     enabled: !!businessId,
   })
