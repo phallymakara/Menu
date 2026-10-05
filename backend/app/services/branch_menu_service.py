@@ -1,7 +1,9 @@
+from typing import Any, cast
 from uuid import UUID
 
 import structlog
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -381,6 +383,8 @@ async def get_branch_published_menu(
     # Group items by category_id
     items_by_cat: dict[UUID, list[MenuItem]] = {}
     for item in all_items:
+        if item.category_id is None:
+            continue
         items_by_cat.setdefault(item.category_id, []).append(item)
 
     total_published_items = 0
@@ -671,7 +675,7 @@ async def reset_branch_overrides_to_master(
         item_ids = items_res.scalars().all()
         stmt = stmt.where(BranchItemOverride.menu_item_id.in_(item_ids))
 
-    result = await session.execute(stmt)
+    result = cast(CursorResult[Any], await session.execute(stmt))
     reset_count = result.rowcount
     await session.commit()
 
@@ -740,7 +744,7 @@ async def sync_master_catalog_to_branches(
             BranchItemOverride.business_id == business_id,
             BranchItemOverride.organization_id == tenant.organization_id,
         )
-        del_res = await session.execute(del_stmt)
+        del_res = cast(CursorResult[Any], await session.execute(del_stmt))
         overrides_reset = del_res.rowcount
         await session.commit()
     else:
@@ -841,11 +845,10 @@ async def get_catalog_comparison_matrix(
                 continue
 
             override = overrides_map.get((branch.id, item.id))
-            has_price_override = (
-                override is not None and override.price_override is not None
-            )
+            price_override = override.price_override if override is not None else None
+            has_price_override = price_override is not None
             effective_price = (
-                override.price_override if has_price_override else item.base_price
+                price_override if price_override is not None else item.base_price
             )
             is_available = (
                 override.availability_status == "AVAILABLE" if override else True

@@ -6,13 +6,14 @@ import zipfile
 from uuid import UUID
 
 import qrcode
+import qrcode.constants
 import qrcode.image.svg
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.config import Settings
+from app.core.config import settings
 from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
 from app.models.branch import Branch
@@ -25,7 +26,6 @@ from app.schemas.restaurant_table import (
 from app.services.audit_service import record_audit_log
 
 logger = structlog.get_logger("app.services.table_qr_service")
-settings = Settings()
 
 
 def generate_qr_image_bytes(
@@ -62,7 +62,7 @@ def generate_qr_image_bytes(
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    img.save(buf, kind="PNG")
     return buf.getvalue(), "image/png"
 
 
@@ -186,7 +186,7 @@ async def regenerate_table_qr_token(
         details={
             "table_number": table.table_number,
             "old_token_prefix": old_token[:8] if old_token else None,
-            "new_token_prefix": table.qr_code_token[:8],
+            "new_token_prefix": (table.qr_code_token or "")[:8],
         },
     )
     await session.commit()

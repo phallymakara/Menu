@@ -46,3 +46,9 @@ known-first-party = ["app"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.params.Depends"]
+
+[tool.pyright]
+pythonVersion = "3.13"
+include = ["app", "tests", "alembic"]
+venvPath = "."
+venv = ".venv"

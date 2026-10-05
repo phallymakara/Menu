@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: emenu
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d emenu"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/emenu
+      REDIS_URL: redis://localhost:6379/0
+      SECRET_KEY: ci-only-secret-key-not-used-outside-continuous-integration
+      ENVIRONMENT: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      - name: Pyright
+        run: uv run pyright
+        # Remaining errors are being cleaned up; make this blocking once it reports 0.
+        continue-on-error: true
+
+      - name: Tests (SQLite)
+        run: uv run pytest -q
+
+      - name: Prepare PostgreSQL
+        run: |
+          uv run python - <<'PY'
+          import psycopg
+
+          with psycopg.connect(
+              "host=localhost port=5432 user=ci password=ci dbname=emenu", autocommit=True
+          ) as conn:
+              conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+              conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
+              conn.execute("CREATE DATABASE emenu_test")
+          PY
+
+      - name: Migrations (upgrade, full downgrade, upgrade)
+        run: |
+          uv run alembic upgrade head
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+
+      - name: Tests (PostgreSQL)
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://ci:ci@localhost:5432/emenu_test
+        run: uv run pytest -q
+
+      - name: OpenAPI snapshot matches the backend
+        run: |
+          uv run python -c "from app.main import app; import json; open('/tmp/openapi.json', 'w').write(json.dumps(app.openapi(), indent=2))"
+          if ! diff -q ../frontend/openapi.json /tmp/openapi.json > /dev/null; then
+            echo "frontend/openapi.json is out of date. Run 'npm run sync:api' in frontend/ and commit the result."
+            diff -u ../frontend/openapi.json /tmp/openapi.json | head -80
+            exit 1
+          fi
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generated API types match openapi.json
+        run: |
+          npx openapi-typescript openapi.json -o /tmp/api.ts --default-non-nullable false
+          if ! diff -q src/types/api.ts /tmp/api.ts > /dev/null; then
+            echo "src/types/api.ts is out of date. Run 'npm run generate:api' and commit the result."
+            exit 1
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
