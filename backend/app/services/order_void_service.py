@@ -147,10 +147,8 @@ async def void_order_line_item(
 
     # 6. Recalculate Order Totals
     active_items = [itm for itm in order.items if itm.status != OrderItemStatus.VOIDED]
-    new_subtotal_usd = (
-        sum(itm.subtotal_price for itm in active_items)
-        if active_items
-        else Decimal("0.00")
+    new_subtotal_usd = sum(
+        (itm.subtotal_price for itm in active_items), Decimal("0.00")
     )
     order.subtotal_usd = new_subtotal_usd
     order.subtotal_khr = (new_subtotal_usd * Decimal("4100.00")).quantize(

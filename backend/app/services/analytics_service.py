@@ -313,10 +313,8 @@ async def get_branch_comparison(
         row.branch_id: int(row.session_cnt) for row in session_res.all()
     }
 
-    total_network_revenue = (
-        sum(rev for rev, _ in branch_order_data.values())
-        if branch_order_data
-        else Decimal("0.00")
+    total_network_revenue = sum(
+        (rev for rev, _ in branch_order_data.values()), Decimal("0.00")
     )
     total_network_orders = (
         sum(cnt for _, cnt in branch_order_data.values()) if branch_order_data else 0
@@ -543,9 +541,7 @@ async def get_payment_method_breakdown(
     res = await session.execute(query)
     rows = res.all()
 
-    total_collected_usd = (
-        sum(Decimal(str(r.tot_usd)) for r in rows) if rows else Decimal("0.00")
-    )
+    total_collected_usd = sum((Decimal(str(r.tot_usd)) for r in rows), Decimal("0.00"))
     total_txns = sum(int(r.txn_count) for r in rows) if rows else 0
 
     methods: list[PaymentMethodMetric] = []
