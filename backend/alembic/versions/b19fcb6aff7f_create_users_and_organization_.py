@@ -151,4 +151,8 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_users_phone"), table_name="users")
     op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_table("users")
+    # The enum types are created implicitly with the tables, so drop them explicitly;
+    # otherwise a later upgrade fails with "type already exists".
+    sa.Enum(name="membership_status").drop(op.get_bind(), checkfirst=True)
+    sa.Enum(name="user_status").drop(op.get_bind(), checkfirst=True)
     # ### end Alembic commands ###
