@@ -31,7 +31,9 @@ if TYPE_CHECKING:
 class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "menu_items"
     __table_args__ = (
-        UniqueConstraint("business_id", "branch_id", "sku", name="uq_menu_items_biz_branch_sku"),
+        UniqueConstraint(
+            "business_id", "branch_id", "sku", name="uq_menu_items_biz_branch_sku"
+        ),
     )
 
     organization_id: Mapped[UUID] = mapped_column(

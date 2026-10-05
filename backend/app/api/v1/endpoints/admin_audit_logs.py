@@ -34,12 +34,27 @@ router = APIRouter(
 async def list_admin_audit_logs_endpoint(
     admin_user: Annotated[User, Depends(get_current_platform_admin)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    organization_id: Annotated[UUID | None, Query(description="Filter by organization ID")] = None,
-    user_id: Annotated[UUID | None, Query(description="Filter by acting user ID")] = None,
-    action: Annotated[str | None, Query(description="Filter by action identifier or wildcard prefix (e.g. admin.*)")] = None,
-    resource_type: Annotated[str | None, Query(description="Filter by resource type")] = None,
-    from_date: Annotated[datetime | None, Query(description="Filter from timestamp")] = None,
-    to_date: Annotated[datetime | None, Query(description="Filter to timestamp")] = None,
+    organization_id: Annotated[
+        UUID | None, Query(description="Filter by organization ID")
+    ] = None,
+    user_id: Annotated[
+        UUID | None, Query(description="Filter by acting user ID")
+    ] = None,
+    action: Annotated[
+        str | None,
+        Query(
+            description="Filter by action identifier or wildcard prefix (e.g. admin.*)"
+        ),
+    ] = None,
+    resource_type: Annotated[
+        str | None, Query(description="Filter by resource type")
+    ] = None,
+    from_date: Annotated[
+        datetime | None, Query(description="Filter from timestamp")
+    ] = None,
+    to_date: Annotated[
+        datetime | None, Query(description="Filter to timestamp")
+    ] = None,
     page: Annotated[int, Query(ge=1, description="Page number")] = 1,
     page_size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 50,
 ) -> AdminAuditLogListResponse:

@@ -68,7 +68,11 @@ async def admin_plan_setup():
             price_usd_annually=Decimal("0.00"),
             max_branches=1,
             max_staff=3,
-            feature_flags={"has_kds": False, "has_inventory": False, "has_analytics": False},
+            feature_flags={
+                "has_kds": False,
+                "has_inventory": False,
+                "has_analytics": False,
+            },
         )
         pro_plan = Plan(
             name="Pro Multi-Outlet",
@@ -77,7 +81,11 @@ async def admin_plan_setup():
             price_usd_annually=Decimal("290.00"),
             max_branches=5,
             max_staff=20,
-            feature_flags={"has_kds": True, "has_inventory": True, "has_analytics": True},
+            feature_flags={
+                "has_kds": True,
+                "has_inventory": True,
+                "has_analytics": True,
+            },
         )
         session.add_all([free_plan, pro_plan])
         await session.flush()

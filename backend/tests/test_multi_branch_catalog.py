@@ -119,15 +119,17 @@ async def multi_branch_setup():
             base_price=Decimal("12.00"),
             is_active=True,
         )
-        session.add_all([
-            membership,
-            business,
-            branch_a,
-            branch_b,
-            cat_main,
-            cat_drinks,
-            master_loklak,
-        ])
+        session.add_all(
+            [
+                membership,
+                business,
+                branch_a,
+                branch_b,
+                cat_main,
+                cat_drinks,
+                master_loklak,
+            ]
+        )
         await session.commit()
 
         token = create_access_token(user.id)
@@ -191,7 +193,6 @@ async def test_branch_menu_merges_master_and_local_items(multi_branch_setup):
         )
         assert res_b.status_code == status.HTTP_201_CREATED
         assert "id" in res_b.json()
-
 
         # 3. Fetch Published Menu for Branch A
         menu_a_res = await client.get(
@@ -381,18 +382,24 @@ async def test_catalog_comparison_matrix(multi_branch_setup):
         data = res.json()
         assert data["total_master_items"] >= 1
 
-        loklak_matrix = next(i for i in data["items"] if i["item_name_en"] == "Beef Lok Lak")
+        loklak_matrix = next(
+            i for i in data["items"] if i["item_name_en"] == "Beef Lok Lak"
+        )
         assert Decimal(str(loklak_matrix["master_base_price_usd"])) == Decimal("12.00")
         assert len(loklak_matrix["branches"]) == 2
 
         branch_b_detail = next(
-            b for b in loklak_matrix["branches"] if b["branch_id"] == str(multi_branch_setup["branch_b_id"])
+            b
+            for b in loklak_matrix["branches"]
+            if b["branch_id"] == str(multi_branch_setup["branch_b_id"])
         )
         assert Decimal(str(branch_b_detail["effective_price_usd"])) == Decimal("15.00")
         assert branch_b_detail["has_price_override"] is True
 
         branch_a_detail = next(
-            b for b in loklak_matrix["branches"] if b["branch_id"] == str(multi_branch_setup["branch_a_id"])
+            b
+            for b in loklak_matrix["branches"]
+            if b["branch_id"] == str(multi_branch_setup["branch_a_id"])
         )
         assert Decimal(str(branch_a_detail["effective_price_usd"])) == Decimal("12.00")
         assert branch_a_detail["has_price_override"] is False
@@ -455,4 +462,3 @@ async def test_sync_master_catalog_to_branches(multi_branch_setup):
         assert data2["overrides_reset_count"] == 1
 
     app.dependency_overrides.clear()
-

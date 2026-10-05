@@ -201,4 +201,3 @@ async def get_public_table_session_bill_endpoint(
         session=session,
         session_token=session_token,
     )
-

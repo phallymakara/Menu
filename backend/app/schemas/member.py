@@ -93,7 +93,6 @@ class MemberInvite(BaseModel):
         return self
 
 
-
 class InviteAcceptExisting(BaseModel):
     """Schema for a signed-in user accepting an invitation to their existing account."""
 
@@ -137,8 +136,12 @@ class MemberUpdate(BaseModel):
         description="Updated branch assignment (pass null to unassign)",
     )
     job_title: str | None = Field(default=None, max_length=100)
-    pos_pin: str | None = Field(default=None, max_length=64, description="Updated POS PIN")
-    avatar_url: str | None = Field(default=None, max_length=500, description="Updated avatar photo URL")
+    pos_pin: str | None = Field(
+        default=None, max_length=64, description="Updated POS PIN"
+    )
+    avatar_url: str | None = Field(
+        default=None, max_length=500, description="Updated avatar photo URL"
+    )
     status: MembershipStatus | None = Field(
         default=None,
         description="Updated membership status (e.g. suspended, active, terminated)",
@@ -153,7 +156,6 @@ class MemberUpdate(BaseModel):
             except ValueError:
                 pass
         return v
-
 
 
 class MemberResponse(BaseModel):

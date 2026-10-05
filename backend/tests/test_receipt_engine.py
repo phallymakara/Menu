@@ -152,7 +152,9 @@ async def receipt_setup():
             base_price=Decimal("2.50"),
             is_active=True,
         )
-        session.add_all([membership, business, branch, vip_area, table, cat, item1, item2])
+        session.add_all(
+            [membership, business, branch, vip_area, table, cat, item1, item2]
+        )
         await session.commit()
 
         # Dining Session

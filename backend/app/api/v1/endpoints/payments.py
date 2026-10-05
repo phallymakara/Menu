@@ -170,4 +170,3 @@ async def get_payment_endpoint(
         payment_id=payment_id,
         tenant=tenant,
     )
-

@@ -77,7 +77,9 @@ class BranchStockResponse(BaseModel):
 
 class BranchStockAdjustRequest(BaseModel):
     inventory_item_id: UUID
-    quantity_change: Decimal = Field(..., description="Positive to add stock, negative to reduce/waste stock")
+    quantity_change: Decimal = Field(
+        ..., description="Positive to add stock, negative to reduce/waste stock"
+    )
     reason: StockAdjustmentReason = StockAdjustmentReason.STOCK_TAKE_AUDIT
     notes: str | None = Field(default=None, max_length=500)
 

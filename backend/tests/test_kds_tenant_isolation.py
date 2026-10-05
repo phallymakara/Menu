@@ -44,7 +44,9 @@ async def test_owner_cannot_read_or_bump_another_tenants_kds():
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
-                attacker = {"Authorization": f"Bearer {create_access_token(owner_b.id)}"}
+                attacker = {
+                    "Authorization": f"Bearer {create_access_token(owner_b.id)}"
+                }
                 read = await client.get(f"{kds_base}/expo/tickets", headers=attacker)
                 assert read.status_code == status.HTTP_404_NOT_FOUND
 

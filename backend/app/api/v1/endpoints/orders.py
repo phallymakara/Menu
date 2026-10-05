@@ -138,4 +138,3 @@ async def get_single_order_bill(
         branch_id=branch_id,
         order_id=order_id,
     )
-

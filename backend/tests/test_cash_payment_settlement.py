@@ -146,7 +146,9 @@ async def payment_setup():
             base_price=Decimal("2.50"),
             is_active=True,
         )
-        session.add_all([membership, business, branch, vip_area, table, cat, item1, item2])
+        session.add_all(
+            [membership, business, branch, vip_area, table, cat, item1, item2]
+        )
         await session.commit()
 
         # Active TableSession
@@ -536,7 +538,9 @@ async def test_session_can_be_settled_after_bill_request(payment_setup):
 
     app.dependency_overrides[get_db_session] = override_get_db
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
             res = await client.post(
                 f"{_session_url(payment_setup)}/payments/cash",
                 headers={"Authorization": f"Bearer {payment_setup['token']}"},
@@ -564,8 +568,12 @@ async def test_discount_lowers_tax_inclusive_bill(payment_setup):
     headers = {"Authorization": f"Bearer {payment_setup['token']}"}
     app.dependency_overrides[get_db_session] = override_get_db
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            bill = await client.get(f"{_session_url(payment_setup)}/bill", headers=headers)
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            bill = await client.get(
+                f"{_session_url(payment_setup)}/bill", headers=headers
+            )
             assert bill.status_code == status.HTTP_200_OK
             financials = bill.json()["financials"]
             undiscounted_total = Decimal(financials["grand_total_usd"])
@@ -586,5 +594,10 @@ async def test_discount_lowers_tax_inclusive_bill(payment_setup):
 
     assert res.status_code == status.HTTP_201_CREATED
     # Tax is already inside the prices; only the exclusive service charge applies on top.
-    discount_with_service_charge = (Decimal("1.00") * (1 + sc_rate)).quantize(Decimal("0.01"))
-    assert Decimal(res.json()["grand_total_usd"]) == undiscounted_total - discount_with_service_charge
+    discount_with_service_charge = (Decimal("1.00") * (1 + sc_rate)).quantize(
+        Decimal("0.01")
+    )
+    assert (
+        Decimal(res.json()["grand_total_usd"])
+        == undiscounted_total - discount_with_service_charge
+    )

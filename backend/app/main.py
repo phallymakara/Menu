@@ -6,8 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1.router import api_router
 from app.api.v1.endpoints.websockets import router as ws_router
+from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.logging import LoggingMiddleware, setup_logging
 

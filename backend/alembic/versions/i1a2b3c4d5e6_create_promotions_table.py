@@ -31,17 +31,43 @@ def upgrade() -> None:
         sa.Column("name_en", sa.String(length=100), nullable=False),
         sa.Column("name_km", sa.String(length=100), nullable=True),
         sa.Column("code", sa.String(length=50), nullable=True),
-        sa.Column("discount_type", sa.String(length=20), server_default="percentage", nullable=False),
+        sa.Column(
+            "discount_type",
+            sa.String(length=20),
+            server_default="percentage",
+            nullable=False,
+        ),
         sa.Column("discount_value", sa.Numeric(precision=10, scale=2), nullable=False),
-        sa.Column("max_discount_amount_usd", sa.Numeric(precision=10, scale=2), nullable=True),
-        sa.Column("minimum_spend_usd", sa.Numeric(precision=10, scale=2), server_default="0.00", nullable=False),
+        sa.Column(
+            "max_discount_amount_usd", sa.Numeric(precision=10, scale=2), nullable=True
+        ),
+        sa.Column(
+            "minimum_spend_usd",
+            sa.Numeric(precision=10, scale=2),
+            server_default="0.00",
+            nullable=False,
+        ),
         sa.Column("usage_limit", sa.Integer(), nullable=True),
-        sa.Column("current_usage_count", sa.Integer(), server_default="0", nullable=False),
+        sa.Column(
+            "current_usage_count", sa.Integer(), server_default="0", nullable=False
+        ),
         sa.Column("start_date", sa.DateTime(timezone=True), nullable=True),
         sa.Column("end_date", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+        sa.Column(
+            "is_active", sa.Boolean(), server_default=sa.text("true"), nullable=False
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(
             ["organization_id"],
             ["organizations.id"],
@@ -62,14 +88,25 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_promotions")),
     )
-    op.create_index(op.f("ix_promotions_organization_id"), "promotions", ["organization_id"], unique=False)
-    op.create_index(op.f("ix_promotions_business_id"), "promotions", ["business_id"], unique=False)
-    op.create_index(op.f("ix_promotions_branch_id"), "promotions", ["branch_id"], unique=False)
+    op.create_index(
+        op.f("ix_promotions_organization_id"),
+        "promotions",
+        ["organization_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_promotions_business_id"), "promotions", ["business_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_promotions_branch_id"), "promotions", ["branch_id"], unique=False
+    )
     op.create_index(op.f("ix_promotions_code"), "promotions", ["code"], unique=False)
 
     # 2. Update payments table
     op.add_column("payments", sa.Column("promotion_id", sa.Uuid(), nullable=True))
-    op.add_column("payments", sa.Column("discount_reason", sa.String(length=100), nullable=True))
+    op.add_column(
+        "payments", sa.Column("discount_reason", sa.String(length=100), nullable=True)
+    )
     op.create_foreign_key(
         op.f("fk_payments_promotion_id_promotions"),
         "payments",
@@ -82,7 +119,9 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop promotions table and remove foreign keys."""
-    op.drop_constraint(op.f("fk_payments_promotion_id_promotions"), "payments", type_="foreignkey")
+    op.drop_constraint(
+        op.f("fk_payments_promotion_id_promotions"), "payments", type_="foreignkey"
+    )
     op.drop_column("payments", "discount_reason")
     op.drop_column("payments", "promotion_id")
 

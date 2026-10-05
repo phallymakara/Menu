@@ -147,16 +147,18 @@ async def promo_setup():
             base_price=Decimal("3.00"),
             is_active=True,
         )
-        session.add_all([
-            membership,
-            business,
-            branch,
-            area,
-            table,
-            cat,
-            item1,
-            item2,
-        ])
+        session.add_all(
+            [
+                membership,
+                business,
+                branch,
+                area,
+                table,
+                cat,
+                item1,
+                item2,
+            ]
+        )
         await session.commit()
 
         # Create TableSession
@@ -413,6 +415,7 @@ async def test_settle_table_session_cash_payment_with_promo(promo_setup):
             },
         )
         from uuid import UUID
+
         promo_id = UUID(p_res.json()["id"])
 
         # Settle session with $30 cash and promo code
@@ -441,7 +444,6 @@ async def test_settle_table_session_cash_payment_with_promo(promo_setup):
     async with promo_setup["sessionmaker"]() as session:
         promo_obj = await session.get(Promotion, promo_id)
         assert promo_obj.current_usage_count == 1
-
 
 
 @pytest.mark.anyio
@@ -479,4 +481,3 @@ async def test_settle_with_manual_cashier_discount(promo_setup):
     assert Decimal(str(data["discount_usd"])) == Decimal("3.00")  # 10% of $30 = $3.00
     assert data["discount_reason"] == "VIP Loyalty Member"
     assert data["payment_status"] == "completed"
-

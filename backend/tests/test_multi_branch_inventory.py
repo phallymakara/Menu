@@ -121,11 +121,20 @@ async def inventory_setup():
             status="active",
         )
 
-        session.add_all([
-            org, business, branch_a, branch_b,
-            owner_user, mgr_a_user, mgr_b_user,
-            owner_mem, mgr_a_mem, mgr_b_mem,
-        ])
+        session.add_all(
+            [
+                org,
+                business,
+                branch_a,
+                branch_b,
+                owner_user,
+                mgr_a_user,
+                mgr_b_user,
+                owner_mem,
+                mgr_a_mem,
+                mgr_b_mem,
+            ]
+        )
         await session.commit()
 
         owner_token = create_access_token(owner_user.id)
@@ -359,7 +368,11 @@ async def test_full_inter_branch_stock_transfer_lifecycle(inventory_setup):
             f"/api/v1/businesses/{biz_id}/inventory/branches/{br_b_id}/stock",
             headers=headers_mgr_b,
         )
-        b_qty = next(s["quantity"] for s in res_stock_b.json() if s["inventory_item_id"] == item_id)
+        b_qty = next(
+            s["quantity"]
+            for s in res_stock_b.json()
+            if s["inventory_item_id"] == item_id
+        )
         assert Decimal(str(b_qty)) == Decimal("80.00")
 
         # 5. Branch A Manager receives shipment -> Increments 20 kg at Branch A
@@ -375,7 +388,11 @@ async def test_full_inter_branch_stock_transfer_lifecycle(inventory_setup):
             f"/api/v1/businesses/{biz_id}/inventory/branches/{br_a_id}/stock",
             headers=headers_mgr_a,
         )
-        a_qty = next(s["quantity"] for s in res_stock_a.json() if s["inventory_item_id"] == item_id)
+        a_qty = next(
+            s["quantity"]
+            for s in res_stock_a.json()
+            if s["inventory_item_id"] == item_id
+        )
         assert Decimal(str(a_qty)) == Decimal("20.00")
 
     app.dependency_overrides.clear()
@@ -432,7 +449,9 @@ async def test_low_stock_alerts(inventory_setup):
         assert res_alerts.status_code == status.HTTP_200_OK
         data = res_alerts.json()
         assert data["total_low_stock_items"] >= 1
-        beef_alert = next(a for a in data["alerts"] if a["inventory_item_id"] == item_id)
+        beef_alert = next(
+            a for a in data["alerts"] if a["inventory_item_id"] == item_id
+        )
         assert Decimal(str(beef_alert["current_quantity"])) == Decimal("5.00")
         assert Decimal(str(beef_alert["shortage_quantity"])) == Decimal("15.00")
 
@@ -460,7 +479,6 @@ async def test_inventory_multi_branch_security_boundaries(inventory_setup):
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         biz_id = inventory_setup["business_id"]
         br_b_id = inventory_setup["branch_b_id"]
-
 
         # Create Item
         res_create = await client.post(

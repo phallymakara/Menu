@@ -90,7 +90,9 @@ class WebSocketConnectionManager:
             try:
                 await ws.send_text(message_str)
             except Exception as exc:
-                logger.warning("Failed to send WS message, marking stale", error=str(exc))
+                logger.warning(
+                    "Failed to send WS message, marking stale", error=str(exc)
+                )
                 stale_sockets.append(ws)
 
         for ws in stale_sockets:

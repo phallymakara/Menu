@@ -119,6 +119,7 @@ ITEMS_DATA = [
     },
 ]
 
+
 async def seed():
     async with AsyncSessionFactory() as session:
         # 1. Get or create Organization & Business
@@ -154,7 +155,7 @@ async def seed():
 
         for biz in businesses:
             print(f"\nSeeding menu for business: {biz.name_en} ({biz.id})")
-            
+
             # Map existing categories
             cat_result = await session.execute(
                 select(Category).where(Category.business_id == biz.id)
@@ -206,10 +207,13 @@ async def seed():
                         display_order=len(existing_items) + 1,
                     )
                     session.add(new_item)
-                    print(f"  + Added Menu Item: {new_item.name_en} (${new_item.base_price})")
+                    print(
+                        f"  + Added Menu Item: {new_item.name_en} (${new_item.base_price})"
+                    )
 
         await session.commit()
         print("\nSeeding completed successfully!")
+
 
 if __name__ == "__main__":
     asyncio.run(seed())

@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-
 class Payment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "payments"
 
@@ -198,4 +197,3 @@ class Payment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     order: Mapped[Order | None] = relationship("Order")
     received_by: Mapped[User | None] = relationship("User")
     promotion: Mapped[Promotion | None] = relationship("Promotion")
-

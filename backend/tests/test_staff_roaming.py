@@ -143,16 +143,18 @@ async def roaming_setup():
             is_owner=False,
         )
 
-        session.add_all([
-            owner_user,
-            owner_membership,
-            gm_user,
-            gm_membership,
-            bm_user,
-            bm_membership,
-            cashier_user,
-            cashier_membership,
-        ])
+        session.add_all(
+            [
+                owner_user,
+                owner_membership,
+                gm_user,
+                gm_membership,
+                bm_user,
+                bm_membership,
+                cashier_user,
+                cashier_membership,
+            ]
+        )
         await session.commit()
 
         owner_token = create_access_token(owner_user.id)
@@ -251,13 +253,17 @@ async def test_general_manager_can_list_and_switch_branches(roaming_setup):
             json={"branch_id": str(roaming_setup["branch_a_id"])},
         )
         assert switch_res.status_code == status.HTTP_200_OK
-        assert switch_res.json()["active_branch_id"] == str(roaming_setup["branch_a_id"])
+        assert switch_res.json()["active_branch_id"] == str(
+            roaming_setup["branch_a_id"]
+        )
 
     app.dependency_overrides.clear()
 
 
 @pytest.mark.anyio
-async def test_branch_manager_is_locked_and_cannot_switch_to_other_branch(roaming_setup):
+async def test_branch_manager_is_locked_and_cannot_switch_to_other_branch(
+    roaming_setup,
+):
     """
     Validates that a Branch Manager sees ONLY their assigned branch and is blocked
     from switching to any other branch.
@@ -288,7 +294,10 @@ async def test_branch_manager_is_locked_and_cannot_switch_to_other_branch(roamin
             json={"branch_id": str(roaming_setup["branch_b_id"])},
         )
         assert switch_res.status_code == status.HTTP_403_FORBIDDEN
-        assert "Only Brand Owners and General Managers can switch branch contexts" in switch_res.json()["detail"]
+        assert (
+            "Only Brand Owners and General Managers can switch branch contexts"
+            in switch_res.json()["detail"]
+        )
 
     app.dependency_overrides.clear()
 
@@ -323,7 +332,10 @@ async def test_branch_cashier_is_locked_and_cannot_switch_branches(roaming_setup
             json={"branch_id": str(roaming_setup["branch_b_id"])},
         )
         assert switch_res.status_code == status.HTTP_403_FORBIDDEN
-        assert "Only Brand Owners and General Managers can switch branch contexts" in switch_res.json()["detail"]
+        assert (
+            "Only Brand Owners and General Managers can switch branch contexts"
+            in switch_res.json()["detail"]
+        )
 
     app.dependency_overrides.clear()
 

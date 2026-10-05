@@ -164,9 +164,7 @@ def setup_logging(log_level: str = "INFO", environment: str = "development") -> 
     # Telegram contain the bot token. Keep them at WARNING; local SQL echo is still
     # available through the engine's echo flag (DEBUG=true).
     for noisy_logger in ("sqlalchemy.engine", "httpx", "httpcore"):
-        logging.getLogger(noisy_logger).setLevel(
-            max(numeric_level, logging.WARNING)
-        )
+        logging.getLogger(noisy_logger).setLevel(max(numeric_level, logging.WARNING))
 
     logger.info(
         "Logging system initialized",

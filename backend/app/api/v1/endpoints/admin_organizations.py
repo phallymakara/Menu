@@ -41,9 +41,15 @@ router = APIRouter(
 async def list_admin_organizations_endpoint(
     admin_user: Annotated[User, Depends(get_current_platform_admin)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    search: Annotated[str | None, Query(description="Search by name, slug, or owner")] = None,
-    status: Annotated[OrganizationStatus | None, Query(description="Filter by organization status")] = None,
-    plan_code: Annotated[str | None, Query(description="Filter by subscription plan code")] = None,
+    search: Annotated[
+        str | None, Query(description="Search by name, slug, or owner")
+    ] = None,
+    status: Annotated[
+        OrganizationStatus | None, Query(description="Filter by organization status")
+    ] = None,
+    plan_code: Annotated[
+        str | None, Query(description="Filter by subscription plan code")
+    ] = None,
     page: Annotated[int, Query(ge=1, description="Page number")] = 1,
     page_size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 20,
 ) -> AdminOrganizationListResponse:

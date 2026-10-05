@@ -91,7 +91,9 @@ async def list_admin_organizations(
     # Apply Subscription Plan Filter
     if plan_code:
         base_query = (
-            base_query.join(Subscription, Subscription.organization_id == Organization.id)
+            base_query.join(
+                Subscription, Subscription.organization_id == Organization.id
+            )
             .join(Plan, Subscription.plan_id == Plan.id)
             .where(Plan.code == plan_code)
         )

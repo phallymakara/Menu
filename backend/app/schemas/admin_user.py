@@ -19,9 +19,13 @@ class AdminUserListItem(BaseModel):
     phone: str | None = Field(None, description="User phone number")
     status: UserStatus = Field(..., description="User account status")
     preferred_language: str = Field("km", description="Preferred UI language")
-    is_platform_admin: bool = Field(..., description="Whether user is a Platform Super Admin")
+    is_platform_admin: bool = Field(
+        ..., description="Whether user is a Platform Super Admin"
+    )
     is_verified: bool = Field(False, description="Whether phone/email is verified")
-    organizations_count: int = Field(0, description="Total organizations the user belongs to")
+    organizations_count: int = Field(
+        0, description="Total organizations the user belongs to"
+    )
     created_at: datetime = Field(..., description="Account creation timestamp")
     updated_at: datetime = Field(..., description="Account last update timestamp")
 
@@ -78,19 +82,29 @@ class AdminUserDetail(BaseModel):
 class AdminUserStatusUpdate(BaseModel):
     """Request payload for updating user account status."""
 
-    status: UserStatus = Field(..., description="Target status: active, suspended, or terminated")
-    reason: str | None = Field(None, description="Administrative reason for status change")
+    status: UserStatus = Field(
+        ..., description="Target status: active, suspended, or terminated"
+    )
+    reason: str | None = Field(
+        None, description="Administrative reason for status change"
+    )
 
 
 class AdminUserPlatformAdminToggle(BaseModel):
     """Request payload for toggling platform admin privileges."""
 
-    is_platform_admin: bool = Field(..., description="Grant or revoke Super Admin privileges")
-    reason: str | None = Field(None, description="Administrative reason for privilege modification")
+    is_platform_admin: bool = Field(
+        ..., description="Grant or revoke Super Admin privileges"
+    )
+    reason: str | None = Field(
+        None, description="Administrative reason for privilege modification"
+    )
 
 
 class AdminUserResetPasswordRequest(BaseModel):
     """Request payload for administrative password reset."""
 
-    new_password: str = Field(..., min_length=8, description="New secure password (min 8 characters)")
+    new_password: str = Field(
+        ..., min_length=8, description="New secure password (min 8 characters)"
+    )
     reason: str | None = Field(None, description="Reason for password reset")

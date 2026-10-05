@@ -24,18 +24,28 @@ class AdminOrganizationListItem(BaseModel):
     owner_email: str | None = Field(None, description="Owner email address")
     owner_phone: str | None = Field(None, description="Owner phone number")
 
-    businesses_count: int = Field(0, description="Total restaurant brands under this organization")
-    branches_count: int = Field(0, description="Total physical branch outlets under this organization")
+    businesses_count: int = Field(
+        0, description="Total restaurant brands under this organization"
+    )
+    branches_count: int = Field(
+        0, description="Total physical branch outlets under this organization"
+    )
     tables_count: int = Field(0, description="Total restaurant tables configured")
     staff_count: int = Field(0, description="Total staff members in this organization")
 
     plan_id: UUID | None = Field(None, description="Current subscription plan ID")
     plan_code: str | None = Field(None, description="Subscription plan code")
     plan_name: str | None = Field(None, description="Subscription plan name")
-    subscription_status: SubscriptionStatus | None = Field(None, description="Subscription lifecycle status")
+    subscription_status: SubscriptionStatus | None = Field(
+        None, description="Subscription lifecycle status"
+    )
 
-    created_at: datetime = Field(..., description="Timestamp when organization was created")
-    updated_at: datetime = Field(..., description="Timestamp when organization was last updated")
+    created_at: datetime = Field(
+        ..., description="Timestamp when organization was created"
+    )
+    updated_at: datetime = Field(
+        ..., description="Timestamp when organization was last updated"
+    )
 
 
 class AdminOrganizationListResponse(BaseModel):
@@ -43,7 +53,9 @@ class AdminOrganizationListResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    items: list[AdminOrganizationListItem] = Field(..., description="List of organizations")
+    items: list[AdminOrganizationListItem] = Field(
+        ..., description="List of organizations"
+    )
     total: int = Field(..., description="Total matching organizations")
     page: int = Field(1, description="Current page number")
     page_size: int = Field(20, description="Number of items per page")
@@ -137,15 +149,27 @@ class AdminOrganizationDetail(BaseModel):
 class AdminOrganizationStatusUpdate(BaseModel):
     """Request payload for updating organization status."""
 
-    status: OrganizationStatus = Field(..., description="Target status: active, suspended, or archived")
-    reason: str | None = Field(None, description="Reason for suspension or status change")
+    status: OrganizationStatus = Field(
+        ..., description="Target status: active, suspended, or archived"
+    )
+    reason: str | None = Field(
+        None, description="Reason for suspension or status change"
+    )
 
 
 class AdminOrganizationSubscriptionOverride(BaseModel):
     """Request payload for manually overriding an organization's subscription."""
 
     plan_id: UUID = Field(..., description="Target plan ID to assign")
-    status: SubscriptionStatus | None = Field(None, description="Optional target subscription status")
-    trial_ends_at: datetime | None = Field(None, description="Optional custom trial end date")
-    current_period_ends_at: datetime | None = Field(None, description="Optional custom billing period end date")
-    notes: str | None = Field(None, description="Administrative notes for this override")
+    status: SubscriptionStatus | None = Field(
+        None, description="Optional target subscription status"
+    )
+    trial_ends_at: datetime | None = Field(
+        None, description="Optional custom trial end date"
+    )
+    current_period_ends_at: datetime | None = Field(
+        None, description="Optional custom billing period end date"
+    )
+    notes: str | None = Field(
+        None, description="Administrative notes for this override"
+    )

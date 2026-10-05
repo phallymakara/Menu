@@ -83,7 +83,9 @@ async def get_sales_overview(
     )
     business = biz_res.scalar_one_or_none()
     if business is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Business not found."
+        )
 
     exchange_rate = business.exchange_rate or Decimal("4100.00")
     branch_name = None
@@ -108,19 +110,22 @@ async def get_sales_overview(
         OrderStatus.READY_TO_SERVE,
         OrderStatus.SERVED,
     ]
-    query = (
-        select(
-            func.coalesce(func.sum(Order.subtotal_usd), Decimal("0.00")).label("gross_sales"),
-            func.coalesce(func.sum(Order.tax_amount_usd), Decimal("0.00")).label("tax"),
-            func.coalesce(func.sum(Order.service_charge_amount_usd), Decimal("0.00")).label("service_charge"),
-            func.coalesce(func.sum(Order.total_amount_usd), Decimal("0.00")).label("net_revenue"),
-            func.count(Order.id).label("order_count"),
-        )
-        .where(
-            Order.business_id == business_id,
-            Order.organization_id == tenant.organization_id,
-            Order.status.in_(completed_statuses),
-        )
+    query = select(
+        func.coalesce(func.sum(Order.subtotal_usd), Decimal("0.00")).label(
+            "gross_sales"
+        ),
+        func.coalesce(func.sum(Order.tax_amount_usd), Decimal("0.00")).label("tax"),
+        func.coalesce(func.sum(Order.service_charge_amount_usd), Decimal("0.00")).label(
+            "service_charge"
+        ),
+        func.coalesce(func.sum(Order.total_amount_usd), Decimal("0.00")).label(
+            "net_revenue"
+        ),
+        func.count(Order.id).label("order_count"),
+    ).where(
+        Order.business_id == business_id,
+        Order.organization_id == tenant.organization_id,
+        Order.status.in_(completed_statuses),
     )
 
     if effective_branch_id:
@@ -140,13 +145,12 @@ async def get_sales_overview(
     order_count = int(row.order_count)
 
     # Calculate discounts from payments if available
-    pay_disc_query = (
-        select(func.coalesce(func.sum(Payment.discount_usd), Decimal("0.00")))
-        .where(
-            Payment.business_id == business_id,
-            Payment.organization_id == tenant.organization_id,
-            Payment.payment_status == PaymentStatus.COMPLETED,
-        )
+    pay_disc_query = select(
+        func.coalesce(func.sum(Payment.discount_usd), Decimal("0.00"))
+    ).where(
+        Payment.business_id == business_id,
+        Payment.organization_id == tenant.organization_id,
+        Payment.payment_status == PaymentStatus.COMPLETED,
     )
     if effective_branch_id:
         pay_disc_query = pay_disc_query.where(Payment.branch_id == effective_branch_id)
@@ -158,7 +162,6 @@ async def get_sales_overview(
     pay_disc_res = await session.execute(pay_disc_query)
     discounts = Decimal(str(pay_disc_res.scalar_one() or "0.00"))
 
-
     # 3. Session aggregation
     session_query = select(func.count(TableSession.id)).where(
         TableSession.business_id == business_id,
@@ -166,7 +169,9 @@ async def get_sales_overview(
         TableSession.status == TableSessionStatus.COMPLETED,
     )
     if effective_branch_id:
-        session_query = session_query.where(TableSession.branch_id == effective_branch_id)
+        session_query = session_query.where(
+            TableSession.branch_id == effective_branch_id
+        )
     if start_date:
         session_query = session_query.where(TableSession.created_at >= start_date)
     if end_date:
@@ -176,14 +181,17 @@ async def get_sales_overview(
     closed_sessions = int(session_res.scalar_one() or 0)
 
     # 4. Compute AOV & KHR conversions
-    aov = (net_revenue_usd / Decimal(order_count)).quantize(Decimal("0.01")) if order_count > 0 else Decimal("0.00")
+    aov = (
+        (net_revenue_usd / Decimal(order_count)).quantize(Decimal("0.01"))
+        if order_count > 0
+        else Decimal("0.00")
+    )
     session_spend = (
         (net_revenue_usd / Decimal(closed_sessions)).quantize(Decimal("0.01"))
         if closed_sessions > 0
         else Decimal("0.00")
     )
     net_khr = Decimal(_round_khr_to_hundred(net_revenue_usd * exchange_rate))
-
 
     return SalesOverviewMetrics(
         business_id=business_id,
@@ -231,7 +239,9 @@ async def get_branch_comparison(
     )
     business = biz_res.scalar_one_or_none()
     if business is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Business not found."
+        )
 
     base_rate = business.exchange_rate or Decimal("4100.00")
 
@@ -257,7 +267,9 @@ async def get_branch_comparison(
     order_query = (
         select(
             Order.branch_id,
-            func.coalesce(func.sum(Order.total_amount_usd), Decimal("0.00")).label("net_rev"),
+            func.coalesce(func.sum(Order.total_amount_usd), Decimal("0.00")).label(
+                "net_rev"
+            ),
             func.count(Order.id).label("order_cnt"),
         )
         .where(
@@ -298,16 +310,17 @@ async def get_branch_comparison(
 
     session_res = await session.execute(session_query)
     branch_session_data = {
-        row.branch_id: int(row.session_cnt)
-        for row in session_res.all()
+        row.branch_id: int(row.session_cnt) for row in session_res.all()
     }
 
-    total_network_revenue = sum(
-        rev for rev, _ in branch_order_data.values()
-    ) if branch_order_data else Decimal("0.00")
-    total_network_orders = sum(
-        cnt for _, cnt in branch_order_data.values()
-    ) if branch_order_data else 0
+    total_network_revenue = (
+        sum(rev for rev, _ in branch_order_data.values())
+        if branch_order_data
+        else Decimal("0.00")
+    )
+    total_network_orders = (
+        sum(cnt for _, cnt in branch_order_data.values()) if branch_order_data else 0
+    )
 
     comparison_items: list[BranchComparisonItem] = []
 
@@ -316,7 +329,11 @@ async def get_branch_comparison(
         sess_cnt = branch_session_data.get(b.id, 0)
         rate = b.exchange_rate or base_rate
         rev_khr = Decimal(_round_khr_to_hundred(rev_usd * rate))
-        aov = (rev_usd / Decimal(ord_cnt)).quantize(Decimal("0.01")) if ord_cnt > 0 else Decimal("0.00")
+        aov = (
+            (rev_usd / Decimal(ord_cnt)).quantize(Decimal("0.01"))
+            if ord_cnt > 0
+            else Decimal("0.00")
+        )
         share = (
             (rev_usd / total_network_revenue * Decimal("100")).quantize(Decimal("0.01"))
             if total_network_revenue > 0
@@ -491,15 +508,21 @@ async def get_payment_method_breakdown(
     )
     business = biz_res.scalar_one_or_none()
     if business is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Business not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Business not found."
+        )
 
     exchange_rate = business.exchange_rate or Decimal("4100.00")
 
     query = (
         select(
             Payment.payment_method,
-            func.coalesce(func.sum(Payment.grand_total_usd), Decimal("0.00")).label("tot_usd"),
-            func.coalesce(func.sum(Payment.grand_total_khr), Decimal("0.00")).label("tot_khr"),
+            func.coalesce(func.sum(Payment.grand_total_usd), Decimal("0.00")).label(
+                "tot_usd"
+            ),
+            func.coalesce(func.sum(Payment.grand_total_khr), Decimal("0.00")).label(
+                "tot_khr"
+            ),
             func.count(Payment.id).label("txn_count"),
         )
         .where(
@@ -520,7 +543,9 @@ async def get_payment_method_breakdown(
     res = await session.execute(query)
     rows = res.all()
 
-    total_collected_usd = sum(Decimal(str(r.tot_usd)) for r in rows) if rows else Decimal("0.00")
+    total_collected_usd = (
+        sum(Decimal(str(r.tot_usd)) for r in rows) if rows else Decimal("0.00")
+    )
     total_txns = sum(int(r.txn_count) for r in rows) if rows else 0
 
     methods: list[PaymentMethodMetric] = []
@@ -538,7 +563,9 @@ async def get_payment_method_breakdown(
 
         methods.append(
             PaymentMethodMetric(
-                payment_method=r.payment_method.value if hasattr(r.payment_method, "value") else str(r.payment_method),
+                payment_method=r.payment_method.value
+                if hasattr(r.payment_method, "value")
+                else str(r.payment_method),
                 total_amount_usd=usd_amt,
                 total_amount_khr=khr_amt,
                 transaction_count=int(r.txn_count),
@@ -546,7 +573,9 @@ async def get_payment_method_breakdown(
             )
         )
 
-    total_collected_khr = Decimal(_round_khr_to_hundred(total_collected_usd * exchange_rate))
+    total_collected_khr = Decimal(
+        _round_khr_to_hundred(total_collected_usd * exchange_rate)
+    )
 
     return PaymentBreakdownResponse(
         business_id=business_id,

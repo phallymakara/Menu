@@ -164,17 +164,19 @@ async def void_setup():
             base_price=Decimal("2.00"),
             is_active=True,
         )
-        session.add_all([
-            membership_owner,
-            membership_waiter,
-            business,
-            branch,
-            vip_area,
-            table,
-            cat,
-            item1,
-            item2,
-        ])
+        session.add_all(
+            [
+                membership_owner,
+                membership_waiter,
+                business,
+                branch,
+                vip_area,
+                table,
+                cat,
+                item1,
+                item2,
+            ]
+        )
         await session.commit()
 
         # Active TableSession

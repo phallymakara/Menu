@@ -329,4 +329,3 @@ async def get_session_bill_endpoint(
         table_session_id=session_id,
         tenant=tenant,
     )
-

@@ -102,12 +102,19 @@ async def generate_static_khqr_endpoint(
     current_user: Annotated[User, Depends(get_current_user)],
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    currency: Annotated[Literal["USD", "KHR"], Query(description="Default currency for static QR")] = "USD",
+    currency: Annotated[
+        Literal["USD", "KHR"], Query(description="Default currency for static QR")
+    ] = "USD",
 ) -> KHQRResponse:
     """
     Generates a static merchant KHQR code for acrylic table stands or counter stickers.
     """
-    account_id, merchant_name, merchant_city, acquiring_bank = await _resolve_bakong_merchant_info(
+    (
+        account_id,
+        merchant_name,
+        merchant_city,
+        acquiring_bank,
+    ) = await _resolve_bakong_merchant_info(
         session=session,
         business_id=business_id,
         branch_id=branch_id,

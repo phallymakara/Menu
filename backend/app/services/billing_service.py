@@ -108,7 +108,9 @@ async def _resolve_financial_settings(
     # 3. Exchange Rate (Branch override -> Business configuration -> 4100.00 default)
     if branch.exchange_rate is not None and branch.exchange_rate > Decimal("0.00"):
         exchange_rate = branch.exchange_rate
-    elif business.exchange_rate is not None and business.exchange_rate > Decimal("0.00"):
+    elif business.exchange_rate is not None and business.exchange_rate > Decimal(
+        "0.00"
+    ):
         exchange_rate = business.exchange_rate
     else:
         exchange_rate = Decimal("4100.00")
@@ -130,7 +132,8 @@ def calculate_financial_breakdown(
 
     if is_sc_inclusive and sc_pct > Decimal("0.00"):
         sc_amount_usd = (
-            discounted_subtotal - (discounted_subtotal / (Decimal("1") + sc_pct / Decimal("100")))
+            discounted_subtotal
+            - (discounted_subtotal / (Decimal("1") + sc_pct / Decimal("100")))
         ).quantize(Decimal("0.01"))
     else:
         sc_amount_usd = (discounted_subtotal * (sc_pct / Decimal("100"))).quantize(
@@ -139,11 +142,18 @@ def calculate_financial_breakdown(
 
     if is_tax_inclusive and tax_pct > Decimal("0.00"):
         tax_amount_usd = (
-            discounted_subtotal - (discounted_subtotal / (Decimal("1") + tax_pct / Decimal("100")))
+            discounted_subtotal
+            - (discounted_subtotal / (Decimal("1") + tax_pct / Decimal("100")))
         ).quantize(Decimal("0.01"))
     else:
-        taxable_base = discounted_subtotal if is_sc_inclusive else (discounted_subtotal + sc_amount_usd)
-        tax_amount_usd = (taxable_base * (tax_pct / Decimal("100"))).quantize(Decimal("0.01"))
+        taxable_base = (
+            discounted_subtotal
+            if is_sc_inclusive
+            else (discounted_subtotal + sc_amount_usd)
+        )
+        tax_amount_usd = (taxable_base * (tax_pct / Decimal("100"))).quantize(
+            Decimal("0.01")
+        )
 
     # If inclusive, grand total is the discounted subtotal. Otherwise, add components.
     if is_tax_inclusive and is_sc_inclusive:
@@ -187,7 +197,9 @@ def _build_round_and_consolidated_summaries(
     Excludes VOIDED items from the active bill subtotal and consolidations.
     """
     round_summaries: list[BillRoundSummary] = []
-    consolidated_dict: dict[tuple[UUID, UUID | None, str], BillConsolidatedItemSummary] = {}
+    consolidated_dict: dict[
+        tuple[UUID, UUID | None, str], BillConsolidatedItemSummary
+    ] = {}
     total_valid_subtotal_usd = Decimal("0.00")
     total_item_count = 0
 
@@ -301,7 +313,9 @@ async def get_table_session_bill_summary(
         )
     )
     if tenant:
-        sess_query = sess_query.where(TableSession.organization_id == tenant.organization_id)
+        sess_query = sess_query.where(
+            TableSession.organization_id == tenant.organization_id
+        )
 
     sess_res = await session.execute(sess_query)
     table_sess = sess_res.scalar_one_or_none()
@@ -326,11 +340,19 @@ async def get_table_session_bill_summary(
     orders = list(orders_res.scalars().all())
 
     # 3. Calculate Item Breakdown & Consolidations
-    rounds, consolidated, subtotal_usd, total_items = _build_round_and_consolidated_summaries(orders)
+    rounds, consolidated, subtotal_usd, total_items = (
+        _build_round_and_consolidated_summaries(orders)
+    )
 
     # 4. Resolve Financial Settings & Calculate Totals
     table = table_sess.table
-    tax_pct, sc_pct, exchange_rate, is_tax_inc, is_sc_inc = await _resolve_financial_settings(
+    (
+        tax_pct,
+        sc_pct,
+        exchange_rate,
+        is_tax_inc,
+        is_sc_inc,
+    ) = await _resolve_financial_settings(
         session=session,
         branch_id=branch_id,
         table_id=table_sess.table_id,
@@ -362,7 +384,9 @@ async def get_table_session_bill_summary(
     duration_mins = max(0, int((closed - opened).total_seconds() // 60))
 
     table_name = f"Table {table.table_number}" if table else None
-    dining_area_name = table.dining_area.name_en if table and table.dining_area else None
+    dining_area_name = (
+        table.dining_area.name_en if table and table.dining_area else None
+    )
 
     return BillSummaryResponse(
         table_session_id=table_sess.id,
@@ -416,9 +440,17 @@ async def get_order_bill_summary(
             detail="Order not found.",
         )
 
-    rounds, consolidated, subtotal_usd, total_items = _build_round_and_consolidated_summaries([order])
+    rounds, consolidated, subtotal_usd, total_items = (
+        _build_round_and_consolidated_summaries([order])
+    )
 
-    tax_pct, sc_pct, exchange_rate, is_tax_inc, is_sc_inc = await _resolve_financial_settings(
+    (
+        tax_pct,
+        sc_pct,
+        exchange_rate,
+        is_tax_inc,
+        is_sc_inc,
+    ) = await _resolve_financial_settings(
         session=session,
         branch_id=branch_id,
         table_id=order.table_id,
@@ -434,7 +466,9 @@ async def get_order_bill_summary(
     )
 
     table = order.table
-    dining_area_name = table.dining_area.name_en if table and table.dining_area else None
+    dining_area_name = (
+        table.dining_area.name_en if table and table.dining_area else None
+    )
 
     return BillSummaryResponse(
         table_session_id=order.table_session_id,

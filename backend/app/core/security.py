@@ -79,4 +79,3 @@ def decode_token_payload(token: str) -> dict:
         ValueError,
     ) as exc:
         raise InvalidTokenError("Invalid or expired access token.") from exc
-

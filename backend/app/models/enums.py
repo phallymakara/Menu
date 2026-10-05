@@ -198,7 +198,3 @@ class StockAdjustmentReason(StrEnum):
     TRANSFER_OUT = "transfer_out"
     TRANSFER_IN = "transfer_in"
     OTHER = "other"
-
-
-
-

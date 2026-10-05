@@ -92,7 +92,9 @@ async def list_admin_audit_logs(
         .outerjoin(User, AuditLog.user_id == User.id)
     )
     if organization_id:
-        count_subquery = count_subquery.where(AuditLog.organization_id == organization_id)
+        count_subquery = count_subquery.where(
+            AuditLog.organization_id == organization_id
+        )
     if user_id:
         count_subquery = count_subquery.where(AuditLog.user_id == user_id)
     if action:

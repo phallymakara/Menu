@@ -64,8 +64,12 @@ async def list_promotions_endpoint(
     current_user: Annotated[User, Depends(get_current_user)],
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    is_active: Annotated[bool | None, Query(description="Filter by active status")] = None,
-    branch_id: Annotated[UUID | None, Query(description="Filter by branch applicability")] = None,
+    is_active: Annotated[
+        bool | None, Query(description="Filter by active status")
+    ] = None,
+    branch_id: Annotated[
+        UUID | None, Query(description="Filter by branch applicability")
+    ] = None,
 ) -> list[PromotionResponse]:
     """Lists all promotions and coupons belonging to the business."""
     return await list_promotions(

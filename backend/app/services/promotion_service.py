@@ -96,7 +96,9 @@ async def list_promotions(
     if is_active is not None:
         query = query.where(Promotion.is_active == is_active)
     if branch_id is not None:
-        query = query.where((Promotion.branch_id.is_(None)) | (Promotion.branch_id == branch_id))
+        query = query.where(
+            (Promotion.branch_id.is_(None)) | (Promotion.branch_id == branch_id)
+        )
 
     query = query.order_by(Promotion.created_at.desc())
     res = await session.execute(query)
@@ -243,7 +245,10 @@ async def evaluate_discount(
             )
 
         # Usage limit
-        if promo.usage_limit is not None and promo.current_usage_count >= promo.usage_limit:
+        if (
+            promo.usage_limit is not None
+            and promo.current_usage_count >= promo.usage_limit
+        ):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Promo code '{clean_code}' has reached its maximum usage limit.",
@@ -258,7 +263,9 @@ async def evaluate_discount(
 
         # Calculate discount
         if promo.discount_type == DiscountType.PERCENTAGE:
-            calc_val = (subtotal_usd * (promo.discount_value / Decimal("100"))).quantize(Decimal("0.01"))
+            calc_val = (
+                subtotal_usd * (promo.discount_value / Decimal("100"))
+            ).quantize(Decimal("0.01"))
             if promo.max_discount_amount_usd is not None:
                 calc_val = min(calc_val, promo.max_discount_amount_usd)
             discount_usd = min(subtotal_usd, calc_val)
@@ -276,9 +283,15 @@ async def evaluate_discount(
             message="Promotion applied successfully.",
         )
 
-    elif manual_discount_type is not None and manual_discount_value is not None and manual_discount_value > 0:
+    elif (
+        manual_discount_type is not None
+        and manual_discount_value is not None
+        and manual_discount_value > 0
+    ):
         if manual_discount_type == DiscountType.PERCENTAGE:
-            calc_val = (subtotal_usd * (manual_discount_value / Decimal("100"))).quantize(Decimal("0.01"))
+            calc_val = (
+                subtotal_usd * (manual_discount_value / Decimal("100"))
+            ).quantize(Decimal("0.01"))
             discount_usd = min(subtotal_usd, calc_val)
             discount_pct = manual_discount_value
         else:  # FIXED_AMOUNT
