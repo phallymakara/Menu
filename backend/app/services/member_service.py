@@ -82,8 +82,17 @@ async def invite_member(
     Invites a new staff member by email or phone.
 
     Generates a secure token with a 7-day expiration.
+
+    Accounts that already exist on the platform are never modified here: their
+    password, status, and profile stay untouched, and they join as INVITED until
+    they accept the invitation themselves.
     """
-    await _verify_admin_access(session, tenant, org_id)
+    caller = await _verify_admin_access(session, tenant, org_id)
+
+    if payload.role in (StaffRole.OWNER, StaffRole.MANAGER) and not caller.is_owner:
+        raise PermissionDeniedError(
+            "Only organization owners can grant owner or manager roles."
+        )
 
     # 1. Check subscription staff limit entitlement
     from app.services.subscription_service import check_staff_entitlement
@@ -113,6 +122,7 @@ async def invite_member(
         user_result = await session.execute(select(User).where(or_(*conditions)))
         user = user_result.scalar_one_or_none()
 
+    is_new_user = user is None
     if user is None:
         # Create a user (activated if password is provided directly, otherwise invited)
         user = User(
@@ -126,12 +136,6 @@ async def invite_member(
         )
         session.add(user)
         await session.flush()
-    else:
-        if payload.avatar_url:
-            user.avatar_url = payload.avatar_url
-        if payload.password:
-            user.password_hash = hash_password(payload.password)
-            user.status = UserStatus.ACTIVE
 
     # 3. Check existing membership in this organization
     mem_result = await session.execute(
@@ -147,12 +151,34 @@ async def invite_member(
             "User is already an active member of this organization."
         )
 
+    # An unclaimed account belongs to the organization whose invitation created it.
+    # Letting another organization invite it would let that organization set its
+    # password through its own invitation token and claim the account.
+    if not is_new_user and user.status == UserStatus.INVITED and membership is None:
+        raise ResourceConflictError(
+            "This person already has a pending invitation. "
+            "They must accept it before joining another organization."
+        )
+
+    # Credentials may only be set for an account this organization created and
+    # that has not been claimed yet.
+    can_set_credentials = is_new_user or user.status == UserStatus.INVITED
+    activate_directly = bool(payload.password) and can_set_credentials
+    if activate_directly and not is_new_user and payload.password:
+        user.password_hash = hash_password(payload.password)
+        user.status = UserStatus.ACTIVE
+        user.is_verified = True
+        if payload.avatar_url:
+            user.avatar_url = payload.avatar_url
+
     # 4. Generate invitation token and 7-day expiration
     raw_token = secrets.token_urlsafe(32)
     token_hash = _hash_token(raw_token)
     expires_at = datetime.now(UTC) + timedelta(days=7)
 
-    membership_status = MembershipStatus.ACTIVE if payload.password else MembershipStatus.INVITED
+    membership_status = (
+        MembershipStatus.ACTIVE if activate_directly else MembershipStatus.INVITED
+    )
 
     if membership is None:
         membership = OrganizationMembership(
@@ -164,19 +190,20 @@ async def invite_member(
             job_title=payload.job_title,
             pos_pin=payload.pos_pin,
             is_owner=(payload.role == StaffRole.OWNER),
-            invitation_token_hash=token_hash if not payload.password else None,
-            invitation_expires_at=expires_at if not payload.password else None,
+            invitation_token_hash=None if activate_directly else token_hash,
+            invitation_expires_at=None if activate_directly else expires_at,
             invited_by_user_id=tenant.user_id,
         )
         session.add(membership)
     else:
         membership.branch_id = payload.branch_id
         membership.role = payload.role
+        membership.is_owner = payload.role == StaffRole.OWNER
         membership.status = membership_status
         membership.job_title = payload.job_title
         membership.pos_pin = payload.pos_pin
-        membership.invitation_token_hash = token_hash if not payload.password else None
-        membership.invitation_expires_at = expires_at if not payload.password else None
+        membership.invitation_token_hash = None if activate_directly else token_hash
+        membership.invitation_expires_at = None if activate_directly else expires_at
         membership.invited_by_user_id = tenant.user_id
 
     await session.commit()
@@ -249,13 +276,16 @@ async def accept_invitation(
     if expires_at < now:
         raise InvalidTokenError("Invitation token has expired.")
 
-    # Activate User
+    # Only an unclaimed account gets its credentials set here. An account that
+    # already exists keeps its password and profile; accepting just activates the
+    # membership, so holding an invitation token never grants access to it.
     user = membership.user
-    user.password_hash = hash_password(payload.password)
-    user.status = UserStatus.ACTIVE
-    user.is_verified = True
-    if payload.full_name:
-        user.full_name = payload.full_name
+    if user.status == UserStatus.INVITED:
+        user.password_hash = hash_password(payload.password)
+        user.status = UserStatus.ACTIVE
+        user.is_verified = True
+        if payload.full_name:
+            user.full_name = payload.full_name
 
     # Activate Membership
     membership.status = MembershipStatus.ACTIVE
@@ -440,6 +470,43 @@ async def update_member(
             raise TenantNotFoundError("Assigned branch not found in organization.")
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    is_self = membership.user_id == caller.user_id
+    if is_self and ("role" in update_data or "status" in update_data):
+        raise PermissionDeniedError("You cannot change your own role or status.")
+
+    if "role" in update_data and not caller.is_owner:
+        privileged = (StaffRole.OWNER, StaffRole.MANAGER)
+        if update_data["role"] in privileged or membership.role in privileged:
+            raise PermissionDeniedError(
+                "Only organization owners can grant or revoke owner or manager roles."
+            )
+
+    # Profile fields live on the platform-wide user account. Another organization
+    # must not be able to rewrite the identity of an account it does not own.
+    changes_identity = any(
+        field in update_data
+        and update_data[field] != getattr(membership.user, field)
+        and not (field == "full_name" and update_data[field] is None)
+        for field in ("full_name", "phone", "email", "avatar_url")
+    )
+    if changes_identity:
+        other_memberships = await session.execute(
+            select(OrganizationMembership.id)
+            .where(
+                OrganizationMembership.user_id == membership.user_id,
+                OrganizationMembership.organization_id != org_id,
+            )
+            .limit(1)
+        )
+        if (
+            membership.user.is_platform_admin
+            or other_memberships.scalar_one_or_none() is not None
+        ):
+            raise PermissionDeniedError(
+                "This account is shared with other organizations. "
+                "Only its owner can change its profile details."
+            )
 
     # User fields
     if "full_name" in update_data and update_data["full_name"] is not None:
