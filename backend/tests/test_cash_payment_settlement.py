@@ -509,3 +509,82 @@ async def test_get_payment_transaction_details(payment_setup):
     assert res_get.json()["id"] == payment_id
     assert res_get.json()["payment_method"] == "cash"
     assert res_get.json()["payment_status"] == "completed"
+
+
+def _session_url(setup: dict) -> str:
+    return (
+        f"/api/v1/businesses/{setup['business_id']}/branches/{setup['branch_id']}"
+        f"/table-sessions/{setup['table_session_id']}"
+    )
+
+
+@pytest.mark.anyio
+async def test_session_can_be_settled_after_bill_request(payment_setup):
+    """A guest asking for the bill must not block payment (it previously returned 409)."""
+    from app.models.enums import TableSessionStatus
+    from app.models.table_session import TableSession
+
+    async with payment_setup["sessionmaker"]() as s:
+        table_session = await s.get(TableSession, payment_setup["table_session_id"])
+        assert table_session is not None
+        table_session.status = TableSessionStatus.BILL_REQUESTED
+        await s.commit()
+
+    async def override_get_db():
+        async with payment_setup["sessionmaker"]() as s:
+            yield s
+
+    app.dependency_overrides[get_db_session] = override_get_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            res = await client.post(
+                f"{_session_url(payment_setup)}/payments/cash",
+                headers={"Authorization": f"Bearer {payment_setup['token']}"},
+                json={"amount_tendered_usd": "30.00"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert res.status_code == status.HTTP_201_CREATED
+
+
+@pytest.mark.anyio
+async def test_discount_lowers_tax_inclusive_bill(payment_setup):
+    """With tax-inclusive prices, a discount lowers the total instead of adding tax on top."""
+    async with payment_setup["sessionmaker"]() as s:
+        business = await s.get(Business, payment_setup["business_id"])
+        assert business is not None
+        business.is_tax_inclusive = True
+        await s.commit()
+
+    async def override_get_db():
+        async with payment_setup["sessionmaker"]() as s:
+            yield s
+
+    headers = {"Authorization": f"Bearer {payment_setup['token']}"}
+    app.dependency_overrides[get_db_session] = override_get_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            bill = await client.get(f"{_session_url(payment_setup)}/bill", headers=headers)
+            assert bill.status_code == status.HTTP_200_OK
+            financials = bill.json()["financials"]
+            undiscounted_total = Decimal(financials["grand_total_usd"])
+            sc_rate = Decimal(financials["service_charge_percent"]) / Decimal("100")
+
+            res = await client.post(
+                f"{_session_url(payment_setup)}/payments/cash",
+                headers=headers,
+                json={
+                    "amount_tendered_usd": "100.00",
+                    "manual_discount_type": "fixed_amount",
+                    "manual_discount_value": "1.00",
+                    "discount_reason": "Regression test",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert res.status_code == status.HTTP_201_CREATED
+    # Tax is already inside the prices; only the exclusive service charge applies on top.
+    discount_with_service_charge = (Decimal("1.00") * (1 + sc_rate)).quantize(Decimal("0.01"))
+    assert Decimal(res.json()["grand_total_usd"]) == undiscounted_total - discount_with_service_charge

@@ -34,6 +34,7 @@ from app.models.payment import Payment
 from app.models.promotion import Promotion
 from app.models.table_session import TableSession
 from app.models.user import User
+from app.schemas.billing import BillFinancialBreakdown, BillSummaryResponse
 from app.schemas.payment import (
     CashPaymentRequest,
     KHQRPaymentRequest,
@@ -41,6 +42,7 @@ from app.schemas.payment import (
 )
 from app.services.audit_service import record_audit_log
 from app.services.billing_service import (
+    _resolve_financial_settings,
     _round_khr_to_hundred,
     calculate_financial_breakdown,
     get_order_bill_summary,
@@ -55,6 +57,41 @@ logger = structlog.get_logger("app.services.payment_service")
 # ==============================================================================
 # 1. CORE CONSTANTS & PAYMENT IDENTIFIER GENERATORS
 # ==============================================================================
+
+
+# A session can be settled while it is open or after the guest has asked for the bill.
+_SETTLEABLE_SESSION_STATUSES = (
+    TableSessionStatus.ACTIVE,
+    TableSessionStatus.BILL_REQUESTED,
+)
+
+
+async def _discounted_financials(
+    session: AsyncSession,
+    branch_id: UUID,
+    bill: BillSummaryResponse,
+    discount_usd: Decimal,
+) -> BillFinancialBreakdown:
+    """
+    Recomputes a bill's breakdown after a discount.
+
+    Uses the bill's own tax and service-charge settings, including the inclusive
+    flags, so applying a discount can only lower the amount due.
+    """
+    _, _, _, is_tax_inclusive, is_sc_inclusive = await _resolve_financial_settings(
+        session=session,
+        branch_id=branch_id,
+        table_id=bill.table_id,
+    )
+    return calculate_financial_breakdown(
+        subtotal_usd=bill.financials.subtotal_usd,
+        tax_pct=bill.financials.tax_percent,
+        sc_pct=bill.financials.service_charge_percent,
+        exchange_rate=bill.financials.exchange_rate,
+        discount_usd=discount_usd,
+        is_tax_inclusive=is_tax_inclusive,
+        is_sc_inclusive=is_sc_inclusive,
+    )
 
 
 def _generate_payment_number() -> str:
@@ -193,7 +230,7 @@ async def settle_table_session_cash_payment(
             detail="Table dining session not found.",
         )
 
-    if table_sess.status != TableSessionStatus.ACTIVE:
+    if table_sess.status not in _SETTLEABLE_SESSION_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This table session has already been settled.",
@@ -222,11 +259,10 @@ async def settle_table_session_cash_payment(
     )
 
     if eval_result.discount_usd > Decimal("0.00"):
-        financials = calculate_financial_breakdown(
-            subtotal_usd=bill.financials.subtotal_usd,
-            tax_pct=bill.financials.tax_percent,
-            sc_pct=bill.financials.service_charge_percent,
-            exchange_rate=bill.financials.exchange_rate,
+        financials = await _discounted_financials(
+            session=session,
+            branch_id=branch_id,
+            bill=bill,
             discount_usd=eval_result.discount_usd,
         )
         if eval_result.promotion_id:
@@ -440,7 +476,7 @@ async def settle_table_session_khqr_payment(
             detail="Table dining session not found.",
         )
 
-    if table_sess.status != TableSessionStatus.ACTIVE:
+    if table_sess.status not in _SETTLEABLE_SESSION_STATUSES:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This table session has already been settled.",
@@ -467,11 +503,10 @@ async def settle_table_session_khqr_payment(
     )
 
     if eval_result.discount_usd > Decimal("0.00"):
-        financials = calculate_financial_breakdown(
-            subtotal_usd=bill.financials.subtotal_usd,
-            tax_pct=bill.financials.tax_percent,
-            sc_pct=bill.financials.service_charge_percent,
-            exchange_rate=bill.financials.exchange_rate,
+        financials = await _discounted_financials(
+            session=session,
+            branch_id=branch_id,
+            bill=bill,
             discount_usd=eval_result.discount_usd,
         )
         if eval_result.promotion_id:
@@ -691,11 +726,10 @@ async def settle_order_cash_payment(
     )
 
     if eval_result.discount_usd > Decimal("0.00"):
-        financials = calculate_financial_breakdown(
-            subtotal_usd=bill.financials.subtotal_usd,
-            tax_pct=bill.financials.tax_percent,
-            sc_pct=bill.financials.service_charge_percent,
-            exchange_rate=bill.financials.exchange_rate,
+        financials = await _discounted_financials(
+            session=session,
+            branch_id=branch_id,
+            bill=bill,
             discount_usd=eval_result.discount_usd,
         )
         if eval_result.promotion_id:
@@ -901,11 +935,10 @@ async def settle_order_khqr_payment(
     )
 
     if eval_result.discount_usd > Decimal("0.00"):
-        financials = calculate_financial_breakdown(
-            subtotal_usd=bill.financials.subtotal_usd,
-            tax_pct=bill.financials.tax_percent,
-            sc_pct=bill.financials.service_charge_percent,
-            exchange_rate=bill.financials.exchange_rate,
+        financials = await _discounted_financials(
+            session=session,
+            branch_id=branch_id,
+            bill=bill,
             discount_usd=eval_result.discount_usd,
         )
         if eval_result.promotion_id:
