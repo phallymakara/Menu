@@ -159,6 +159,15 @@ def setup_logging(log_level: str = "INFO", environment: str = "development") -> 
         log.propagate = False
         log.setLevel(numeric_level)
 
+    # At INFO, SQLAlchemy logs every statement with its bind parameters (password
+    # hashes, PINs, tokens, emails), and httpx logs full request URLs, which for
+    # Telegram contain the bot token. Keep them at WARNING; local SQL echo is still
+    # available through the engine's echo flag (DEBUG=true).
+    for noisy_logger in ("sqlalchemy.engine", "httpx", "httpcore"):
+        logging.getLogger(noisy_logger).setLevel(
+            max(numeric_level, logging.WARNING)
+        )
+
     logger.info(
         "Logging system initialized",
         log_level=log_level,

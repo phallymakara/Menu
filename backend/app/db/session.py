@@ -11,6 +11,8 @@ from app.core.config import settings
 engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
+    # Keep bind parameters out of logs and error messages outside local debugging.
+    hide_parameters=not settings.debug,
     pool_pre_ping=True,
     pool_size=settings.database_pool_size,
     max_overflow=settings.database_max_overflow,
