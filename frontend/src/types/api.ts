@@ -2703,6 +2703,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/invitations/accept-existing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Staff Invitation As Current User
+         * @description Accept an invitation addressed to the signed-in account.
+         */
+        post: operations["accept_staff_invitation_as_current_user_api_v1_auth_invitations_accept_existing_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organizations/{org_id}/members/{member_id}": {
         parameters: {
             query?: never;
@@ -6040,6 +6060,17 @@ export interface components {
              * @description Optional update to full name
              */
             full_name?: string | null;
+        };
+        /**
+         * InviteAcceptExisting
+         * @description Schema for a signed-in user accepting an invitation to their existing account.
+         */
+        InviteAcceptExisting: {
+            /**
+             * Token
+             * @description Raw invitation token received in invite link
+             */
+            token: string;
         };
         /**
          * InviteResponse
@@ -14961,6 +14992,39 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["InviteAccept"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_staff_invitation_as_current_user_api_v1_auth_invitations_accept_existing_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InviteAcceptExisting"];
             };
         };
         responses: {

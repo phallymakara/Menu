@@ -9,6 +9,7 @@ from app.core.exceptions import ResourceConflictError, TenantNotFoundError
 from app.core.tenant import TenantContext
 from app.models.branch import Branch
 from app.models.dining_area import DiningArea
+from app.models.enums import TableShape, TableStatus
 from app.models.restaurant_table import RestaurantTable
 from app.schemas.restaurant_table import (
     RestaurantTableBatchCreate,
@@ -76,8 +77,8 @@ def _map_table_to_response(table: RestaurantTable) -> RestaurantTableResponse:
         name=table.name,
         min_capacity=table.min_capacity,
         max_capacity=table.max_capacity,
-        shape=table.shape,
-        status=table.status,
+        shape=TableShape(table.shape),
+        status=TableStatus(table.status),
         qr_code_token=table.qr_code_token,
         display_order=table.display_order,
         is_active=table.is_active,
