@@ -377,6 +377,20 @@ class StockAdjustmentLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
 
+    # Inventory item unit cost at the time of a recipe depletion; drives COGS.
+    unit_cost_usd: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 4),
+        nullable=True,
+    )
+
+    # Order item whose recipe produced this entry (recipe depletion and waste).
+    order_item_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("order_items.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
+
     # Relationships
     branch: Mapped[Branch] = relationship(lazy="selectin")
     inventory_item: Mapped[InventoryItem] = relationship(lazy="selectin")

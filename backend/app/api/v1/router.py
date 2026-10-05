@@ -27,6 +27,7 @@ from app.api.v1.endpoints.khqr import router as khqr_router
 from app.api.v1.endpoints.kitchen_stations import router as kitchen_stations_router
 from app.api.v1.endpoints.media import router as media_router
 from app.api.v1.endpoints.members import router as members_router
+from app.api.v1.endpoints.menu_item_recipes import router as menu_item_recipes_router
 from app.api.v1.endpoints.menu_items import router as menu_items_router
 from app.api.v1.endpoints.modifiers import router as modifiers_router
 from app.api.v1.endpoints.order_voids import router as order_voids_router
@@ -79,6 +80,7 @@ api_router.include_router(kds_router)
 api_router.include_router(categories_router)
 api_router.include_router(menu_items_router)
 api_router.include_router(item_variants_router)
+api_router.include_router(menu_item_recipes_router)
 api_router.include_router(modifiers_router)
 api_router.include_router(combos_router)
 api_router.include_router(branch_menu_router)

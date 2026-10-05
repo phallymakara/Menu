@@ -2,12 +2,20 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import (
     StockAdjustmentReason,
     StockTransferStatus,
     UnitOfMeasure,
+)
+
+# Written only by recipe (BOM) depletion; manual adjustments may not use them.
+SYSTEM_STOCK_ADJUSTMENT_REASONS = frozenset(
+    {
+        StockAdjustmentReason.RECIPE_DEPLETION,
+        StockAdjustmentReason.RECIPE_WASTE,
+    }
 )
 
 
@@ -83,6 +91,19 @@ class BranchStockAdjustRequest(BaseModel):
     reason: StockAdjustmentReason = StockAdjustmentReason.STOCK_TAKE_AUDIT
     notes: str | None = Field(default=None, max_length=500)
 
+    @field_validator("reason")
+    @classmethod
+    def _reject_system_reasons(
+        cls, value: StockAdjustmentReason
+    ) -> StockAdjustmentReason:
+        """Rejects reasons that only recipe depletion may record."""
+        if value in SYSTEM_STOCK_ADJUSTMENT_REASONS:
+            raise ValueError(
+                f"Reason '{value.value}' is recorded automatically by recipe "
+                "depletion and cannot be used for a manual adjustment."
+            )
+        return value
+
 
 class StockAdjustmentLogResponse(BaseModel):
     id: UUID
@@ -97,6 +118,8 @@ class StockAdjustmentLogResponse(BaseModel):
     notes: str | None = None
     adjusted_by_user_id: UUID
     adjusted_by_name: str | None = None
+    unit_cost_usd: Decimal | None = None
+    order_item_id: UUID | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
