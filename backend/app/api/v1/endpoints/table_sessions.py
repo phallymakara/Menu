@@ -5,6 +5,10 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.permissions import (
+    Permission,
+    require_permission_for_writes,
+)
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.exceptions import ResourceConflictError, TenantNotFoundError
 from app.core.tenant import TenantContext
@@ -38,6 +42,7 @@ logger = structlog.get_logger("app.api.v1.endpoints.table_sessions")
 router = APIRouter(
     prefix="/businesses/{business_id}/branches/{branch_id}",
     tags=["Table Sessions & Live Dashboard"],
+    dependencies=[Depends(require_permission_for_writes(Permission.SERVE_TABLES))],
 )
 
 

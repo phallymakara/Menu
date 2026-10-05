@@ -5,6 +5,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.permissions import Permission, require_permission
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.exceptions import ResourceConflictError, TenantNotFoundError
 from app.core.tenant import TenantContext
@@ -36,6 +37,7 @@ router = APIRouter(
 
 @router.post(
     "",
+    dependencies=[Depends(require_permission(Permission.MANAGE_FLOOR))],
     response_model=RestaurantTableResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -71,6 +73,7 @@ async def create_table_endpoint(
 
 @router.post(
     "/batch",
+    dependencies=[Depends(require_permission(Permission.MANAGE_FLOOR))],
     response_model=list[RestaurantTableResponse],
     status_code=status.HTTP_201_CREATED,
 )
@@ -174,6 +177,7 @@ async def get_table_endpoint(
 
 @router.patch(
     "/{table_id}",
+    dependencies=[Depends(require_permission(Permission.MANAGE_FLOOR))],
     response_model=RestaurantTableResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -206,6 +210,7 @@ async def update_table_endpoint(
 
 @router.patch(
     "/{table_id}/status",
+    dependencies=[Depends(require_permission(Permission.SERVE_TABLES))],
     response_model=RestaurantTableResponse,
     status_code=status.HTTP_200_OK,
 )
@@ -238,6 +243,7 @@ async def update_table_status_endpoint(
 
 @router.delete(
     "/{table_id}",
+    dependencies=[Depends(require_permission(Permission.MANAGE_FLOOR))],
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_table_endpoint(

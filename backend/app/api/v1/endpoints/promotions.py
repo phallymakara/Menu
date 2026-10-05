@@ -5,6 +5,10 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_user
+from app.api.dependencies.permissions import (
+    Permission,
+    require_permission_for_writes,
+)
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
@@ -28,6 +32,7 @@ from app.services.promotion_service import (
 router = APIRouter(
     prefix="/businesses/{business_id}/promotions",
     tags=["Discounts & Promotions"],
+    dependencies=[Depends(require_permission_for_writes(Permission.MANAGE_PROMOTIONS))],
 )
 
 

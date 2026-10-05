@@ -5,6 +5,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.permissions import Permission, require_permission
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.exceptions import (
     EntitlementLimitExceededError,
@@ -32,6 +33,7 @@ router = APIRouter(
 
 @router.post(
     "",
+    dependencies=[Depends(require_permission(Permission.MANAGE_BRANCHES))],
     response_model=BranchResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -129,6 +131,7 @@ async def get_tenant_branch(
 
 @router.patch(
     "/{branch_id}",
+    dependencies=[Depends(require_permission(Permission.CONFIGURE_BRANCH))],
     response_model=BranchResponse,
 )
 async def update_tenant_branch(
@@ -165,6 +168,7 @@ async def update_tenant_branch(
 
 @router.delete(
     "/{branch_id}",
+    dependencies=[Depends(require_permission(Permission.MANAGE_BRANCHES))],
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_tenant_branch(
