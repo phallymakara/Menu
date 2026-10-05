@@ -9,13 +9,14 @@ from sqlalchemy.orm import selectinload
 from app.core.security import decode_access_token
 from app.core.ws_manager import ws_manager
 from app.db.session import AsyncSessionFactory
+from app.models.branch import Branch
 from app.models.enums import (
-    MembershipStatus,
+    OrganizationStatus,
     StaffRole,
     TableSessionStatus,
     UserStatus,
 )
-
+from app.models.organization import Organization
 from app.models.organization_membership import OrganizationMembership
 from app.models.table_session import TableSession
 from app.models.user import User
@@ -56,8 +57,21 @@ async def websocket_staff_endpoint(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="User inactive")
             return
 
+        # Only memberships in the branch's own (active) organization grant access;
+        # being an owner or manager somewhere else grants nothing here.
+        branch_org_res = await session.execute(
+            select(Branch.organization_id)
+            .join(Organization, Organization.id == Branch.organization_id)
+            .where(
+                Branch.id == branch_id,
+                Organization.status == OrganizationStatus.ACTIVE,
+            )
+        )
+        branch_org_id = branch_org_res.scalar_one_or_none()
+
         mem_stmt = select(OrganizationMembership).where(
             OrganizationMembership.user_id == user_id,
+            OrganizationMembership.organization_id == branch_org_id,
         )
         mem_res = await session.execute(mem_stmt)
         all_memberships = mem_res.scalars().all()
