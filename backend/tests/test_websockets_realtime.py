@@ -292,3 +292,26 @@ async def test_live_broadcast_order_and_payment_events(ws_setup, monkeypatch):
 
     ws_manager.disconnect(mock_guest_ws, test_room)
     ws_manager.disconnect(mock_pos_ws, pos_room)
+
+
+@pytest.mark.anyio
+async def test_owner_of_another_org_cannot_join_branch_room(ws_setup, monkeypatch):
+    """An owner in a different organization must not receive this branch's live events."""
+    from starlette.websockets import WebSocketDisconnect
+
+    from app.api.v1.endpoints import websockets
+    from tests.test_staff_management import setup_test_tenant
+
+    monkeypatch.setattr(websockets, "AsyncSessionFactory", ws_setup["sessionmaker"])
+    async with ws_setup["sessionmaker"]() as s:
+        outsider, _, _, _ = await setup_test_tenant(
+            s, org_name="Outsider Org", email="outsider-owner@example.com"
+        )
+
+    client = TestClient(app)
+    token = create_access_token(outsider.id)
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect(
+            f"/api/v1/ws/branches/{ws_setup['branch_id']}?token={token}&room_type=pos"
+        ):
+            pass
