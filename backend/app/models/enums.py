@@ -82,6 +82,25 @@ class TableSessionStatus(StrEnum):
     TRANSFERRED = "transferred"
 
 
+class ServiceRequestType(StrEnum):
+    """What a guest is asking staff for from their table."""
+
+    CALL_STAFF = "call_staff"
+    WATER = "water"
+    CLEANING = "cleaning"
+    BILL = "bill"
+    CUSTOM = "custom"
+
+
+class ServiceRequestStatus(StrEnum):
+    """Lifecycle of a guest service request: open, then acknowledged, then resolved."""
+
+    OPEN = "open"
+    ACKNOWLEDGED = "acknowledged"
+    RESOLVED = "resolved"
+    CANCELLED = "cancelled"
+
+
 class OrderStatus(StrEnum):
     PENDING = "pending"
     CONFIRMED = "confirmed"

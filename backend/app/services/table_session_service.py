@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
+from app.core.ws_manager import ws_manager
 from app.models.branch import Branch
 from app.models.dining_area import DiningArea
 from app.models.enums import TableSessionStatus, TableShape, TableStatus
@@ -264,6 +265,22 @@ async def request_session_bill(
         await session.commit()
 
     logger.info("Bill requested for session", session_code=sess_obj.session_code)
+
+    # Staff learn about the request live; a repeat request (already bill_requested)
+    # returned earlier and does not notify again.
+    await ws_manager.broadcast_to_rooms(
+        rooms=[f"branch:{branch_id}:pos"],
+        event="table_session.bill_requested",
+        data={
+            "table_session_id": str(sess_obj.id),
+            "session_code": sess_obj.session_code,
+            "table_id": str(table.id),
+            "table_number": table.table_number,
+            "bill_requested_at": sess_obj.bill_requested_at,
+        },
+        business_id=business_id,
+        branch_id=branch_id,
+    )
     return _map_session_to_response(sess_obj, table.table_number)
 
 

@@ -5,7 +5,12 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import TenantNotFoundError
+from app.api.dependencies.guest_session import TableSessionToken
+from app.core.exceptions import (
+    InvalidTokenError,
+    ResourceConflictError,
+    TenantNotFoundError,
+)
 from app.db.session import get_db_session
 from app.schemas.billing import BillSummaryResponse
 from app.schemas.order import (
@@ -14,9 +19,17 @@ from app.schemas.order import (
     TableSessionOrdersSummaryResponse,
 )
 from app.schemas.restaurant_table import TablePublicVerifyResponse
+from app.schemas.service_request import (
+    GuestServiceRequestCreate,
+    GuestServiceRequestResponse,
+)
 from app.schemas.table_session import (
     TableSessionOpenRequest,
     TableSessionResponse,
+)
+from app.services.service_request_service import (
+    create_guest_service_request,
+    list_guest_service_requests,
 )
 from app.services.table_qr_service import verify_public_table
 from app.services.table_session_service import (
@@ -201,3 +214,72 @@ async def get_public_table_session_bill_endpoint(
         session=session,
         session_token=session_token,
     )
+
+
+def _invalid_guest_session(exc: InvalidTokenError) -> HTTPException:
+    """Maps a rejected table session token to 401, matching the missing-header error."""
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=str(exc),
+        headers={"WWW-Authenticate": "APIKey"},
+    )
+
+
+@router.post(
+    "/service-requests",
+    response_model=GuestServiceRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Guest asks staff for help from the table (call staff, water, bill, ...)",
+)
+async def create_public_service_request_endpoint(
+    branch_id: Annotated[UUID, Query(description="Branch ID from scanned QR")],
+    table_id: Annotated[UUID, Query(description="Table ID from scanned QR")],
+    session_token: TableSessionToken,
+    payload: GuestServiceRequestCreate,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> GuestServiceRequestResponse:
+    """
+    Raises a service request from the guest's live table session.
+
+    Only an active or bill-requested session of this table can be used. Returns 409
+    when the session already has an open request of the same type.
+    """
+    try:
+        return await create_guest_service_request(
+            session=session,
+            branch_id=branch_id,
+            table_id=table_id,
+            session_token=session_token,
+            payload=payload,
+        )
+    except InvalidTokenError as exc:
+        raise _invalid_guest_session(exc) from exc
+    except ResourceConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/service-requests",
+    response_model=list[GuestServiceRequestResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Guest views the service requests of their own table session",
+)
+async def list_public_service_requests_endpoint(
+    branch_id: Annotated[UUID, Query(description="Branch ID from scanned QR")],
+    table_id: Annotated[UUID, Query(description="Table ID from scanned QR")],
+    session_token: TableSessionToken,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> list[GuestServiceRequestResponse]:
+    """Lists the requests raised during the guest's own table session, newest first."""
+    try:
+        return await list_guest_service_requests(
+            session=session,
+            branch_id=branch_id,
+            table_id=table_id,
+            session_token=session_token,
+        )
+    except InvalidTokenError as exc:
+        raise _invalid_guest_session(exc) from exc
