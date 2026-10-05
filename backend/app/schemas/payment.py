@@ -87,7 +87,6 @@ class KHQRPaymentRequest(BaseModel):
     )
 
 
-
 class PaymentResponse(BaseModel):
     """Financial settlement transaction response."""
 

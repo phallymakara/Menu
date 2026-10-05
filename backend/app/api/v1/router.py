@@ -74,7 +74,6 @@ api_router.include_router(analytics_router)
 api_router.include_router(inventory_router)
 
 
-
 api_router.include_router(kitchen_stations_router)
 api_router.include_router(kds_router)
 api_router.include_router(categories_router)
@@ -87,7 +86,3 @@ api_router.include_router(media_router)
 api_router.include_router(members_router)
 api_router.include_router(subscriptions_router)
 api_router.include_router(audit_logs_router)
-
-
-
-

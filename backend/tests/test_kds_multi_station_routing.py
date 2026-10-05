@@ -140,11 +140,20 @@ async def kds_setup():
             status="active",
         )
 
-        session.add_all([
-            org, business, branch_a, branch_b,
-            owner_user, cook_a_user, cook_b_user,
-            owner_mem, cook_a_mem, cook_b_mem,
-        ])
+        session.add_all(
+            [
+                org,
+                business,
+                branch_a,
+                branch_b,
+                owner_user,
+                cook_a_user,
+                cook_b_user,
+                owner_mem,
+                cook_a_mem,
+                cook_b_mem,
+            ]
+        )
         await session.flush()
 
         # Kitchen Stations for Branch A
@@ -220,7 +229,13 @@ async def kds_setup():
         await session.flush()
 
         # Tables & Sessions
-        da_a = DiningArea(id=uuid4(), organization_id=org.id, business_id=business.id, branch_id=branch_a.id, name_en="Main Dining")
+        da_a = DiningArea(
+            id=uuid4(),
+            organization_id=org.id,
+            business_id=business.id,
+            branch_id=branch_a.id,
+            name_en="Main Dining",
+        )
         table_a = RestaurantTable(
             id=uuid4(),
             organization_id=org.id,
@@ -522,6 +537,7 @@ async def test_multi_branch_kds_isolation(kds_setup):
     - Branch A cook attempting to access Branch B KDS -> 403 Forbidden
     - Brand Owner accessing both Branch A and Branch B -> 200 OK
     """
+
     async def override_get_db():
         async with kds_setup["sessionmaker"]() as s:
             yield s

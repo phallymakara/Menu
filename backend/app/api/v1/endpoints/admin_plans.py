@@ -41,7 +41,9 @@ router = APIRouter(
 async def list_admin_plans_endpoint(
     admin_user: Annotated[User, Depends(get_current_platform_admin)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    include_inactive: Annotated[bool, Query(description="Include inactive/archived plans")] = True,
+    include_inactive: Annotated[
+        bool, Query(description="Include inactive/archived plans")
+    ] = True,
 ) -> list[AdminPlanListItem]:
     """
     Returns all subscription plans and their active subscriber counts.

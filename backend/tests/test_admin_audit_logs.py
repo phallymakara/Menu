@@ -164,12 +164,16 @@ async def test_admin_query_platform_audit_logs(admin_audit_setup):
         assert len(data["items"]) == 3
 
         # Check tenant joined info on log3
-        item_void_log = next(i for i in data["items"] if i["action"] == "order.item_voided")
+        item_void_log = next(
+            i for i in data["items"] if i["action"] == "order.item_voided"
+        )
         assert item_void_log["organization_name"] == "Angkor Bistro Group"
         assert item_void_log["user_name"] == "Bistro Owner"
 
         # Check platform system log on log1
-        plan_created_log = next(i for i in data["items"] if i["action"] == "admin.plan.created")
+        plan_created_log = next(
+            i for i in data["items"] if i["action"] == "admin.plan.created"
+        )
         assert plan_created_log["organization_name"] is None
         assert plan_created_log["user_name"] == "Master Platform Admin"
 

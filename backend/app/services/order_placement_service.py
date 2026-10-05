@@ -436,8 +436,12 @@ async def place_guest_order(
         data={
             "order_id": str(reloaded_order.id),
             "order_number": reloaded_order.order_number,
-            "table_id": str(reloaded_order.table_id) if reloaded_order.table_id else None,
-            "table_session_id": str(reloaded_order.table_session_id) if reloaded_order.table_session_id else None,
+            "table_id": str(reloaded_order.table_id)
+            if reloaded_order.table_id
+            else None,
+            "table_session_id": str(reloaded_order.table_session_id)
+            if reloaded_order.table_session_id
+            else None,
             "status": reloaded_order.status.value,
             "round_number": reloaded_order.round_number,
             "total_amount_usd": str(reloaded_order.total_amount_usd),
@@ -591,8 +595,12 @@ async def place_staff_order(
         data={
             "order_id": str(reloaded_order.id),
             "order_number": reloaded_order.order_number,
-            "table_id": str(reloaded_order.table_id) if reloaded_order.table_id else None,
-            "table_session_id": str(reloaded_order.table_session_id) if reloaded_order.table_session_id else None,
+            "table_id": str(reloaded_order.table_id)
+            if reloaded_order.table_id
+            else None,
+            "table_session_id": str(reloaded_order.table_session_id)
+            if reloaded_order.table_session_id
+            else None,
             "status": reloaded_order.status.value,
             "round_number": reloaded_order.round_number,
             "total_amount_usd": str(reloaded_order.total_amount_usd),

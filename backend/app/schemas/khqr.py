@@ -29,7 +29,9 @@ class KHQRResponse(BaseModel):
     """Complete KHQR generation payload with EMVCo string and Base64 QR image."""
 
     qr_string: str = Field(description="Standard EMVCo Tag-Length-Value payload string")
-    qr_image_data_url: str = Field(description="Base64 Data URI for rendering <img> in HTML/React")
+    qr_image_data_url: str = Field(
+        description="Base64 Data URI for rendering <img> in HTML/React"
+    )
     currency: Literal["USD", "KHR"]
     amount: Decimal = Field(description="Payable amount in selected currency")
     amount_usd: Decimal

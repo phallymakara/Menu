@@ -322,7 +322,10 @@ async def test_admin_reset_user_password(admin_user_setup):
         # 1. Reset password
         res_reset = await ac.post(
             f"/api/v1/admin/users/{target_id}/reset-password",
-            json={"new_password": "NewBrandNewPassword2026!", "reason": "Customer forgot password"},
+            json={
+                "new_password": "NewBrandNewPassword2026!",
+                "reason": "Customer forgot password",
+            },
             headers={"Authorization": f"Bearer {token}"},
         )
         assert res_reset.status_code == 200

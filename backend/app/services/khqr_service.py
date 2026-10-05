@@ -34,7 +34,7 @@ def calculate_crc16(data: str) -> str:
     """
     crc = 0xFFFF
     for byte in data.encode("utf-8"):
-        crc ^= (byte << 8)
+        crc ^= byte << 8
         for _ in range(8):
             if crc & 0x8000:
                 crc = ((crc << 1) ^ 0x1021) & 0xFFFF
@@ -163,7 +163,11 @@ async def _resolve_bakong_merchant_info(
 
     # 2. Merchant Name
     merchant_name = (
-        (branch.bakong_merchant_name if branch and branch.bakong_merchant_name else None)
+        (
+            branch.bakong_merchant_name
+            if branch and branch.bakong_merchant_name
+            else None
+        )
         or (biz.bakong_merchant_name if biz and biz.bakong_merchant_name else None)
         or (branch.name_en if branch else None)
         or (biz.name_en if biz else None)
@@ -172,16 +176,21 @@ async def _resolve_bakong_merchant_info(
 
     # 3. Merchant City
     merchant_city = (
-        (branch.bakong_merchant_city if branch and branch.bakong_merchant_city else None)
+        (
+            branch.bakong_merchant_city
+            if branch and branch.bakong_merchant_city
+            else None
+        )
         or (biz.bakong_merchant_city if biz and biz.bakong_merchant_city else None)
         or "Phnom Penh"
     )
 
     # 4. Acquiring Bank
     acquiring_bank = (
-        (branch.bakong_acquiring_bank if branch and branch.bakong_acquiring_bank else None)
-        or (biz.bakong_acquiring_bank if biz and biz.bakong_acquiring_bank else None)
-    )
+        branch.bakong_acquiring_bank
+        if branch and branch.bakong_acquiring_bank
+        else None
+    ) or (biz.bakong_acquiring_bank if biz and biz.bakong_acquiring_bank else None)
 
     return account_id, merchant_name, merchant_city, acquiring_bank
 
@@ -222,7 +231,13 @@ async def generate_dynamic_session_khqr(
     )
 
     if eval_result.discount_usd > Decimal("0.00"):
-        tax_pct, sc_pct, ex_rate, is_tax_inc, is_sc_inc = await _resolve_financial_settings(
+        (
+            tax_pct,
+            sc_pct,
+            ex_rate,
+            is_tax_inc,
+            is_sc_inc,
+        ) = await _resolve_financial_settings(
             session=session,
             branch_id=branch_id,
             table_id=bill.table_id,
@@ -239,13 +254,22 @@ async def generate_dynamic_session_khqr(
     else:
         financials = bill.financials
 
-    account_id, merchant_name, merchant_city, acquiring_bank = await _resolve_bakong_merchant_info(
+    (
+        account_id,
+        merchant_name,
+        merchant_city,
+        acquiring_bank,
+    ) = await _resolve_bakong_merchant_info(
         session=session,
         business_id=business_id,
         branch_id=branch_id,
     )
 
-    payable_amount = financials.grand_total_usd if currency == "USD" else Decimal(str(financials.grand_total_khr))
+    payable_amount = (
+        financials.grand_total_usd
+        if currency == "USD"
+        else Decimal(str(financials.grand_total_khr))
+    )
     bill_ref = f"SES-{table_session_id.hex[:8].upper()}"
 
     qr_str = build_khqr_payload(
@@ -315,7 +339,13 @@ async def generate_dynamic_order_khqr(
     )
 
     if eval_result.discount_usd > Decimal("0.00"):
-        tax_pct, sc_pct, ex_rate, is_tax_inc, is_sc_inc = await _resolve_financial_settings(
+        (
+            tax_pct,
+            sc_pct,
+            ex_rate,
+            is_tax_inc,
+            is_sc_inc,
+        ) = await _resolve_financial_settings(
             session=session,
             branch_id=branch_id,
             table_id=None,
@@ -332,13 +362,22 @@ async def generate_dynamic_order_khqr(
     else:
         financials = bill.financials
 
-    account_id, merchant_name, merchant_city, acquiring_bank = await _resolve_bakong_merchant_info(
+    (
+        account_id,
+        merchant_name,
+        merchant_city,
+        acquiring_bank,
+    ) = await _resolve_bakong_merchant_info(
         session=session,
         business_id=business_id,
         branch_id=branch_id,
     )
 
-    payable_amount = financials.grand_total_usd if currency == "USD" else Decimal(str(financials.grand_total_khr))
+    payable_amount = (
+        financials.grand_total_usd
+        if currency == "USD"
+        else Decimal(str(financials.grand_total_khr))
+    )
     bill_ref = f"ORD-{order_id.hex[:8].upper()}"
 
     qr_str = build_khqr_payload(

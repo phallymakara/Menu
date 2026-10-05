@@ -521,6 +521,7 @@ async def get_branch_published_menu(
 # Branch-Specific Local Menu Item / Add-on Management
 # ---------------------------------------------------------------------------
 
+
 async def create_branch_local_item(
     session: AsyncSession,
     tenant: TenantContext,
@@ -580,7 +581,9 @@ async def create_branch_local_item(
         select(MenuItem)
         .options(
             selectinload(MenuItem.variants),
-            selectinload(MenuItem.modifier_group_links).selectinload(MenuItemModifierGroup.group),
+            selectinload(MenuItem.modifier_group_links).selectinload(
+                MenuItemModifierGroup.group
+            ),
         )
         .where(MenuItem.id == item.id)
     )
@@ -639,7 +642,6 @@ async def promote_local_item_to_master(
     return loaded_res.scalar_one()
 
 
-
 async def reset_branch_overrides_to_master(
     session: AsyncSession,
     tenant: TenantContext,
@@ -682,9 +684,7 @@ async def reset_branch_overrides_to_master(
         resource_id=str(branch_id),
         details={
             "reset_count": reset_count,
-            "category_id": (
-                str(payload.category_id) if payload.category_id else None
-            ),
+            "category_id": (str(payload.category_id) if payload.category_id else None),
         },
     )
     await session.commit()
@@ -695,6 +695,7 @@ async def reset_branch_overrides_to_master(
 # ---------------------------------------------------------------------------
 # Central Master Catalog Synchronization & Comparison Matrix
 # ---------------------------------------------------------------------------
+
 
 async def sync_master_catalog_to_branches(
     session: AsyncSession,
@@ -880,4 +881,3 @@ async def get_catalog_comparison_matrix(
         total_local_items=total_local,
         items=comparison_items,
     )
-

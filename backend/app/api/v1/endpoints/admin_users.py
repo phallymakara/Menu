@@ -43,10 +43,18 @@ router = APIRouter(
 async def list_admin_users_endpoint(
     admin_user: Annotated[User, Depends(get_current_platform_admin)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    search: Annotated[str | None, Query(description="Search by name, email, or phone")] = None,
-    status: Annotated[UserStatus | None, Query(description="Filter by user status")] = None,
-    is_platform_admin: Annotated[bool | None, Query(description="Filter by platform admin flag")] = None,
-    organization_id: Annotated[UUID | None, Query(description="Filter by organization membership")] = None,
+    search: Annotated[
+        str | None, Query(description="Search by name, email, or phone")
+    ] = None,
+    status: Annotated[
+        UserStatus | None, Query(description="Filter by user status")
+    ] = None,
+    is_platform_admin: Annotated[
+        bool | None, Query(description="Filter by platform admin flag")
+    ] = None,
+    organization_id: Annotated[
+        UUID | None, Query(description="Filter by organization membership")
+    ] = None,
     page: Annotated[int, Query(ge=1, description="Page number")] = 1,
     page_size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 20,
 ) -> AdminUserListResponse:

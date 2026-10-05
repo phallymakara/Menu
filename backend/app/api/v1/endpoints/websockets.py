@@ -44,17 +44,23 @@ async def websocket_staff_endpoint(
         user_id = decode_access_token(token)
     except Exception:
         logger.warning("Staff WS connection rejected: Invalid JWT token")
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token"
+        )
         return
 
     # 2. Check user membership & branch permissions
     async with AsyncSessionFactory() as session:
-        user_stmt = select(User).where(User.id == user_id, User.status == UserStatus.ACTIVE)
+        user_stmt = select(User).where(
+            User.id == user_id, User.status == UserStatus.ACTIVE
+        )
         user_res = await session.execute(user_stmt)
         user = user_res.scalar_one_or_none()
         if not user:
             logger.warning("Staff WS connection rejected: Inactive/missing user")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="User inactive")
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION, reason="User inactive"
+            )
             return
 
         # Only memberships in the branch's own (active) organization grant access;
@@ -76,24 +82,29 @@ async def websocket_staff_endpoint(
         mem_res = await session.execute(mem_stmt)
         all_memberships = mem_res.scalars().all()
         memberships = [
-            m for m in all_memberships
-            if str(getattr(m, "status", "")).lower() in ["active", "membershipstatus.active"]
+            m
+            for m in all_memberships
+            if str(getattr(m, "status", "")).lower()
+            in ["active", "membershipstatus.active"]
         ]
-
 
         has_access = False
         req_branch_clean = str(branch_id).replace("-", "").lower()
         for mem in memberships:
-            mem_branch_clean = str(mem.branch_id).replace("-", "").lower() if mem.branch_id else None
+            mem_branch_clean = (
+                str(mem.branch_id).replace("-", "").lower() if mem.branch_id else None
+            )
             if (
                 mem.is_owner
                 or mem.role in [StaffRole.OWNER, "owner", StaffRole.MANAGER, "manager"]
                 or can_user_roam_branches(mem)
-                or (mem_branch_clean is not None and mem_branch_clean == req_branch_clean)
+                or (
+                    mem_branch_clean is not None
+                    and mem_branch_clean == req_branch_clean
+                )
             ):
                 has_access = True
                 break
-
 
         if not has_access:
             logger.warning(
@@ -101,10 +112,10 @@ async def websocket_staff_endpoint(
                 user_id=str(user_id),
                 branch_id=str(branch_id),
             )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Branch access denied")
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION, reason="Branch access denied"
+            )
             return
-
-
 
     # 3. Determine Room
     if room_type == "expo":
@@ -156,7 +167,9 @@ async def websocket_guest_endpoint(
                 "Guest WS connection rejected: Invalid or inactive session token",
                 table_session_id=str(table_session_id),
             )
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid session")
+            await websocket.close(
+                code=status.WS_1008_POLICY_VIOLATION, reason="Invalid session"
+            )
             return
 
     room = f"session:{table_session_id}"

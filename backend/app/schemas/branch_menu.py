@@ -111,7 +111,6 @@ class BranchMenuItemDisplayResponse(BaseModel):
     modifier_groups: list[ModifierGroupDetailResponse] = []
 
 
-
 class BranchCategoryMenuResponse(BaseModel):
     """Category with resolved branch menu items."""
 

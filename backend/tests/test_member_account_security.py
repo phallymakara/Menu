@@ -89,12 +89,16 @@ async def test_invite_never_changes_existing_account_credentials():
                 assert victim.full_name == "Test Owner"
                 assert verify_password(VICTIM_PASSWORD, victim.password_hash)
                 assert not verify_password("attacker-chosen-pass", victim.password_hash)
-                assert not verify_password("attacker-chosen-pass-2", victim.password_hash)
+                assert not verify_password(
+                    "attacker-chosen-pass-2", victim.password_hash
+                )
 
                 # The account owner, signed in, can accept.
                 as_owner = await client.post(
                     "/api/v1/auth/invitations/accept-existing",
-                    headers={"Authorization": f"Bearer {create_access_token(victim.id)}"},
+                    headers={
+                        "Authorization": f"Bearer {create_access_token(victim.id)}"
+                    },
                     json={"token": invite_token},
                 )
                 assert as_owner.status_code == status.HTTP_200_OK
@@ -122,20 +126,28 @@ async def test_pending_invitee_cannot_be_claimed_by_another_organization():
         owner_b, org_b, _, _ = await setup_test_tenant(
             session, org_name="Org B", email="b-owner@example.com"
         )
-        payload = {"email": "newhire@example.com", "full_name": "New Hire", "role": "waiter"}
+        payload = {
+            "email": "newhire@example.com",
+            "full_name": "New Hire",
+            "role": "waiter",
+        }
 
         try:
             async with await _client_for(session) as client:
                 first = await client.post(
                     f"/api/v1/organizations/{org_a.id}/members/invite",
-                    headers={"Authorization": f"Bearer {create_access_token(owner_a.id)}"},
+                    headers={
+                        "Authorization": f"Bearer {create_access_token(owner_a.id)}"
+                    },
                     json=payload,
                 )
                 assert first.status_code == status.HTTP_201_CREATED
 
                 second = await client.post(
                     f"/api/v1/organizations/{org_b.id}/members/invite",
-                    headers={"Authorization": f"Bearer {create_access_token(owner_b.id)}"},
+                    headers={
+                        "Authorization": f"Bearer {create_access_token(owner_b.id)}"
+                    },
                     json={**payload, "password": "b-chosen-password"},
                 )
                 assert second.status_code == status.HTTP_409_CONFLICT
@@ -207,7 +219,11 @@ async def test_manager_cannot_escalate_to_owner_or_grant_privileged_roles():
                 invite_owner = await client.post(
                     f"/api/v1/organizations/{org.id}/members/invite",
                     headers=headers,
-                    json={"email": "coowner@example.com", "full_name": "Co Owner", "role": "owner"},
+                    json={
+                        "email": "coowner@example.com",
+                        "full_name": "Co Owner",
+                        "role": "owner",
+                    },
                 )
                 assert invite_owner.status_code == status.HTTP_403_FORBIDDEN
 
@@ -248,7 +264,11 @@ async def test_org_cannot_rewrite_identity_of_shared_account():
                 invite = await client.post(
                     f"/api/v1/organizations/{attacker_org.id}/members/invite",
                     headers=headers,
-                    json={"email": "victim@example.com", "full_name": "Victim", "role": "waiter"},
+                    json={
+                        "email": "victim@example.com",
+                        "full_name": "Victim",
+                        "role": "waiter",
+                    },
                 )
                 assert invite.status_code == status.HTTP_201_CREATED
 

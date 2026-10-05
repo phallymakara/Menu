@@ -120,7 +120,13 @@ async def ws_setup():
             is_active=True,
         )
 
-        da = DiningArea(id=uuid4(), organization_id=org.id, business_id=business.id, branch_id=branch.id, name_en="Main Floor")
+        da = DiningArea(
+            id=uuid4(),
+            organization_id=org.id,
+            business_id=business.id,
+            branch_id=branch.id,
+            name_en="Main Floor",
+        )
         table = RestaurantTable(
             id=uuid4(),
             organization_id=org.id,
@@ -143,10 +149,21 @@ async def ws_setup():
             opened_at=datetime.now(UTC),
         )
 
-        session.add_all([
-            org, business, branch, user_staff, user_mem,
-            station_hot, cat, item_loklak, da, table, table_session,
-        ])
+        session.add_all(
+            [
+                org,
+                business,
+                branch,
+                user_staff,
+                user_mem,
+                station_hot,
+                cat,
+                item_loklak,
+                da,
+                table,
+                table_session,
+            ]
+        )
         await session.commit()
 
         staff_token = create_access_token(user_staff.id)
@@ -179,7 +196,9 @@ async def test_staff_websocket_connection_and_ping(ws_setup, monkeypatch):
     branch_id = ws_setup["branch_id"]
     token = ws_setup["staff_token"]
 
-    with client.websocket_connect(f"/api/v1/ws/branches/{branch_id}?token={token}&room_type=pos") as websocket:
+    with client.websocket_connect(
+        f"/api/v1/ws/branches/{branch_id}?token={token}&room_type=pos"
+    ) as websocket:
         websocket.send_text("ping")
         data = websocket.receive_text()
         assert data == "pong"
@@ -198,7 +217,9 @@ async def test_guest_websocket_connection_and_ping(ws_setup, monkeypatch):
     sess_id = ws_setup["table_session_id"]
     sess_token = ws_setup["session_token"]
 
-    with client.websocket_connect(f"/api/v1/ws/sessions/{sess_id}?session_token={sess_token}") as websocket:
+    with client.websocket_connect(
+        f"/api/v1/ws/sessions/{sess_id}?session_token={sess_token}"
+    ) as websocket:
         websocket.send_text("ping")
         data = websocket.receive_text()
         assert data == "pong"
@@ -220,12 +241,16 @@ async def test_unauthorized_websocket_rejection(ws_setup, monkeypatch):
 
     # Invalid Staff Token -> Close / Disconnect
     with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect(f"/api/v1/ws/branches/{branch_id}?token=invalid_jwt_token"):
+        with client.websocket_connect(
+            f"/api/v1/ws/branches/{branch_id}?token=invalid_jwt_token"
+        ):
             pass
 
     # Invalid Guest Token -> Close / Disconnect
     with pytest.raises(WebSocketDisconnect):
-        with client.websocket_connect(f"/api/v1/ws/sessions/{ws_setup['table_session_id']}?session_token=fake_token"):
+        with client.websocket_connect(
+            f"/api/v1/ws/sessions/{ws_setup['table_session_id']}?session_token=fake_token"
+        ):
             pass
 
 

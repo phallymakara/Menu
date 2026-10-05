@@ -75,7 +75,11 @@ async def get_user_accessible_branches(
             branch = res.scalar_one_or_none()
             branches = [branch] if branch else []
 
-    active_id = current_active_branch_id or membership.branch_id or (branches[0].id if branches else None)
+    active_id = (
+        current_active_branch_id
+        or membership.branch_id
+        or (branches[0].id if branches else None)
+    )
 
     branch_infos = [
         AccessibleBranchInfo(

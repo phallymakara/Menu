@@ -287,4 +287,3 @@ async def switch_branch_endpoint(
         tenant=tenant,
         target_branch_id=payload.branch_id,
     )
-

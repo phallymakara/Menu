@@ -91,7 +91,9 @@ async def bill_setup():
             business_id=business.id,
             name_en="Riverside Branch",
             code="BKK1",
-            exchange_rate=Decimal("4150.00"),  # Branch-specific dynamic exchange rate override
+            exchange_rate=Decimal(
+                "4150.00"
+            ),  # Branch-specific dynamic exchange rate override
             is_active=True,
         )
         # VIP Zone with 5% service charge override
@@ -149,7 +151,9 @@ async def bill_setup():
             base_price=Decimal("2.50"),
             is_active=True,
         )
-        session.add_all([membership, business, branch, vip_area, table, cat, item1, item2])
+        session.add_all(
+            [membership, business, branch, vip_area, table, cat, item1, item2]
+        )
         await session.commit()
 
         # Create active TableSession
@@ -349,7 +353,9 @@ async def test_session_multi_round_bill_aggregation(bill_setup):
     assert data["table_number"] == "V-01"
     assert data["dining_area_name"] == "VIP Lounge"
     assert data["order_count"] == 2
-    assert data["total_item_count"] == 4  # 2 coffees + 2 beefs (voided excluded from count)
+    assert (
+        data["total_item_count"] == 4
+    )  # 2 coffees + 2 beefs (voided excluded from count)
 
     # Verify rounds count
     assert len(data["rounds"]) == 2
@@ -383,6 +389,7 @@ async def test_public_guest_bill_endpoint(bill_setup):
     Verifies that a customer seated at the table can access the live running bill
     using their session token without logging in.
     """
+
     async def override_get_db():
         async with bill_setup["sessionmaker"]() as s:
             yield s

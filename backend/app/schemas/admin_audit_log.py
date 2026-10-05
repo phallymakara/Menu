@@ -13,7 +13,9 @@ class AdminAuditLogItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID = Field(..., description="Audit log unique identifier")
-    organization_id: UUID | None = Field(None, description="Organization ID or None for platform/system events")
+    organization_id: UUID | None = Field(
+        None, description="Organization ID or None for platform/system events"
+    )
     organization_name: str | None = Field(None, description="Organization name")
     organization_slug: str | None = Field(None, description="Organization slug")
     user_id: UUID | None = Field(None, description="Acting user ID")
@@ -24,7 +26,9 @@ class AdminAuditLogItem(BaseModel):
     resource_id: str | None = Field(None, description="Target resource ID")
     ip_address: str | None = Field(None, description="Client IP address")
     user_agent: str | None = Field(None, description="Client User-Agent header")
-    details: dict[str, Any] = Field(default_factory=dict, description="Metadata JSON payload")
+    details: dict[str, Any] = Field(
+        default_factory=dict, description="Metadata JSON payload"
+    )
     created_at: datetime = Field(..., description="Audit event timestamp")
 
 

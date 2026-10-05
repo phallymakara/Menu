@@ -31,7 +31,9 @@ class KDSTicketItemResponse(BaseModel):
     elapsed_minutes: int = 0
     target_prep_time_minutes: int = 15
     is_overdue: bool = False
-    urgency_level: str = "normal"  # "normal" (<50%), "warning" (50-100%), "critical" (>100%)
+    urgency_level: str = (
+        "normal"  # "normal" (<50%), "warning" (50-100%), "critical" (>100%)
+    )
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -83,4 +85,3 @@ class StationMetricsResponse(BaseModel):
     active_tickets: int
     overdue_tickets: int
     avg_prep_time_minutes: float
-

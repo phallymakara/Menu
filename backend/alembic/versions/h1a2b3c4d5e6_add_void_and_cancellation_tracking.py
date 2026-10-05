@@ -22,10 +22,16 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Add void and cancellation tracking columns."""
     # 1. Alter orders table
-    op.add_column("orders", sa.Column("cancel_reason_code", sa.String(length=50), nullable=True))
-    op.add_column("orders", sa.Column("cancel_reason", sa.String(length=255), nullable=True))
+    op.add_column(
+        "orders", sa.Column("cancel_reason_code", sa.String(length=50), nullable=True)
+    )
+    op.add_column(
+        "orders", sa.Column("cancel_reason", sa.String(length=255), nullable=True)
+    )
     op.add_column("orders", sa.Column("cancelled_by_user_id", sa.Uuid(), nullable=True))
-    op.add_column("orders", sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column(
+        "orders", sa.Column("cancelled_at", sa.DateTime(timezone=True), nullable=True)
+    )
     op.create_foreign_key(
         op.f("fk_orders_cancelled_by_user_id_users"),
         "orders",
@@ -36,9 +42,16 @@ def upgrade() -> None:
     )
 
     # 2. Alter order_items table
-    op.add_column("order_items", sa.Column("void_reason_code", sa.String(length=50), nullable=True))
-    op.add_column("order_items", sa.Column("voided_by_user_id", sa.Uuid(), nullable=True))
-    op.add_column("order_items", sa.Column("voided_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column(
+        "order_items",
+        sa.Column("void_reason_code", sa.String(length=50), nullable=True),
+    )
+    op.add_column(
+        "order_items", sa.Column("voided_by_user_id", sa.Uuid(), nullable=True)
+    )
+    op.add_column(
+        "order_items", sa.Column("voided_at", sa.DateTime(timezone=True), nullable=True)
+    )
     op.create_foreign_key(
         op.f("fk_order_items_voided_by_user_id_users"),
         "order_items",
@@ -51,12 +64,18 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop void and cancellation tracking columns."""
-    op.drop_constraint(op.f("fk_order_items_voided_by_user_id_users"), "order_items", type_="foreignkey")
+    op.drop_constraint(
+        op.f("fk_order_items_voided_by_user_id_users"),
+        "order_items",
+        type_="foreignkey",
+    )
     op.drop_column("order_items", "voided_at")
     op.drop_column("order_items", "voided_by_user_id")
     op.drop_column("order_items", "void_reason_code")
 
-    op.drop_constraint(op.f("fk_orders_cancelled_by_user_id_users"), "orders", type_="foreignkey")
+    op.drop_constraint(
+        op.f("fk_orders_cancelled_by_user_id_users"), "orders", type_="foreignkey"
+    )
     op.drop_column("orders", "cancelled_at")
     op.drop_column("orders", "cancelled_by_user_id")
     op.drop_column("orders", "cancel_reason")

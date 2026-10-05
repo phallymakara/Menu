@@ -130,7 +130,9 @@ async def invite_member(
             phone=payload.phone,
             full_name=payload.full_name,
             avatar_url=payload.avatar_url,
-            password_hash=hash_password(payload.password) if payload.password else hash_password(secrets.token_urlsafe(24)),
+            password_hash=hash_password(payload.password)
+            if payload.password
+            else hash_password(secrets.token_urlsafe(24)),
             status=UserStatus.ACTIVE if payload.password else UserStatus.INVITED,
             is_verified=bool(payload.password),
         )
@@ -218,7 +220,11 @@ async def invite_member(
         user_id=tenant.user_id,
         resource_type="member",
         resource_id=str(membership.id),
-        details={"invited_email": payload.email, "role": payload.role.value, "branch_id": str(payload.branch_id) if payload.branch_id else None},
+        details={
+            "invited_email": payload.email,
+            "role": payload.role.value,
+            "branch_id": str(payload.branch_id) if payload.branch_id else None,
+        },
     )
     await session.commit()
 
@@ -243,7 +249,6 @@ async def invite_member(
         pos_pin=membership.pos_pin,
         avatar_url=user.avatar_url,
     )
-
 
 
 async def accept_invitation(
@@ -571,7 +576,6 @@ async def update_member(
     # If role changed to OWNER, set is_owner
     if "role" in update_data:
         membership.is_owner = update_data["role"] == StaffRole.OWNER
-
 
     await session.commit()
     await session.refresh(membership)

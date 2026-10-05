@@ -107,7 +107,6 @@ class OrganizationMembership(
         nullable=False,
     )
 
-
     invitation_token_hash: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,

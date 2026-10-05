@@ -787,9 +787,7 @@ async def fire_course(
         "Course fired for order",
         order_number=order.order_number,
         fired_count=len(fired_items),
-        course_stage=(
-            str(payload.course_stage) if payload.course_stage else "all"
-        ),
+        course_stage=(str(payload.course_stage) if payload.course_stage else "all"),
     )
     return response_items
 

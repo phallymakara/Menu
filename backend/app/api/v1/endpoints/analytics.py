@@ -37,9 +37,15 @@ async def get_sales_overview_endpoint(
     business_id: UUID,
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    start_date: Annotated[datetime | None, Query(description="Start timestamp filter")] = None,
-    end_date: Annotated[datetime | None, Query(description="End timestamp filter")] = None,
-    branch_id: Annotated[UUID | None, Query(description="Optional branch filter (for Owners/GMs)")] = None,
+    start_date: Annotated[
+        datetime | None, Query(description="Start timestamp filter")
+    ] = None,
+    end_date: Annotated[
+        datetime | None, Query(description="End timestamp filter")
+    ] = None,
+    branch_id: Annotated[
+        UUID | None, Query(description="Optional branch filter (for Owners/GMs)")
+    ] = None,
 ) -> SalesOverviewMetrics:
     """
     Returns high-level sales and operational overview.
@@ -66,8 +72,12 @@ async def get_branch_comparison_endpoint(
     business_id: UUID,
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    start_date: Annotated[datetime | None, Query(description="Start timestamp filter")] = None,
-    end_date: Annotated[datetime | None, Query(description="End timestamp filter")] = None,
+    start_date: Annotated[
+        datetime | None, Query(description="Start timestamp filter")
+    ] = None,
+    end_date: Annotated[
+        datetime | None, Query(description="End timestamp filter")
+    ] = None,
 ) -> BranchComparisonResponse:
     """
     Generates a comparative performance matrix ranking all active branches
@@ -93,9 +103,15 @@ async def get_top_items_endpoint(
     business_id: UUID,
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    start_date: Annotated[datetime | None, Query(description="Start timestamp filter")] = None,
-    end_date: Annotated[datetime | None, Query(description="End timestamp filter")] = None,
-    branch_id: Annotated[UUID | None, Query(description="Optional branch filter (for Owners/GMs)")] = None,
+    start_date: Annotated[
+        datetime | None, Query(description="Start timestamp filter")
+    ] = None,
+    end_date: Annotated[
+        datetime | None, Query(description="End timestamp filter")
+    ] = None,
+    branch_id: Annotated[
+        UUID | None, Query(description="Optional branch filter (for Owners/GMs)")
+    ] = None,
     limit: Annotated[int, Query(ge=1, le=50, description="Max items to return")] = 10,
 ) -> TopSellingItemsResponse:
     """
@@ -123,9 +139,15 @@ async def get_payment_breakdown_endpoint(
     business_id: UUID,
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    start_date: Annotated[datetime | None, Query(description="Start timestamp filter")] = None,
-    end_date: Annotated[datetime | None, Query(description="End timestamp filter")] = None,
-    branch_id: Annotated[UUID | None, Query(description="Optional branch filter (for Owners/GMs)")] = None,
+    start_date: Annotated[
+        datetime | None, Query(description="Start timestamp filter")
+    ] = None,
+    end_date: Annotated[
+        datetime | None, Query(description="End timestamp filter")
+    ] = None,
+    branch_id: Annotated[
+        UUID | None, Query(description="Optional branch filter (for Owners/GMs)")
+    ] = None,
 ) -> PaymentBreakdownResponse:
     """
     Returns payment channel breakdown (Bakong KHQR, Cash USD, Cash KHR)

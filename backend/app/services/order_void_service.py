@@ -109,7 +109,10 @@ async def void_order_line_item(
     )
 
     # 3. Guard against settled table session
-    if order.table_session and order.table_session.status == TableSessionStatus.COMPLETED:
+    if (
+        order.table_session
+        and order.table_session.status == TableSessionStatus.COMPLETED
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot void items on an already settled and completed dining session.",
@@ -144,16 +147,30 @@ async def void_order_line_item(
 
     # 6. Recalculate Order Totals
     active_items = [itm for itm in order.items if itm.status != OrderItemStatus.VOIDED]
-    new_subtotal_usd = sum(itm.subtotal_price for itm in active_items) if active_items else Decimal("0.00")
+    new_subtotal_usd = (
+        sum(itm.subtotal_price for itm in active_items)
+        if active_items
+        else Decimal("0.00")
+    )
     order.subtotal_usd = new_subtotal_usd
-    order.subtotal_khr = (new_subtotal_usd * Decimal("4100.00")).quantize(Decimal("0.01"))
+    order.subtotal_khr = (new_subtotal_usd * Decimal("4100.00")).quantize(
+        Decimal("0.01")
+    )
 
     # Recalculate tax & service charge proportionally
-    order.service_charge_amount_usd = (new_subtotal_usd * (order.service_charge_percent / Decimal("100"))).quantize(Decimal("0.01"))
+    order.service_charge_amount_usd = (
+        new_subtotal_usd * (order.service_charge_percent / Decimal("100"))
+    ).quantize(Decimal("0.01"))
     taxable = new_subtotal_usd + order.service_charge_amount_usd
-    order.tax_amount_usd = (taxable * (order.tax_rate_percent / Decimal("100"))).quantize(Decimal("0.01"))
-    order.total_amount_usd = new_subtotal_usd + order.service_charge_amount_usd + order.tax_amount_usd
-    order.total_amount_khr = (order.total_amount_usd * Decimal("4100.00")).quantize(Decimal("0.01"))
+    order.tax_amount_usd = (
+        taxable * (order.tax_rate_percent / Decimal("100"))
+    ).quantize(Decimal("0.01"))
+    order.total_amount_usd = (
+        new_subtotal_usd + order.service_charge_amount_usd + order.tax_amount_usd
+    )
+    order.total_amount_khr = (order.total_amount_usd * Decimal("4100.00")).quantize(
+        Decimal("0.01")
+    )
 
     # If all items are voided, mark the entire order CANCELLED
     if not active_items:
@@ -251,7 +268,10 @@ async def cancel_entire_order_round(
         organization_id=order.organization_id,
     )
 
-    if order.table_session and order.table_session.status == TableSessionStatus.COMPLETED:
+    if (
+        order.table_session
+        and order.table_session.status == TableSessionStatus.COMPLETED
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Cannot cancel order on an already settled and completed dining session.",

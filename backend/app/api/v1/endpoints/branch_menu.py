@@ -286,10 +286,12 @@ async def reset_branch_overrides_endpoint(
             branch_id=branch_id,
             payload=payload,
         )
-        return {"message": f"Successfully reset {reset_count} overrides to master defaults.", "reset_count": reset_count}
+        return {
+            "message": f"Successfully reset {reset_count} overrides to master defaults.",
+            "reset_count": reset_count,
+        }
     except TenantNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
-

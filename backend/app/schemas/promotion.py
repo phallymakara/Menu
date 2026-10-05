@@ -13,14 +13,28 @@ class PromotionCreate(BaseModel):
     """Payload to create a new promotion or coupon code."""
 
     name_en: str = Field(..., max_length=100, description="Promotion English name")
-    name_km: str | None = Field(default=None, max_length=100, description="Promotion Khmer name")
-    code: str | None = Field(default=None, max_length=50, description="Optional coupon code (e.g. WELCOME15)")
-    branch_id: UUID | None = Field(default=None, description="Optional branch restriction (null for all branches)")
+    name_km: str | None = Field(
+        default=None, max_length=100, description="Promotion Khmer name"
+    )
+    code: str | None = Field(
+        default=None, max_length=50, description="Optional coupon code (e.g. WELCOME15)"
+    )
+    branch_id: UUID | None = Field(
+        default=None, description="Optional branch restriction (null for all branches)"
+    )
     discount_type: DiscountType = Field(default=DiscountType.PERCENTAGE)
-    discount_value: Decimal = Field(..., gt=0, description="Percentage (e.g. 15.00) or fixed amount (e.g. 5.00)")
-    max_discount_amount_usd: Decimal | None = Field(default=None, ge=0, description="Max dollar cap for percentage discounts")
-    minimum_spend_usd: Decimal = Field(default=Decimal("0.00"), ge=0, description="Min subtotal required")
-    usage_limit: int | None = Field(default=None, ge=1, description="Total redemption limit")
+    discount_value: Decimal = Field(
+        ..., gt=0, description="Percentage (e.g. 15.00) or fixed amount (e.g. 5.00)"
+    )
+    max_discount_amount_usd: Decimal | None = Field(
+        default=None, ge=0, description="Max dollar cap for percentage discounts"
+    )
+    minimum_spend_usd: Decimal = Field(
+        default=Decimal("0.00"), ge=0, description="Min subtotal required"
+    )
+    usage_limit: int | None = Field(
+        default=None, ge=1, description="Total redemption limit"
+    )
     start_date: datetime | None = Field(default=None)
     end_date: datetime | None = Field(default=None)
     is_active: bool = Field(default=True)

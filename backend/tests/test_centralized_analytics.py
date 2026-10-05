@@ -157,8 +157,20 @@ async def analytics_setup():
         await session.flush()
 
         # Dining Areas & Tables
-        da_a = DiningArea(id=uuid4(), organization_id=org.id, business_id=business.id, branch_id=branch_a.id, name_en="Hall A")
-        da_b = DiningArea(id=uuid4(), organization_id=org.id, business_id=business.id, branch_id=branch_b.id, name_en="Hall B")
+        da_a = DiningArea(
+            id=uuid4(),
+            organization_id=org.id,
+            business_id=business.id,
+            branch_id=branch_a.id,
+            name_en="Hall A",
+        )
+        da_b = DiningArea(
+            id=uuid4(),
+            organization_id=org.id,
+            business_id=business.id,
+            branch_id=branch_b.id,
+            name_en="Hall B",
+        )
         table_a = RestaurantTable(
             id=uuid4(),
             organization_id=org.id,
@@ -307,7 +319,6 @@ async def analytics_setup():
         )
         session.add_all([pay_1, pay_2])
         await session.commit()
-
 
         owner_token = create_access_token(owner_user.id)
         bm_token = create_access_token(bm_user.id)

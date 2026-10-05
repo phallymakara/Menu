@@ -36,7 +36,8 @@ async def get_payment_receipt_endpoint(
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     format: Literal["html", "text", "json"] = Query(
-        default="html", description="Output format: 'html' (printable), 'text' (ESC/POS), or 'json'"
+        default="html",
+        description="Output format: 'html' (printable), 'text' (ESC/POS), or 'json'",
     ),
     width: Literal["80mm", "58mm"] = Query(
         default="80mm", description="Thermal roll width: '80mm' or '58mm'"
@@ -85,7 +86,8 @@ async def get_session_precheck_endpoint(
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     format: Literal["html", "text", "json"] = Query(
-        default="html", description="Output format: 'html' (printable), 'text' (ESC/POS), or 'json'"
+        default="html",
+        description="Output format: 'html' (printable), 'text' (ESC/POS), or 'json'",
     ),
     width: Literal["80mm", "58mm"] = Query(
         default="80mm", description="Thermal roll width: '80mm' or '58mm'"
@@ -134,7 +136,8 @@ async def get_order_precheck_endpoint(
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     format: Literal["html", "text", "json"] = Query(
-        default="html", description="Output format: 'html' (printable), 'text' (ESC/POS), or 'json'"
+        default="html",
+        description="Output format: 'html' (printable), 'text' (ESC/POS), or 'json'",
     ),
     width: Literal["80mm", "58mm"] = Query(
         default="80mm", description="Thermal roll width: '80mm' or '58mm'"

@@ -156,15 +156,17 @@ async def khqr_setup():
             base_price=Decimal("15.00"),
             is_active=True,
         )
-        session.add_all([
-            membership,
-            business,
-            branch,
-            area,
-            table,
-            cat,
-            item1,
-        ])
+        session.add_all(
+            [
+                membership,
+                business,
+                branch,
+                area,
+                table,
+                cat,
+                item1,
+            ]
+        )
         await session.commit()
 
         # Create TableSession
@@ -356,7 +358,10 @@ async def test_settle_table_session_via_khqr(khqr_setup):
 
     app.dependency_overrides[get_db_session] = override_get_db
 
-    with patch("app.services.payment_service.send_payment_telegram_notification", new_callable=AsyncMock) as mock_tg:
+    with patch(
+        "app.services.payment_service.send_payment_telegram_notification",
+        new_callable=AsyncMock,
+    ) as mock_tg:
         mock_tg.return_value = True
 
         transport = ASGITransport(app=app)
@@ -424,7 +429,10 @@ async def test_telegram_notification_graceful_error_handling(khqr_setup):
         )
 
         # Mock Telegram failure (e.g. timeout or network error)
-        with patch("app.services.telegram_service.httpx.AsyncClient.post", side_effect=Exception("Connection timed out")):
+        with patch(
+            "app.services.telegram_service.httpx.AsyncClient.post",
+            side_effect=Exception("Connection timed out"),
+        ):
             result = await send_payment_telegram_notification(
                 session=session,
                 payment=payment,
@@ -434,4 +442,3 @@ async def test_telegram_notification_graceful_error_handling(khqr_setup):
             )
             # Must return False and not raise exception
             assert result is False
-

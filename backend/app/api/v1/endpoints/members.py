@@ -57,7 +57,6 @@ async def invite_staff_member(
     tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> InviteResponse:
-
     """
     Invite a staff member by email or phone with an assigned role and branch.
     """

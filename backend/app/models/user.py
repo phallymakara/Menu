@@ -58,7 +58,6 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     status: Mapped[UserStatus] = mapped_column(
-
         Enum(
             UserStatus,
             name="user_status",

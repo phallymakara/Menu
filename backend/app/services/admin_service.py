@@ -176,15 +176,17 @@ async def get_platform_kpi_stats(session: AsyncSession) -> PlatformKPIResponse:
     )
 
     # 4. Subscription Tier Distribution
-    plans_query = select(
-        Plan.code,
-        Plan.name,
-        Plan.price_usd_monthly,
-        func.count(Subscription.id).label("org_count"),
-    ).select_from(Plan).outerjoin(
-        Subscription, Subscription.plan_id == Plan.id
-    ).group_by(Plan.id, Plan.code, Plan.name, Plan.price_usd_monthly).order_by(
-        Plan.price_usd_monthly.asc()
+    plans_query = (
+        select(
+            Plan.code,
+            Plan.name,
+            Plan.price_usd_monthly,
+            func.count(Subscription.id).label("org_count"),
+        )
+        .select_from(Plan)
+        .outerjoin(Subscription, Subscription.plan_id == Plan.id)
+        .group_by(Plan.id, Plan.code, Plan.name, Plan.price_usd_monthly)
+        .order_by(Plan.price_usd_monthly.asc())
     )
 
     plans_res = await session.execute(plans_query)
