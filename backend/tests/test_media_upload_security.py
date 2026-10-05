@@ -2,6 +2,7 @@
 
 import io
 import shutil
+import struct
 from pathlib import Path
 
 import pytest
@@ -143,18 +144,44 @@ def _gif_bytes(frames: int, size: tuple[int, int] = (8, 8)) -> bytes:
 
 
 @pytest.mark.anyio
-async def test_animation_with_too_many_frames_is_rejected(upload_client):
+async def test_animation_is_stored_as_its_first_frame(upload_client):
     res = await _upload(upload_client, "spin.gif", _gif_bytes(150), "image/gif")
-    assert res.status_code == status.HTTP_400_BAD_REQUEST
-
-
-@pytest.mark.anyio
-async def test_small_animation_keeps_its_frames(upload_client):
-    res = await _upload(upload_client, "spin.gif", _gif_bytes(5), "image/gif")
 
     assert res.status_code == status.HTTP_201_CREATED
     with Image.open(Path(res.json()["url"].lstrip("/"))) as stored:
-        assert getattr(stored, "n_frames", 1) == 5
+        assert getattr(stored, "n_frames", 1) == 1
+
+
+def _gif_with_frame(width: int, height: int) -> bytes:
+    """A valid one-frame GIF followed by a frame declaring the given size."""
+    base = _gif_bytes(1)
+    extra = (
+        b"\x2c"
+        + struct.pack("<HHHHB", 0, 0, width, height, 0)
+        + b"\x02\x02\x4c\x01\x00"
+    )
+    return base[:-1] + extra + b"\x3b"
+
+
+@pytest.mark.anyio
+async def test_oversized_frame_after_the_first_is_never_decoded(upload_client):
+    payload = _gif_with_frame(60000, 60000)
+    res = await _upload(upload_client, "trap.gif", payload, "image/gif")
+
+    assert res.status_code == status.HTTP_201_CREATED
+    with Image.open(Path(res.json()["url"].lstrip("/"))) as stored:
+        assert max(stored.size) <= 2048
+
+
+@pytest.mark.anyio
+async def test_first_frame_larger_than_its_canvas_is_rejected(upload_client):
+    header = b"GIF89a" + struct.pack("<HHBBB", 1, 1, 0x80, 0, 0)
+    palette = b"\x00\x00\x00\xff\xff\xff"
+    frame = b"\x2c" + struct.pack("<HHHHB", 0, 0, 9000, 9000, 0)
+    payload = header + palette + frame + b"\x02\x02\x4c\x01\x00" + b"\x3b"
+    res = await _upload(upload_client, "trap.gif", payload, "image/gif")
+
+    assert res.status_code == status.HTTP_400_BAD_REQUEST
 
 
 @pytest.mark.anyio

@@ -43,9 +43,6 @@ MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
 MAX_DIMENSION = 2048
 # Largest decoded frame accepted, after JPEG draft decoding (about 5000 x 5000).
 MAX_SOURCE_PIXELS = 25_000_000
-# Animated GIFs keep their frames, so their total decoded size is capped too.
-MAX_ANIMATION_FRAMES = 100
-MAX_ANIMATION_PIXELS = 50_000_000
 # Image decoding is CPU and memory heavy; bound how many uploads decode at once.
 _IMAGE_DECODE_LIMITER = CapacityLimiter(2)
 
@@ -63,25 +60,6 @@ class InvalidImageError(ValueError):
     """Raised when an upload is not a supported, decodable raster image."""
 
 
-def _count_frames_up_to(image: Image.Image, limit: int) -> int:
-    """
-    Counts animation frames by seeking, stopping once the count exceeds ``limit``.
-
-    Seeking decodes frames one by one, so stopping early keeps the cost bounded for
-    files that pack a huge number of tiny frames.
-    """
-    frames = 1
-    try:
-        while frames <= limit:
-            image.seek(frames)
-            frames += 1
-    except EOFError:
-        pass
-    finally:
-        image.seek(0)
-    return frames
-
-
 def _reencode_image(contents: bytes) -> tuple[bytes, str, str]:
     """
     Verifies that the upload is a supported raster image and re-encodes it.
@@ -91,10 +69,10 @@ def _reencode_image(contents: bytes) -> tuple[bytes, str, str]:
     payloads) are dropped. The type comes from the decoded data, never from the
     client's declared content type or file name.
 
-    Work is bounded: sizes are checked from the header before decoding, JPEGs are
-    decoded at a reduced scale, still images are scaled down to ``MAX_DIMENSION``,
-    and only GIF animations keep their frames, within frame and pixel limits. Other
-    animated formats keep their first frame.
+    Work is bounded: only the first frame is ever decoded (animations are stored as
+    still images, so no later frame, which may declare a larger canvas, is read),
+    its size is checked before decoding, JPEGs are decoded at a reduced scale, and
+    the stored image is scaled down to fit ``MAX_DIMENSION``.
 
     Returns:
         A tuple of (image bytes, MIME type, file extension).
@@ -107,33 +85,20 @@ def _reencode_image(contents: bytes) -> tuple[bytes, str, str]:
             raise InvalidImageError(f"Unsupported image format: {image_format}.")
 
         with Image.open(io.BytesIO(contents)) as image:
-            animated_gif = image_format == "GIF" and getattr(
-                image, "is_animated", False
-            )
-            if animated_gif:
-                width, height = image.size
-                frames = _count_frames_up_to(image, MAX_ANIMATION_FRAMES)
-                if (
-                    frames > MAX_ANIMATION_FRAMES
-                    or max(width, height) > MAX_DIMENSION
-                    or frames * width * height > MAX_ANIMATION_PIXELS
-                ):
-                    raise InvalidImageError("Animated image is too large.")
-                buffer = io.BytesIO()
-                image.save(buffer, format=image_format, save_all=True)
-            else:
-                # For JPEG, decode directly at a smaller scale when the photo is large.
-                image.draft("RGB", (MAX_DIMENSION, MAX_DIMENSION))
-                width, height = image.size
-                if width * height > MAX_SOURCE_PIXELS:
-                    raise InvalidImageError("Image dimensions are too large.")
-                image.load()
-                output_image: Image.Image = image
-                if image_format == "JPEG" and image.mode not in ("RGB", "L"):
-                    output_image = image.convert("RGB")
-                output_image.thumbnail((MAX_DIMENSION, MAX_DIMENSION))
-                buffer = io.BytesIO()
-                output_image.save(buffer, format=image_format)
+            # Pillow reports the first frame's size here, including a frame larger
+            # than the declared canvas. For JPEG, decode at a smaller scale when the
+            # photo is large.
+            image.draft("RGB", (MAX_DIMENSION, MAX_DIMENSION))
+            width, height = image.size
+            if width * height > MAX_SOURCE_PIXELS:
+                raise InvalidImageError("Image dimensions are too large.")
+            image.load()
+            output_image: Image.Image = image
+            if image_format == "JPEG" and image.mode not in ("RGB", "L"):
+                output_image = image.convert("RGB")
+            output_image.thumbnail((MAX_DIMENSION, MAX_DIMENSION))
+            buffer = io.BytesIO()
+            output_image.save(buffer, format=image_format)
     except InvalidImageError:
         raise
     except Image.DecompressionBombError as exc:
