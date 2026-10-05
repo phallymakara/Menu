@@ -677,7 +677,8 @@ async def get_table_session_orders_summary(
         table_session_id=table_session.id,
         table_id=table.id,
         table_number=table.table_number,
-        status=table_session.status.value,
+        # The column is a plain string; a freshly loaded row holds str, not the enum.
+        status=TableSessionStatus(table_session.status).value,
         total_rounds=len(orders),
         total_items_count=total_items_count,
         subtotal_usd=total_subtotal_usd,
