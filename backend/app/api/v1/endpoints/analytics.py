@@ -5,6 +5,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.permissions import (
+    Permission,
+    require_permission,
+)
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
@@ -24,6 +28,7 @@ from app.services.analytics_service import (
 router = APIRouter(
     prefix="/businesses/{business_id}/analytics",
     tags=["Centralized Analytics & Multi-Branch Sales Rollup"],
+    dependencies=[Depends(require_permission(Permission.VIEW_REPORTS))],
 )
 
 
