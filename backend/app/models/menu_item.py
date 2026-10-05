@@ -8,11 +8,12 @@ from sqlalchemy import (
     JSON,
     Boolean,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
-    UniqueConstraint,
     Uuid,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -30,9 +31,27 @@ if TYPE_CHECKING:
 
 class MenuItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "menu_items"
+    # A SKU is unique among a business's master items, and among each branch's local
+    # items. Partial indexes keep this NULL-safe: a plain unique constraint on
+    # (business_id, branch_id, sku) would treat every master item (branch_id NULL) as
+    # distinct and allow duplicate master SKUs.
     __table_args__ = (
-        UniqueConstraint(
-            "business_id", "branch_id", "sku", name="uq_menu_items_biz_branch_sku"
+        Index(
+            "uq_menu_items_master_sku",
+            "business_id",
+            "sku",
+            unique=True,
+            postgresql_where=text("branch_id IS NULL"),
+            sqlite_where=text("branch_id IS NULL"),
+        ),
+        Index(
+            "uq_menu_items_branch_sku",
+            "business_id",
+            "branch_id",
+            "sku",
+            unique=True,
+            postgresql_where=text("branch_id IS NOT NULL"),
+            sqlite_where=text("branch_id IS NOT NULL"),
         ),
     )
 
