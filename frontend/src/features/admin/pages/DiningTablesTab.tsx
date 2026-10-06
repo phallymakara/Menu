@@ -20,6 +20,7 @@ import {
   useBatchCreateTables,
   useDeleteTable,
   useDownloadTableQrZip,
+  useTableQrCodes,
 } from '../hooks/useTableQueries'
 import type { DiningZone, DiningTable } from '../types/admin.types'
 import { isUuid } from '@/lib/utils'
@@ -82,6 +83,7 @@ export const DiningTablesTab: FC = () => {
   const batchCreateMutation = useBatchCreateTables(businessId, branchId)
   const deleteTableMutation = useDeleteTable(businessId, branchId)
   const downloadQrZipMutation = useDownloadTableQrZip(businessId, branchId)
+  const { data: qrCodes } = useTableQrCodes(businessId, branchId)
 
   const isLoading = (isAreasLoading || isTablesLoading) && tables.length === 0
 
@@ -351,9 +353,7 @@ export const DiningTablesTab: FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {filteredTables.map((tbl) => {
-            const qrSvgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-              `${window.location.origin}/t/${tbl.qr_token}`
-            )}`
+            const qr = qrCodes?.get(tbl.id)
 
             return (
               <div
@@ -380,20 +380,25 @@ export const DiningTablesTab: FC = () => {
                   </div>
 
                   <div className="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center justify-center space-y-1">
-                    <img
-                      src={qrSvgUrl}
-                      alt={`QR for ${tbl.table_number}`}
-                      className="w-20 h-20 rounded bg-white p-1"
-                    />
+                    {qr ? (
+                      <img
+                        src={qr.qr_base64}
+                        alt={`QR for ${tbl.table_number}`}
+                        className="w-20 h-20 rounded bg-white p-1"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+                    )}
                     <span className="text-[10px] font-mono text-zinc-400 truncate max-w-[180px]">
-                      /t/{tbl.qr_token}
+                      {qr ? new URL(qr.ordering_url).pathname : '...'}
                     </span>
                   </div>
                 </div>
 
                 <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
                   <a
-                    href={`/t/${tbl.qr_token}`}
+                    href={qr?.ordering_url}
+                    aria-disabled={!qr}
                     target="_blank"
                     rel="noreferrer"
                     className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
@@ -683,9 +688,7 @@ export const DiningTablesTab: FC = () => {
               </p>
               <div className="flex justify-center">
                 <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-                    `${window.location.origin}/t/${selectedTableForPrint.qr_token}`
-                  )}`}
+                  src={qrCodes?.get(selectedTableForPrint.id)?.qr_base64}
                   alt="QR Code"
                   className="w-40 h-40"
                 />
