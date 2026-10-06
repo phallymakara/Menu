@@ -4660,6 +4660,14 @@ export interface components {
             operating_hours?: {
                 [key: string]: unknown;
             } | unknown[] | null;
+            /** Bakong Account Id */
+            bakong_account_id?: string | null;
+            /** Bakong Merchant Name */
+            bakong_merchant_name?: string | null;
+            /** Bakong Merchant City */
+            bakong_merchant_city?: string | null;
+            /** Bakong Acquiring Bank */
+            bakong_acquiring_bank?: string | null;
             /** Is Active */
             is_active: boolean;
             /**
@@ -4808,6 +4816,17 @@ export interface components {
             } | null;
             /** Is Active */
             is_active?: boolean | null;
+            /**
+             * Bakong Account Id
+             * @description Bakong account that receives KHQR payments, e.g. name@bank
+             */
+            bakong_account_id?: string | null;
+            /** Bakong Merchant Name */
+            bakong_merchant_name?: string | null;
+            /** Bakong Merchant City */
+            bakong_merchant_city?: string | null;
+            /** Bakong Acquiring Bank */
+            bakong_acquiring_bank?: string | null;
         };
         /**
          * BulkBranchItemOverrideRequest
@@ -4877,6 +4896,14 @@ export interface components {
              * @default false
              */
             is_service_charge_inclusive?: boolean;
+            /** Bakong Account Id */
+            bakong_account_id?: string | null;
+            /** Bakong Merchant Name */
+            bakong_merchant_name?: string | null;
+            /** Bakong Merchant City */
+            bakong_merchant_city?: string | null;
+            /** Bakong Acquiring Bank */
+            bakong_acquiring_bank?: string | null;
             /** Is Active */
             is_active: boolean;
             /**
@@ -4924,6 +4951,17 @@ export interface components {
             service_charge_percentage?: number | string | null;
             /** Is Service Charge Inclusive */
             is_service_charge_inclusive?: boolean | null;
+            /**
+             * Bakong Account Id
+             * @description Bakong account that receives KHQR payments, e.g. name@bank
+             */
+            bakong_account_id?: string | null;
+            /** Bakong Merchant Name */
+            bakong_merchant_name?: string | null;
+            /** Bakong Merchant City */
+            bakong_merchant_city?: string | null;
+            /** Bakong Acquiring Bank */
+            bakong_acquiring_bank?: string | null;
         };
         /**
          * CancelOrderRequest

@@ -18147,6 +18147,50 @@
             ],
             "title": "Operating Hours"
           },
+          "bakong_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Account Id"
+          },
+          "bakong_merchant_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Merchant Name"
+          },
+          "bakong_merchant_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Merchant City"
+          },
+          "bakong_acquiring_bank": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Acquiring Bank"
+          },
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
@@ -18594,6 +18638,59 @@
               }
             ],
             "title": "Is Active"
+          },
+          "bakong_account_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "pattern": "^[A-Za-z0-9._-]{1,64}@[A-Za-z0-9]{2,16}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Account Id",
+            "description": "Bakong account that receives KHQR payments, e.g. name@bank"
+          },
+          "bakong_merchant_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 25,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Merchant Name"
+          },
+          "bakong_merchant_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 15,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Merchant City"
+          },
+          "bakong_acquiring_bank": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Acquiring Bank"
           }
         },
         "type": "object",
@@ -18714,6 +18811,50 @@
             "type": "boolean",
             "title": "Is Service Charge Inclusive",
             "default": false
+          },
+          "bakong_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Account Id"
+          },
+          "bakong_merchant_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Merchant Name"
+          },
+          "bakong_merchant_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Merchant City"
+          },
+          "bakong_acquiring_bank": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Acquiring Bank"
           },
           "is_active": {
             "type": "boolean",
@@ -18911,6 +19052,59 @@
               }
             ],
             "title": "Is Service Charge Inclusive"
+          },
+          "bakong_account_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "pattern": "^[A-Za-z0-9._-]{1,64}@[A-Za-z0-9]{2,16}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Account Id",
+            "description": "Bakong account that receives KHQR payments, e.g. name@bank"
+          },
+          "bakong_merchant_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 25,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Merchant Name"
+          },
+          "bakong_merchant_city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 15,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Merchant City"
+          },
+          "bakong_acquiring_bank": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Acquiring Bank"
           }
         },
         "type": "object",
