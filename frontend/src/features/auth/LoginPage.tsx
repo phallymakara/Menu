@@ -1,7 +1,8 @@
 import { useState, type FC, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 import { AuthLayout } from './components/AuthLayout'
+import { ForgotPasswordForm } from './components/ForgotPasswordForm'
 import { Button } from '@/components/ui/Button'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useLogin } from './hooks/useAuthMutations'
@@ -10,7 +11,14 @@ import { getLoginErrorMessage } from './utils/authErrors'
 export const LoginPage: FC = () => {
   const { language, t } = useLanguageStore()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const login = useLogin()
+
+  // The URL holds the view, so `/login?view=forgot` (linked from the sign-in modal and
+  // the reset page) opens the reset form and the browser back button returns to sign-in.
+  const isForgotView = searchParams.get('view') === 'forgot'
+  const showForgotView = () => setSearchParams({ view: 'forgot' })
+  const showLoginView = () => setSearchParams({})
 
   const [emailOrPhone, setEmailOrPhone] = useState('')
   const [password, setPassword] = useState('')
@@ -36,6 +44,14 @@ export const LoginPage: FC = () => {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isForgotView) {
+    return (
+      <AuthLayout title={t('auth.forgotPasswordTitle')} subtitle={t('auth.forgotPasswordSubtitle')}>
+        <ForgotPasswordForm initialIdentifier={emailOrPhone} onBack={showLoginView} />
+      </AuthLayout>
+    )
   }
 
   return (
@@ -82,9 +98,9 @@ export const LoginPage: FC = () => {
             <button
               type="button"
               className="text-xs sm:text-sm text-emerald-600 dark:text-emerald-400 hover:underline"
-              onClick={() => alert(language === 'km' ? 'សូមទាក់ទងមកកាន់ Support ដើម្បីកំណត់ពាក្យសម្ងាត់ឡើងវិញ' : 'Please contact support to reset your password.')}
+              onClick={showForgotView}
             >
-              {language === 'km' ? 'ភ្លេចពាក្យសម្ងាត់?' : 'Forgot password?'}
+              {t('auth.forgotPassword')}
             </button>
           </div>
           <div className="relative">

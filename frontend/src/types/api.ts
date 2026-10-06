@@ -323,7 +323,9 @@ export interface paths {
          * @description HTTP POST endpoint to register a new tenant owner and their organization workspace.
          *
          *     This endpoint:
+         *     - Applies the per-IP registration rate limit.
          *     - Initiates owner and organization registration using auth_service.
+         *     - Starts a login session (access and refresh token).
          *     - Commits the transaction if successful.
          *     - Handles conflict errors and database integrity errors, mapping them to
          *       appropriate HTTP 409 responses.
@@ -338,7 +340,7 @@ export interface paths {
          *
          *     Raises:
          *         HTTPException: 409 Conflict if email, phone, or organization slug
-         *         is already in use.
+         *         is already in use; 429 when the client IP made too many attempts.
          */
         post: operations["register_owner_endpoint_api_v1_auth_register_owner_post"];
         delete?: never;
@@ -361,7 +363,9 @@ export interface paths {
          * @description HTTP POST endpoint to register a new tenant owner and their organization workspace.
          *
          *     This endpoint:
+         *     - Applies the per-IP registration rate limit.
          *     - Initiates owner and organization registration using auth_service.
+         *     - Starts a login session (access and refresh token).
          *     - Commits the transaction if successful.
          *     - Handles conflict errors and database integrity errors, mapping them to
          *       appropriate HTTP 409 responses.
@@ -376,7 +380,7 @@ export interface paths {
          *
          *     Raises:
          *         HTTPException: 409 Conflict if email, phone, or organization slug
-         *         is already in use.
+         *         is already in use; 429 when the client IP made too many attempts.
          */
         post: operations["register_owner_endpoint_api_v1_auth_register_post"];
         delete?: never;
@@ -396,9 +400,113 @@ export interface paths {
         put?: never;
         /**
          * Login
-         * @description Authenticate by email or Cambodian phone number.
+         * @description Authenticate by email or Cambodian phone number and start a session.
+         *
+         *     Returns a short-lived access token and a refresh token. Attempts are rate
+         *     limited per client IP and per identifier and client IP, and failed attempts
+         *     per account across all IP addresses.
          */
         post: operations["login_api_v1_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Session
+         * @description Rotate a refresh token and return a new access token and refresh token.
+         *
+         *     The presented refresh token is single use. Presenting it again revokes every
+         *     token of the session, which signs the session out everywhere. Requests are
+         *     rate limited per client IP.
+         */
+        post: operations["refresh_session_api_v1_auth_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description Revoke the session that owns the presented refresh token.
+         *
+         *     Always returns 204, even for unknown tokens. Access tokens already issued stay
+         *     valid until they expire, so clients must discard them.
+         */
+        post: operations["logout_api_v1_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Password Reset Endpoint
+         * @description Send password reset instructions to the account with this email or phone.
+         *
+         *     The response cannot reveal whether an account matches: it is always 202 with
+         *     the same body and headers, and the account lookup, token, and delivery all run
+         *     in a background task after the response is sent, so timing does not differ
+         *     either. Rate limits apply per identifier and client IP before anything else,
+         *     for known and unknown identifiers alike.
+         *
+         *     Only when ENVIRONMENT is 'development' is the work done inline, so the
+         *     response can include ``debug_reset_token`` (no email or SMS provider exists
+         *     yet).
+         */
+        post: operations["request_password_reset_endpoint_api_v1_auth_password_reset_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/password-reset/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Password Reset Endpoint
+         * @description Set a new password with a reset token and sign the account out everywhere.
+         *
+         *     The token is single use. The password policy is the same as for registration.
+         *     Attempts are rate limited per client IP.
+         */
+        post: operations["confirm_password_reset_endpoint_api_v1_auth_password_reset_confirm_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -459,7 +567,8 @@ export interface paths {
         /**
          * Switch active working branch context (Brand Owners & General Managers only)
          * @description Switches active working branch context for Brand Owners and General Managers.
-         *     Returns a refreshed JWT with the target active_branch_id.
+         *     Returns a JWT with the target active_branch_id that expires at the same time as
+         *     the token used for this request, so switching never extends a session.
          *     Branch Managers and local staff attempting to switch outside their assigned branch will receive HTTP 403 Forbidden.
          */
         post: operations["switch_branch_endpoint_api_v1_auth_switch_branch_post"];
@@ -2882,7 +2991,10 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AccessTokenResponse */
+        /**
+         * AccessTokenResponse
+         * @description Tokens returned by login and refresh.
+         */
         AccessTokenResponse: {
             /** Access Token */
             access_token: string;
@@ -2891,8 +3003,16 @@ export interface components {
              * @default bearer
              */
             token_type?: string;
-            /** Expires In */
+            /**
+             * Expires In
+             * @description Access token lifetime in seconds
+             */
             expires_in: number;
+            /**
+             * Refresh Token
+             * @description Opaque, single-use refresh token. Exchange it at POST /auth/refresh for a new token pair, or revoke the session with POST /auth/logout.
+             */
+            refresh_token: string;
         };
         /**
          * AccessibleBranchInfo
@@ -7185,6 +7305,14 @@ export interface components {
             display_order?: number | null;
         };
         /**
+         * MessageResponse
+         * @description A human-readable confirmation message.
+         */
+        MessageResponse: {
+            /** Message */
+            message: string;
+        };
+        /**
          * ModifierGroupCreate
          * @description Payload for creating a modifier group.
          */
@@ -7782,6 +7910,48 @@ export interface components {
              * @default bearer
              */
             token_type?: string;
+            /**
+             * Refresh Token
+             * @description Opaque refresh token for POST /auth/refresh and /auth/logout
+             */
+            refresh_token?: string | null;
+        };
+        /**
+         * PasswordResetConfirmRequest
+         * @description Redeem a password reset token and set a new password.
+         */
+        PasswordResetConfirmRequest: {
+            /** Token */
+            token: string;
+            /**
+             * New Password
+             * @description New password (minimum 8 characters)
+             */
+            new_password: string;
+        };
+        /**
+         * PasswordResetRequest
+         * @description Start a password reset for the account with this email or phone number.
+         */
+        PasswordResetRequest: {
+            /**
+             * Identifier
+             * @description Email address or Cambodian phone number
+             */
+            identifier: string;
+        };
+        /**
+         * PasswordResetRequestResponse
+         * @description Identical for every request, whether or not an account matched.
+         *
+         *     ``debug_reset_token`` is only ever set when ENVIRONMENT is 'development', so the
+         *     flow can be tested before an email or SMS provider is configured.
+         */
+        PasswordResetRequestResponse: {
+            /** Message */
+            message: string;
+            /** Debug Reset Token */
+            debug_reset_token?: string | null;
         };
         /**
          * PaymentBreakdownResponse
@@ -8242,6 +8412,14 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /**
+         * RefreshTokenRequest
+         * @description A refresh token presented to rotate or revoke a session.
+         */
+        RefreshTokenRequest: {
+            /** Refresh Token */
+            refresh_token: string;
         };
         /**
          * ResetBranchOverridesRequest
@@ -9947,6 +10125,178 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Too many login attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    refresh_session_api_v1_auth_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessTokenResponse"];
+                };
+            };
+            /** @description Invalid, expired, or revoked refresh token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many refresh requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    logout_api_v1_auth_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefreshTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_password_reset_endpoint_api_v1_auth_password_reset_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many reset requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    confirm_password_reset_endpoint_api_v1_auth_password_reset_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description Invalid, used, or expired reset token */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
