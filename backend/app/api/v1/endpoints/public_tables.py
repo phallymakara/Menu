@@ -20,8 +20,8 @@ from app.schemas.table_session import (
 )
 from app.services.table_qr_service import verify_public_table
 from app.services.table_session_service import (
-    open_table_session,
-    request_session_bill,
+    open_guest_table_session,
+    request_guest_session_bill,
 )
 
 logger = structlog.get_logger("app.api.v1.endpoints.public_tables")
@@ -76,21 +76,13 @@ async def open_public_table_session_endpoint(
     """
     Guest self-opens or connects to the table session upon scanning the QR code.
     """
-    # Verify QR token first
-    verified = await verify_public_table_endpoint(
-        branch_id=branch_id,
-        table_id=table_id,
-        token=token,
-        session=session,
-    )
     try:
-        return await open_table_session(
+        return await open_guest_table_session(
             session=session,
-            business_id=verified.business_id,
             branch_id=branch_id,
             table_id=table_id,
+            qr_token=token,
             payload=payload,
-            opened_by_type="guest",
         )
     except TenantNotFoundError as exc:
         raise HTTPException(
@@ -113,18 +105,12 @@ async def request_public_table_bill_endpoint(
     """
     Guest requests bill directly from their phone.
     """
-    verified = await verify_public_table_endpoint(
-        branch_id=branch_id,
-        table_id=table_id,
-        token=token,
-        session=session,
-    )
     try:
-        return await request_session_bill(
+        return await request_guest_session_bill(
             session=session,
-            business_id=verified.business_id,
             branch_id=branch_id,
             table_id=table_id,
+            qr_token=token,
         )
     except TenantNotFoundError as exc:
         raise HTTPException(

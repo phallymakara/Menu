@@ -72,11 +72,13 @@ async def void_order_line_item(
     item_id: UUID,
     payload: VoidOrderItemRequest,
     current_user: User,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> VoidOrderItemResponse:
     """
     Voids an individual line item in an order with mandatory reason tracking and audit logging.
     Recalculates parent order totals and cancels the order if all items are voided.
+
+    The order must belong to the branch, the business, and the caller's organization.
     """
     # 1. Fetch Order and verify tenant
     order_query = (
@@ -87,12 +89,11 @@ async def void_order_line_item(
         )
         .where(
             Order.id == order_id,
+            Order.organization_id == tenant.organization_id,
             Order.business_id == business_id,
             Order.branch_id == branch_id,
         )
     )
-    if tenant:
-        order_query = order_query.where(Order.organization_id == tenant.organization_id)
 
     order_res = await session.execute(order_query)
     order = order_res.scalar_one_or_none()
@@ -235,10 +236,12 @@ async def cancel_entire_order_round(
     order_id: UUID,
     payload: CancelOrderRequest,
     current_user: User,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> CancelOrderResponse:
     """
     Cancels an entire order round, voids all active child items, and records an audit log.
+
+    The order must belong to the branch, the business, and the caller's organization.
     """
     order_query = (
         select(Order)
@@ -248,12 +251,11 @@ async def cancel_entire_order_round(
         )
         .where(
             Order.id == order_id,
+            Order.organization_id == tenant.organization_id,
             Order.business_id == business_id,
             Order.branch_id == branch_id,
         )
     )
-    if tenant:
-        order_query = order_query.where(Order.organization_id == tenant.organization_id)
 
     order_res = await session.execute(order_query)
     order = order_res.scalar_one_or_none()

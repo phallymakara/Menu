@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.dependencies.auth import get_current_user
+from app.api.dependencies.tenant import get_current_tenant_context
+from app.core.tenant import TenantContext
 from app.db.session import get_db_session
 from app.models.enums import OrderStatus
 from app.models.order import Order, OrderItem
@@ -128,12 +130,13 @@ async def get_single_order_bill(
     business_id: UUID,
     branch_id: UUID,
     order_id: UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> BillSummaryResponse:
     """Retrieves full bill calculation (USD and KHR) for a single order ticket."""
     return await get_order_bill_summary(
         session=session,
+        tenant=tenant,
         business_id=business_id,
         branch_id=branch_id,
         order_id=order_id,

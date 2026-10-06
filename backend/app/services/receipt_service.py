@@ -40,9 +40,14 @@ async def build_payment_receipt_data(
     business_id: UUID,
     branch_id: UUID,
     payment_id: UUID,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> ReceiptData:
-    """Builds normalized ReceiptData for a completed Payment record."""
+    """
+    Builds normalized ReceiptData for a completed Payment record.
+
+    The payment must belong to the branch, the business, and the caller's
+    organization.
+    """
     query = (
         select(Payment)
         .options(
@@ -56,12 +61,11 @@ async def build_payment_receipt_data(
         )
         .where(
             Payment.id == payment_id,
+            Payment.organization_id == tenant.organization_id,
             Payment.business_id == business_id,
             Payment.branch_id == branch_id,
         )
     )
-    if tenant:
-        query = query.where(Payment.organization_id == tenant.organization_id)
 
     res = await session.execute(query)
     payment = res.scalar_one_or_none()
@@ -194,10 +198,18 @@ async def build_session_precheck_receipt_data(
     business_id: UUID,
     branch_id: UUID,
     table_session_id: UUID,
+    tenant: TenantContext,
     current_user: User | None = None,
-    tenant: TenantContext | None = None,
 ) -> ReceiptData:
-    """Builds pro-forma pre-check ReceiptData for an active TableSession."""
+    """
+    Builds pro-forma pre-check ReceiptData for an active TableSession.
+
+    The session must belong to the branch, the business, and the caller's
+    organization.
+
+    Raises:
+        HTTPException (404): If the session is not found in this tenant scope.
+    """
     sess_query = (
         select(TableSession)
         .options(
@@ -207,14 +219,11 @@ async def build_session_precheck_receipt_data(
         )
         .where(
             TableSession.id == table_session_id,
+            TableSession.organization_id == tenant.organization_id,
             TableSession.business_id == business_id,
             TableSession.branch_id == branch_id,
         )
     )
-    if tenant:
-        sess_query = sess_query.where(
-            TableSession.organization_id == tenant.organization_id
-        )
 
     sess_res = await session.execute(sess_query)
     table_sess = sess_res.scalar_one_or_none()
@@ -320,10 +329,18 @@ async def build_order_precheck_receipt_data(
     business_id: UUID,
     branch_id: UUID,
     order_id: UUID,
+    tenant: TenantContext,
     current_user: User | None = None,
-    tenant: TenantContext | None = None,
 ) -> ReceiptData:
-    """Builds pro-forma pre-check ReceiptData for a standalone Order."""
+    """
+    Builds pro-forma pre-check ReceiptData for a standalone Order.
+
+    The order must belong to the branch, the business, and the caller's
+    organization.
+
+    Raises:
+        HTTPException (404): If the order is not found in this tenant scope.
+    """
     order_query = (
         select(Order)
         .options(
@@ -333,12 +350,11 @@ async def build_order_precheck_receipt_data(
         )
         .where(
             Order.id == order_id,
+            Order.organization_id == tenant.organization_id,
             Order.business_id == business_id,
             Order.branch_id == branch_id,
         )
     )
-    if tenant:
-        order_query = order_query.where(Order.organization_id == tenant.organization_id)
 
     order_res = await session.execute(order_query)
     order = order_res.scalar_one_or_none()

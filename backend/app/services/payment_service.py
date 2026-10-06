@@ -185,7 +185,7 @@ async def settle_table_session_cash_payment(
     table_session_id: UUID,
     payload: CashPaymentRequest,
     current_user: User,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> PaymentResponse:
     """
     Settles a dine-in table session with dual-currency cash, closes the session,
@@ -199,7 +199,7 @@ async def settle_table_session_cash_payment(
         table_session_id: UUID of the active table dining session to settle.
         payload: Cash tender details and optional discount / promo codes.
         current_user: Authenticated cashier user performing the settlement.
-        tenant: Optional active tenant context for security validation.
+        tenant: Active tenant context; the session must belong to its organization.
 
     Returns:
         PaymentResponse: Immutable financial transaction record.
@@ -217,10 +217,9 @@ async def settle_table_session_cash_payment(
             TableSession.branch_id == branch_id,
         )
     )
-    if tenant:
-        sess_query = sess_query.where(
-            TableSession.organization_id == tenant.organization_id
-        )
+    sess_query = sess_query.where(
+        TableSession.organization_id == tenant.organization_id
+    )
 
     sess_res = await session.execute(sess_query)
     table_sess = sess_res.scalar_one_or_none()
@@ -444,7 +443,7 @@ async def settle_table_session_khqr_payment(
     table_session_id: UUID,
     payload: KHQRPaymentRequest,
     current_user: User,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> PaymentResponse:
     """
     Settles a dine-in table session with KHQR (Bakong) payment confirmation,
@@ -463,10 +462,9 @@ async def settle_table_session_khqr_payment(
             TableSession.branch_id == branch_id,
         )
     )
-    if tenant:
-        sess_query = sess_query.where(
-            TableSession.organization_id == tenant.organization_id
-        )
+    sess_query = sess_query.where(
+        TableSession.organization_id == tenant.organization_id
+    )
 
     sess_res = await session.execute(sess_query)
     table_sess = sess_res.scalar_one_or_none()
@@ -670,7 +668,7 @@ async def settle_order_cash_payment(
     order_id: UUID,
     payload: CashPaymentRequest,
     current_user: User,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> PaymentResponse:
     """
     Settles a single/takeaway order with cash payment, calculates dual-currency change,
@@ -688,8 +686,7 @@ async def settle_order_cash_payment(
             Order.branch_id == branch_id,
         )
     )
-    if tenant:
-        order_query = order_query.where(Order.organization_id == tenant.organization_id)
+    order_query = order_query.where(Order.organization_id == tenant.organization_id)
 
     order_res = await session.execute(order_query)
     order = order_res.scalar_one_or_none()
@@ -879,7 +876,7 @@ async def settle_order_khqr_payment(
     order_id: UUID,
     payload: KHQRPaymentRequest,
     current_user: User,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> PaymentResponse:
     """
     Settles a single/takeaway order with KHQR payment confirmation
@@ -897,8 +894,7 @@ async def settle_order_khqr_payment(
             Order.branch_id == branch_id,
         )
     )
-    if tenant:
-        order_query = order_query.where(Order.organization_id == tenant.organization_id)
+    order_query = order_query.where(Order.organization_id == tenant.organization_id)
 
     order_res = await session.execute(order_query)
     order = order_res.scalar_one_or_none()
@@ -1075,7 +1071,7 @@ async def get_payment_by_id(
     business_id: UUID,
     branch_id: UUID,
     payment_id: UUID,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> PaymentResponse:
     """
     Retrieves a single payment transaction by ID with associated table details.
@@ -1092,8 +1088,7 @@ async def get_payment_by_id(
             Payment.branch_id == branch_id,
         )
     )
-    if tenant:
-        query = query.where(Payment.organization_id == tenant.organization_id)
+    query = query.where(Payment.organization_id == tenant.organization_id)
 
     res = await session.execute(query)
     payment = res.scalar_one_or_none()

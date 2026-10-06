@@ -78,40 +78,39 @@ async def transfer_table(
     branch_id: UUID,
     source_table_id: UUID,
     payload: TableTransferRequest,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> TableSessionResponse:
     """
     Transfers an active dining session from source table to target table.
+
+    Both tables must belong to the branch, the business, and the caller's
+    organization.
     """
     if source_table_id == payload.target_table_id:
         raise ResourceConflictError("Source and target tables cannot be the same.")
 
     # 1. Verify and load source table
-    src_query = select(RestaurantTable).where(
-        RestaurantTable.id == source_table_id,
-        RestaurantTable.branch_id == branch_id,
-        RestaurantTable.business_id == business_id,
-    )
-    if tenant:
-        src_query = src_query.where(
-            RestaurantTable.organization_id == tenant.organization_id
+    src_res = await session.execute(
+        select(RestaurantTable).where(
+            RestaurantTable.id == source_table_id,
+            RestaurantTable.organization_id == tenant.organization_id,
+            RestaurantTable.branch_id == branch_id,
+            RestaurantTable.business_id == business_id,
         )
-    src_res = await session.execute(src_query)
+    )
     src_table = src_res.scalar_one_or_none()
     if src_table is None:
         raise TenantNotFoundError("Source table not found.")
 
     # 2. Verify and load target table
-    tgt_query = select(RestaurantTable).where(
-        RestaurantTable.id == payload.target_table_id,
-        RestaurantTable.branch_id == branch_id,
-        RestaurantTable.business_id == business_id,
-    )
-    if tenant:
-        tgt_query = tgt_query.where(
-            RestaurantTable.organization_id == tenant.organization_id
+    tgt_res = await session.execute(
+        select(RestaurantTable).where(
+            RestaurantTable.id == payload.target_table_id,
+            RestaurantTable.organization_id == tenant.organization_id,
+            RestaurantTable.branch_id == branch_id,
+            RestaurantTable.business_id == business_id,
         )
-    tgt_res = await session.execute(tgt_query)
+    )
     tgt_table = tgt_res.scalar_one_or_none()
     if tgt_table is None:
         raise TenantNotFoundError("Target table not found.")
@@ -149,22 +148,21 @@ async def transfer_table(
     await session.refresh(tgt_table)
     await session.refresh(src_table)
 
-    if tenant:
-        await record_audit_log(
-            session=session,
-            action="TABLE_TRANSFERRED",
-            organization_id=src_table.organization_id,
-            user_id=tenant.user_id,
-            resource_type="table_session",
-            resource_id=str(sess_obj.id),
-            details={
-                "source_table": src_table.table_number,
-                "target_table": tgt_table.table_number,
-                "session_code": sess_obj.session_code,
-                "reason": payload.reason,
-            },
-        )
-        await session.commit()
+    await record_audit_log(
+        session=session,
+        action="TABLE_TRANSFERRED",
+        organization_id=src_table.organization_id,
+        user_id=tenant.user_id,
+        resource_type="table_session",
+        resource_id=str(sess_obj.id),
+        details={
+            "source_table": src_table.table_number,
+            "target_table": tgt_table.table_number,
+            "session_code": sess_obj.session_code,
+            "reason": payload.reason,
+        },
+    )
+    await session.commit()
 
     logger.info(
         "Table session transferred",
@@ -181,25 +179,26 @@ async def merge_tables(
     branch_id: UUID,
     primary_table_id: UUID,
     payload: TableMergeRequest,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> TableSessionResponse:
     """
     Merges secondary tables into a primary table dining session.
+
+    Only tables of the branch, the business, and the caller's organization are
+    merged; other secondary table IDs are skipped.
     """
     if primary_table_id in payload.secondary_table_ids:
         raise ResourceConflictError("Primary table cannot be in secondary tables list.")
 
     # 1. Load primary table and active session
-    pri_query = select(RestaurantTable).where(
-        RestaurantTable.id == primary_table_id,
-        RestaurantTable.branch_id == branch_id,
-        RestaurantTable.business_id == business_id,
-    )
-    if tenant:
-        pri_query = pri_query.where(
-            RestaurantTable.organization_id == tenant.organization_id
+    pri_res = await session.execute(
+        select(RestaurantTable).where(
+            RestaurantTable.id == primary_table_id,
+            RestaurantTable.organization_id == tenant.organization_id,
+            RestaurantTable.branch_id == branch_id,
+            RestaurantTable.business_id == business_id,
         )
-    pri_res = await session.execute(pri_query)
+    )
     pri_table = pri_res.scalar_one_or_none()
     if pri_table is None:
         raise TenantNotFoundError("Primary table not found.")
@@ -224,7 +223,7 @@ async def merge_tables(
             session_code=_generate_session_code(),
             guest_count=1,
             status=TableSessionStatus.ACTIVE,
-            opened_by_user_id=tenant.user_id if tenant else None,
+            opened_by_user_id=tenant.user_id,
             opened_by_type="staff",
         )
         pri_table.status = TableStatus.OCCUPIED
@@ -236,16 +235,14 @@ async def merge_tables(
 
     # 2. Process secondary tables
     for sec_id in payload.secondary_table_ids:
-        sec_query = select(RestaurantTable).where(
-            RestaurantTable.id == sec_id,
-            RestaurantTable.branch_id == branch_id,
-            RestaurantTable.business_id == business_id,
-        )
-        if tenant:
-            sec_query = sec_query.where(
-                RestaurantTable.organization_id == tenant.organization_id
+        sec_res = await session.execute(
+            select(RestaurantTable).where(
+                RestaurantTable.id == sec_id,
+                RestaurantTable.organization_id == tenant.organization_id,
+                RestaurantTable.branch_id == branch_id,
+                RestaurantTable.business_id == business_id,
             )
-        sec_res = await session.execute(sec_query)
+        )
         sec_table = sec_res.scalar_one_or_none()
         if sec_table is None:
             continue
@@ -273,7 +270,7 @@ async def merge_tables(
                 session_code=_generate_session_code(),
                 guest_count=1,
                 status=TableSessionStatus.MERGED,
-                opened_by_user_id=tenant.user_id if tenant else None,
+                opened_by_user_id=tenant.user_id,
                 opened_by_type="staff",
             )
             session.add(child_sess)
@@ -292,21 +289,20 @@ async def merge_tables(
     await session.commit()
     await session.refresh(primary_session)
 
-    if tenant:
-        await record_audit_log(
-            session=session,
-            action="TABLES_MERGED",
-            organization_id=pri_table.organization_id,
-            user_id=tenant.user_id,
-            resource_type="table_session",
-            resource_id=str(primary_session.id),
-            details={
-                "primary_table": pri_table.table_number,
-                "merged_tables": merged_table_numbers,
-                "notes": payload.notes,
-            },
-        )
-        await session.commit()
+    await record_audit_log(
+        session=session,
+        action="TABLES_MERGED",
+        organization_id=pri_table.organization_id,
+        user_id=tenant.user_id,
+        resource_type="table_session",
+        resource_id=str(primary_session.id),
+        details={
+            "primary_table": pri_table.table_number,
+            "merged_tables": merged_table_numbers,
+            "notes": payload.notes,
+        },
+    )
+    await session.commit()
 
     logger.info(
         "Tables merged into primary session",
@@ -327,21 +323,22 @@ async def unmerge_tables(
     branch_id: UUID,
     primary_table_id: UUID,
     payload: TableUnmergeRequest,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> TableSessionResponse:
     """
     Detaches secondary tables from a primary table merged group.
+
+    Only tables of the branch, the business, and the caller's organization are
+    detached; other secondary table IDs are skipped.
     """
-    pri_query = select(RestaurantTable).where(
-        RestaurantTable.id == primary_table_id,
-        RestaurantTable.branch_id == branch_id,
-        RestaurantTable.business_id == business_id,
-    )
-    if tenant:
-        pri_query = pri_query.where(
-            RestaurantTable.organization_id == tenant.organization_id
+    pri_res = await session.execute(
+        select(RestaurantTable).where(
+            RestaurantTable.id == primary_table_id,
+            RestaurantTable.organization_id == tenant.organization_id,
+            RestaurantTable.branch_id == branch_id,
+            RestaurantTable.business_id == business_id,
         )
-    pri_res = await session.execute(pri_query)
+    )
     pri_table = pri_res.scalar_one_or_none()
     if pri_table is None:
         raise TenantNotFoundError("Primary table not found.")
@@ -362,16 +359,14 @@ async def unmerge_tables(
     # Detach secondary tables
     unmerged_table_numbers: list[str] = []
     for sec_id in payload.secondary_table_ids:
-        sec_query = select(RestaurantTable).where(
-            RestaurantTable.id == sec_id,
-            RestaurantTable.branch_id == branch_id,
-            RestaurantTable.business_id == business_id,
-        )
-        if tenant:
-            sec_query = sec_query.where(
-                RestaurantTable.organization_id == tenant.organization_id
+        sec_res = await session.execute(
+            select(RestaurantTable).where(
+                RestaurantTable.id == sec_id,
+                RestaurantTable.organization_id == tenant.organization_id,
+                RestaurantTable.branch_id == branch_id,
+                RestaurantTable.business_id == business_id,
             )
-        sec_res = await session.execute(sec_query)
+        )
         sec_table = sec_res.scalar_one_or_none()
         if sec_table is None:
             continue
@@ -395,20 +390,19 @@ async def unmerge_tables(
     await session.commit()
     await session.refresh(primary_session)
 
-    if tenant:
-        await record_audit_log(
-            session=session,
-            action="TABLES_UNMERGED",
-            organization_id=pri_table.organization_id,
-            user_id=tenant.user_id,
-            resource_type="table_session",
-            resource_id=str(primary_session.id),
-            details={
-                "primary_table": pri_table.table_number,
-                "unmerged_tables": unmerged_table_numbers,
-            },
-        )
-        await session.commit()
+    await record_audit_log(
+        session=session,
+        action="TABLES_UNMERGED",
+        organization_id=pri_table.organization_id,
+        user_id=tenant.user_id,
+        resource_type="table_session",
+        resource_id=str(primary_session.id),
+        details={
+            "primary_table": pri_table.table_number,
+            "unmerged_tables": unmerged_table_numbers,
+        },
+    )
+    await session.commit()
 
     logger.info(
         "Tables unmerged from primary session",

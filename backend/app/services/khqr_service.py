@@ -124,7 +124,7 @@ def generate_qr_image_data_url(qr_string: str) -> str:
     """Generates a high-contrast Base64 PNG Data URI for the given QR string."""
     qr = qrcode.QRCode(
         version=None,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        error_correction=qrcode.ERROR_CORRECT_M,
         box_size=8,
         border=2,
     )
@@ -133,7 +133,7 @@ def generate_qr_image_data_url(qr_string: str) -> str:
     img = qr.make_image(fill_color="black", back_color="white")
 
     buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
+    img.save(buffer, kind="PNG")
     b64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return f"data:image/png;base64,{b64_str}"
 
@@ -197,6 +197,7 @@ async def _resolve_bakong_merchant_info(
 
 async def generate_dynamic_session_khqr(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     table_session_id: UUID,
@@ -205,7 +206,6 @@ async def generate_dynamic_session_khqr(
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
-    tenant: TenantContext | None = None,
 ) -> KHQRResponse:
     """
     Calculates dynamic table session bill and generates an official Bakong KHQR payload.
@@ -305,6 +305,7 @@ async def generate_dynamic_session_khqr(
 
 async def generate_dynamic_order_khqr(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     order_id: UUID,
@@ -313,7 +314,6 @@ async def generate_dynamic_order_khqr(
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
-    tenant: TenantContext | None = None,
 ) -> KHQRResponse:
     """
     Calculates dynamic takeaway/single order bill and generates an official Bakong KHQR payload.
