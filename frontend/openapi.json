@@ -1254,7 +1254,7 @@
           "Authentication"
         ],
         "summary": "Login",
-        "description": "Authenticate by email or Cambodian phone number and start a session.\n\nReturns a short-lived access token and a refresh token. Attempts are rate\nlimited per client IP and per identifier and client IP, and failed attempts\nper account across all IP addresses.",
+        "description": "Authenticate by email or Cambodian phone number and start a session.\n\nReturns a short-lived access token and a refresh token. Attempts are rate\nlimited per client IP, strictly per identifier and client IP, and more loosely\nper account across all IP addresses (see ``authenticate_user`` for why).",
         "operationId": "login_api_v1_auth_login_post",
         "requestBody": {
           "content": {

@@ -198,8 +198,8 @@ async def login(
     Authenticate by email or Cambodian phone number and start a session.
 
     Returns a short-lived access token and a refresh token. Attempts are rate
-    limited per client IP and per identifier and client IP, and failed attempts
-    per account across all IP addresses.
+    limited per client IP, strictly per identifier and client IP, and more loosely
+    per account across all IP addresses (see ``authenticate_user`` for why).
     """
     try:
         await enforce_login_rate_limit(

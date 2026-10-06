@@ -1,6 +1,8 @@
 """Rate limiting and brute-force protection of the authentication endpoints."""
 
+import asyncio
 import ipaddress
+from collections.abc import Callable
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -199,12 +201,10 @@ async def test_login_is_limited_per_ip_across_identifiers(limited_app, monkeypat
 
 
 @pytest.mark.anyio
-async def test_failed_logins_are_counted_per_account_across_ips(
-    limited_app, monkeypatch
-):
-    monkeypatch.setattr(settings, "rate_limit_login_failures_per_account", 3)
+async def test_attempts_are_limited_per_account_across_ips(limited_app, monkeypatch):
+    monkeypatch.setattr(settings, "rate_limit_login_per_account", 3)
 
-    # Three failures from three addresses, through both the email and the phone.
+    # Three attempts from three addresses, through both the email and the phone.
     attempts = [
         ("198.51.100.1", OWNER_EMAIL),
         ("198.51.100.2", "012 345 678"),
@@ -215,8 +215,8 @@ async def test_failed_logins_are_counted_per_account_across_ips(
             response = await _login(client, identifier, "wrong-password")
             assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-    # The account is locked for every address and identifier, even with the
-    # right password, until the window ends.
+    # The account budget is spent for every address and identifier until the
+    # window ends.
     for ip, identifier in [
         ("198.51.100.4", OWNER_EMAIL),
         ("198.51.100.5", OWNER_PHONE),
@@ -226,8 +226,31 @@ async def test_failed_logins_are_counted_per_account_across_ips(
 
 
 @pytest.mark.anyio
-async def test_unknown_accounts_are_locked_like_real_ones(limited_app, monkeypatch):
-    monkeypatch.setattr(settings, "rate_limit_login_failures_per_account", 3)
+async def test_every_spelling_of_an_account_hits_the_same_limits(
+    limited_app, monkeypatch
+):
+    """Mixed case, whitespace, and phone formats all count against one account."""
+    monkeypatch.setattr(settings, "rate_limit_login_per_account", 4)
+    spellings = [
+        "OWNER@EXAMPLE.COM",
+        "  owner@example.com  ",
+        "012 345 678",
+        "+855 12 345 678",
+    ]
+
+    for index, spelling in enumerate(spellings):
+        async with _client(f"198.51.100.{30 + index}") as client:
+            response = await _login(client, spelling, "wrong-password")
+            assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    for index, spelling in enumerate([*spellings, OWNER_EMAIL, OWNER_PHONE]):
+        async with _client(f"198.51.100.{40 + index}") as client:
+            _assert_too_many_requests(await _login(client, spelling, OWNER_PASSWORD))
+
+
+@pytest.mark.anyio
+async def test_unknown_accounts_are_limited_like_real_ones(limited_app, monkeypatch):
+    monkeypatch.setattr(settings, "rate_limit_login_per_account", 3)
     unknown = "nobody@example.com"
 
     for index in range(3):
@@ -237,6 +260,81 @@ async def test_unknown_accounts_are_locked_like_real_ones(limited_app, monkeypat
 
     async with _client("198.51.100.20") as client:
         _assert_too_many_requests(await _login(client, unknown, "wrong-password"))
+
+
+@pytest.mark.anyio
+async def test_flooding_from_one_address_does_not_lock_out_the_owner(limited_app):
+    """With the default limits, an attacker on one IP cannot block the real user."""
+    attacker_ip, owner_ip = "203.0.113.66", "198.51.100.77"
+
+    async with _client(attacker_ip) as attacker:
+        responses = [
+            await _login(attacker, identifier, "wrong-password")
+            for _ in range(15)
+            for identifier in (OWNER_EMAIL, OWNER_PHONE)
+        ]
+    statuses = [response.status_code for response in responses]
+    assert status.HTTP_429_TOO_MANY_REQUESTS in statuses
+    assert statuses.count(status.HTTP_401_UNAUTHORIZED) <= (
+        2 * settings.rate_limit_login_per_identifier
+    )
+
+    async with _client(owner_ip) as owner:
+        response = await _login(owner, OWNER_EMAIL, OWNER_PASSWORD)
+    assert response.status_code == status.HTTP_200_OK
+
+
+async def _concurrent_wrong_logins(
+    monkeypatch, attempts: int, ip_for: Callable[[int], str]
+) -> tuple[list[int], list[str]]:
+    """Fire wrong-password logins concurrently; return statuses and verified hashes."""
+    verified: list[str] = []
+
+    async def _slow_wrong_verify(password: str, hashed: str) -> bool:
+        verified.append(hashed)
+        # Keep every request inside password verification at the same time.
+        await asyncio.sleep(0.05)
+        return False
+
+    monkeypatch.setattr(auth_service, "verify_password_async", _slow_wrong_verify)
+
+    async def _attempt(index: int) -> int:
+        async with _client(ip_for(index)) as client:
+            response = await _login(client, OWNER_EMAIL, "wrong-password")
+            return response.status_code
+
+    statuses = await asyncio.gather(*[_attempt(index) for index in range(attempts)])
+    return list(statuses), verified
+
+
+@pytest.mark.anyio
+async def test_concurrent_attempts_from_one_address_cannot_exceed_the_limit(
+    limited_app, monkeypatch
+):
+    monkeypatch.setattr(settings, "rate_limit_login_per_identifier", 3)
+
+    statuses, verified = await _concurrent_wrong_logins(
+        monkeypatch, attempts=10, ip_for=lambda _: CLIENT_IP
+    )
+
+    assert len(verified) <= 3
+    assert statuses.count(status.HTTP_401_UNAUTHORIZED) == 3
+    assert statuses.count(status.HTTP_429_TOO_MANY_REQUESTS) == 7
+
+
+@pytest.mark.anyio
+async def test_concurrent_attempts_across_addresses_cannot_exceed_the_account_limit(
+    limited_app, monkeypatch
+):
+    monkeypatch.setattr(settings, "rate_limit_login_per_account", 3)
+
+    statuses, verified = await _concurrent_wrong_logins(
+        monkeypatch, attempts=10, ip_for=lambda index: f"198.51.100.{100 + index}"
+    )
+
+    assert len(verified) <= 3
+    assert statuses.count(status.HTTP_401_UNAUTHORIZED) == 3
+    assert statuses.count(status.HTTP_429_TOO_MANY_REQUESTS) == 7
 
 
 @pytest.mark.anyio
@@ -469,20 +567,20 @@ async def test_memory_limiter_resets_when_the_window_ends():
     rule = RateLimitRule(limit=2, window_seconds=60)
     window_end = (int(clock.now // 60) + 1) * 60
 
-    assert (await limiter.peek("key", rule)).allowed
     assert (await limiter.hit("key", rule)).allowed
     assert (await limiter.hit("key", rule)).allowed
-    assert not (await limiter.peek("key", rule)).allowed
     blocked = await limiter.hit("key", rule)
     assert not blocked.allowed
+    assert blocked.count == 3
     assert blocked.retry_after_seconds == window_end - int(clock.now)
 
     # Other keys are counted separately.
     assert (await limiter.hit("other-key", rule)).allowed
 
     clock.now = window_end + 0.5
-    assert (await limiter.peek("key", rule)).count == 0
-    assert (await limiter.hit("key", rule)).allowed
+    fresh = await limiter.hit("key", rule)
+    assert fresh.allowed
+    assert fresh.count == 1
 
 
 @pytest.mark.anyio
@@ -547,10 +645,6 @@ class _FakeRedis:
         self.transactions.append(transaction)
         return _FakePipeline(self.store, self.ttls)
 
-    async def get(self, key: str) -> bytes | None:
-        value = self.store.get(key)
-        return None if value is None else str(value).encode()
-
 
 @pytest.mark.anyio
 async def test_redis_limiter_uses_incr_and_expire_in_one_transaction():
@@ -566,7 +660,7 @@ async def test_redis_limiter_uses_incr_and_expire_in_one_transaction():
     assert fake.store == {window_key: 3}
     assert fake.ttls == {window_key: 60}
     assert fake.transactions == [True, True, True]
-    assert (await limiter.peek("k", rule)).count == 3
+    assert results[-1].count == 3
 
 
 @pytest.mark.anyio
@@ -580,8 +674,5 @@ async def test_redis_outage_falls_back_to_memory_limiting():
         # Limiting still applies while Redis is down.
         with pytest.raises(RateLimitExceededError):
             await enforce_rate_limit(limiter, "login:ip", rule, CLIENT_IP)
-        assert not (
-            await limiter.peek(rate_limit_key("login:ip", CLIENT_IP), rule)
-        ).allowed
     finally:
         await limiter.aclose()

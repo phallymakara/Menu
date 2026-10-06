@@ -13,13 +13,7 @@ from app.core.exceptions import (
     RegistrationConflictError,
 )
 from app.core.phone import normalize_cambodian_phone
-from app.core.rate_limit import (
-    RateLimiter,
-    RateLimitRule,
-    enforce_rate_limit,
-    ensure_rate_limit_available,
-    record_rate_limit_hit,
-)
+from app.core.rate_limit import RateLimiter, RateLimitRule, enforce_rate_limit
 from app.core.security import hash_password_async, verify_password_async
 from app.models.branch import Branch
 from app.models.business import Business
@@ -228,17 +222,26 @@ def _phone_candidates(phone: str) -> set[str]:
     return candidates
 
 
+def _normalize_identifier(identifier: str) -> str:
+    """
+    Trim and lowercase an email or phone identifier.
+
+    It is the first step of both the account lookup and ``canonical_identifier``,
+    so the lookup and every rate limit key agree on what counts as one identifier.
+    """
+    return identifier.strip().lower()
+
+
 def canonical_identifier(identifier: str) -> str:
     """
-    Return one canonical form of an email or phone identifier.
+    Return the one canonical form of an email or phone identifier.
 
+    Every rate limit keyed by identifier uses it, for checking and counting alike.
     Emails are trimmed and lowercased, and valid Cambodian phone numbers become
     E.164, so "Owner@Example.com ", "012 345 678" and "+85512345678" each share a
-    rate limit bucket with their other spellings. It applies the same normalization
-    as ``find_users_by_identifier``, so every spelling that reaches an account maps
-    to the same bucket.
+    bucket with their other spellings.
     """
-    normalized_identifier = identifier.strip().lower()
+    normalized_identifier = _normalize_identifier(identifier)
     if "@" in normalized_identifier:
         return normalized_identifier
     try:
@@ -252,7 +255,7 @@ async def find_users_by_identifier(
     identifier: str,
 ) -> list[User]:
     """Return the users whose email or phone number matches a login identifier."""
-    normalized_identifier = identifier.strip().lower()
+    normalized_identifier = _normalize_identifier(identifier)
 
     if "@" in normalized_identifier:
         condition = User.email == normalized_identifier
@@ -265,7 +268,7 @@ async def find_users_by_identifier(
     return list(result.scalars().all())
 
 
-LOGIN_FAILURE_SCOPE = "login:account_failures"
+LOGIN_ACCOUNT_SCOPE = "login:account"
 
 _dummy_password_hash: str | None = None
 
@@ -284,21 +287,22 @@ async def _spend_password_check_time(password: str) -> None:
     await verify_password_async(password, _dummy_password_hash)
 
 
-def _login_failure_rule() -> RateLimitRule:
-    """Failed logins allowed per account, from all IP addresses, per login window."""
+def _login_account_rule() -> RateLimitRule:
+    """Login attempts allowed per account from all IP addresses together."""
     return RateLimitRule(
-        settings.rate_limit_login_failures_per_account,
-        settings.rate_limit_login_window_seconds,
+        settings.rate_limit_login_per_account,
+        settings.rate_limit_login_account_window_seconds,
     )
 
 
-def _login_account_key(identifier: str, matched_users: list[User]) -> str:
+def login_account_subject(identifier: str, matched_users: list[User]) -> str:
     """
-    Return the subject that failed logins are counted against, across all IPs.
+    Return the subject that login attempts are counted against across all IPs.
 
-    It is the account when one matches, so its email and phone share one budget.
-    Otherwise it is the canonical identifier, so unknown identifiers are limited
-    exactly like real accounts and a lockout reveals nothing about which exist.
+    It is the account when one matches, so its email and phone (in any spelling)
+    share one budget. Otherwise it is the canonical identifier, so unknown
+    identifiers are limited exactly like real accounts and a 429 reveals nothing
+    about which exist.
     """
     if matched_users:
         return f"user:{matched_users[0].id}"
@@ -316,20 +320,33 @@ async def authenticate_user(
 
     The same generic credential error, and comparable response time, is returned
     for unknown users and incorrect passwords to avoid revealing registered
-    accounts. Failed attempts are counted per account across all IP addresses.
-    A successful login does not reset any counter.
+    accounts.
+
+    Before the password is checked, the attempt is reserved atomically against the
+    per-account limit (all IP addresses together), so concurrent requests cannot
+    get more attempts through than the limit allows. Successful attempts keep their
+    reservation and no counter is ever reset.
+
+    Trade-off: the per-account limit exists to stop brute force spread across many
+    IP addresses, but anyone can spend it, so it could be used to lock the real
+    user out. It is therefore much higher than the per identifier and IP limit
+    (``enforce_login_rate_limit``) and uses a short window. One attacking address
+    hits its own limit long before the account limit, so the real user can still
+    sign in from another address; only an attack from many addresses at once can
+    block the account, and only until the window ends.
 
     Raises:
-        RateLimitExceededError: The account has too many failed logins in the
-            current window, from any IP address. The password is not checked.
+        RateLimitExceededError: The account has used up its attempts for the
+            current window. The password is not checked.
         InvalidCredentialsError: The identifier or password is wrong.
         InactiveAccountError: The password is right but the account is not active.
     """
     matched_users = await find_users_by_identifier(session, identifier)
-    account_key = _login_account_key(identifier, matched_users)
-    failure_rule = _login_failure_rule()
-    await ensure_rate_limit_available(
-        limiter, LOGIN_FAILURE_SCOPE, failure_rule, account_key
+    await enforce_rate_limit(
+        limiter,
+        LOGIN_ACCOUNT_SCOPE,
+        _login_account_rule(),
+        login_account_subject(identifier, matched_users),
     )
 
     user = None
@@ -341,9 +358,6 @@ async def authenticate_user(
             break
 
     if user is None:
-        await record_rate_limit_hit(
-            limiter, LOGIN_FAILURE_SCOPE, failure_rule, account_key
-        )
         if matched_users:
             logger.warning("Authentication failed: incorrect password")
         else:
@@ -372,10 +386,11 @@ async def enforce_login_rate_limit(
     client_ip: str,
 ) -> None:
     """
-    Count a login attempt per client IP and per identifier and client IP.
+    Reserve a login attempt per client IP, and per identifier and client IP.
 
-    Every attempt counts, successful or not. Failed attempts are also counted per
-    account across all IP addresses by ``authenticate_user``.
+    Every attempt counts, successful or not, and is reserved before any account
+    lookup or password check. The per identifier and IP limit is the strict one;
+    ``authenticate_user`` adds a much looser per-account limit across all IPs.
 
     Raises:
         RateLimitExceededError: Either limit is exhausted for the current window.

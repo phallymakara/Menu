@@ -18,16 +18,22 @@ Backends, selected with ``RATE_LIMIT_BACKEND``:
 Keys are SHA-256 digests of the scope and subject, so emails, phone numbers and IP
 addresses are never stored in Redis in plain text.
 
+Every check is a single atomic reservation: the counter is incremented first and
+the request is rejected when the new count exceeds the limit. Callers reserve before
+doing the expensive or sensitive work (such as verifying a password), so concurrent
+requests can never get more than ``limit`` attempts through.
+
 Limiting never switches off. When Redis cannot be reached, the Redis backend counts
 in process memory until it comes back and logs a warning at most once a minute.
 """
 
 import hashlib
 import math
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import NoReturn, Protocol
+from typing import Protocol
 
 import structlog
 from redis.asyncio import Redis
@@ -56,12 +62,7 @@ class RateLimitRule:
 
 @dataclass(frozen=True, slots=True)
 class RateLimitResult:
-    """
-    State of a key in the current window.
-
-    After ``hit``, ``allowed`` says whether that hit is within the limit. After
-    ``peek``, it says whether one more hit would be.
-    """
+    """Outcome of reserving one hit: whether it is within the limit, and the new count."""
 
     allowed: bool
     count: int
@@ -72,11 +73,11 @@ class RateLimiter(Protocol):
     """A fixed-window counter backend."""
 
     async def hit(self, key: str, rule: RateLimitRule) -> RateLimitResult:
-        """Count one hit for ``key`` and report whether it is within ``rule``."""
-        ...
+        """
+        Atomically count one hit for ``key`` and report whether it is within ``rule``.
 
-    async def peek(self, key: str, rule: RateLimitRule) -> RateLimitResult:
-        """Report the hits counted for ``key`` in the current window without adding one."""
+        The hit is counted even when it is rejected.
+        """
         ...
 
     async def aclose(self) -> None:
@@ -109,20 +110,6 @@ def _hit_result(
     )
 
 
-def _peek_result(
-    count: int,
-    rule: RateLimitRule,
-    now: float,
-    window_end: int,
-) -> RateLimitResult:
-    """Result for a key with ``count`` hits so far in the window ending at ``window_end``."""
-    return RateLimitResult(
-        allowed=count < rule.limit,
-        count=count,
-        retry_after_seconds=_retry_after(now, window_end),
-    )
-
-
 class MemoryRateLimiter:
     """In-process fixed-window counters for development, tests, and Redis outages."""
 
@@ -131,30 +118,23 @@ class MemoryRateLimiter:
         self._max_keys = max_keys
         # key -> (end of the window being counted, hits in that window)
         self._counters: dict[str, tuple[int, int]] = {}
-
-    def _current_count(self, key: str, window_end: int) -> int:
-        """Hits counted for ``key`` in the window ending at ``window_end``."""
-        stored_window_end, count = self._counters.get(key, (window_end, 0))
-        return count if stored_window_end == window_end else 0
+        # Makes the read-increment-write below atomic even across threads.
+        self._lock = threading.Lock()
 
     async def hit(self, key: str, rule: RateLimitRule) -> RateLimitResult:
-        """Count one hit for ``key`` in the current window."""
+        """Atomically count one hit for ``key`` in the current window."""
         now = self._clock()
         _, window_end = _window_bounds(now, rule.window_seconds)
 
-        count = self._current_count(key, window_end) + 1
-        self._counters[key] = (window_end, count)
+        with self._lock:
+            stored_window_end, count = self._counters.get(key, (window_end, 0))
+            count = count + 1 if stored_window_end == window_end else 1
+            self._counters[key] = (window_end, count)
 
-        if len(self._counters) > self._max_keys:
-            self._prune_expired(now)
+            if len(self._counters) > self._max_keys:
+                self._prune_expired(now)
 
         return _hit_result(count, rule, now, window_end)
-
-    async def peek(self, key: str, rule: RateLimitRule) -> RateLimitResult:
-        """Report the hits counted for ``key`` in the current window."""
-        now = self._clock()
-        _, window_end = _window_bounds(now, rule.window_seconds)
-        return _peek_result(self._current_count(key, window_end), rule, now, window_end)
 
     def _prune_expired(self, now: float) -> None:
         """Drop counters whose window has already ended."""
@@ -166,7 +146,8 @@ class MemoryRateLimiter:
 
     def reset(self) -> None:
         """Forget every counter."""
-        self._counters.clear()
+        with self._lock:
+            self._counters.clear()
 
     async def aclose(self) -> None:
         """Forget every counter; there is nothing else to release."""
@@ -219,7 +200,7 @@ class RedisRateLimiter:
             )
 
     async def hit(self, key: str, rule: RateLimitRule) -> RateLimitResult:
-        """Count one hit with INCR, and EXPIRE the window key in the same transaction."""
+        """Atomically count one hit with INCR, expiring the window key in the same MULTI."""
         now = self._clock()
         index, window_end = _window_bounds(now, rule.window_seconds)
         window_key = f"{key}:{index}"
@@ -234,20 +215,6 @@ class RedisRateLimiter:
             return await self._fallback.hit(key, rule)
 
         return _hit_result(int(count), rule, now, window_end)
-
-    async def peek(self, key: str, rule: RateLimitRule) -> RateLimitResult:
-        """Read the hits counted for ``key`` in the current window."""
-        now = self._clock()
-        index, window_end = _window_bounds(now, rule.window_seconds)
-
-        try:
-            stored = await self._client.get(f"{key}:{index}")
-        except (RedisError, OSError) as exc:
-            self._log_outage(exc)
-            return await self._fallback.peek(key, rule)
-
-        count = int(stored) if stored is not None else 0
-        return _peek_result(count, rule, now, window_end)
 
     async def aclose(self) -> None:
         """Close the Redis connection pool."""
@@ -301,18 +268,6 @@ def rate_limit_key(scope: str, *parts: str) -> str:
     return f"ratelimit:{scope}:{digest}"
 
 
-def _rejected(scope: str, rule: RateLimitRule, retry_after_seconds: int) -> NoReturn:
-    """Log a rejection and raise RateLimitExceededError."""
-    logger.warning(
-        "Rate limit exceeded",
-        scope=scope,
-        limit=rule.limit,
-        window_seconds=rule.window_seconds,
-        retry_after_seconds=retry_after_seconds,
-    )
-    raise RateLimitExceededError(retry_after_seconds)
-
-
 async def enforce_rate_limit(
     limiter: RateLimiter,
     scope: str,
@@ -320,42 +275,24 @@ async def enforce_rate_limit(
     *parts: str,
 ) -> None:
     """
-    Count one hit for the subject ``parts`` within ``scope``.
+    Reserve one attempt for the subject ``parts`` within ``scope``.
+
+    The attempt is counted atomically before the caller does the protected work, so
+    concurrent requests cannot exceed ``rule``. Nothing is ever refunded or reset.
 
     Raises:
         RateLimitExceededError: The subject has used up ``rule`` for the current
             window. ``retry_after_seconds`` says when the window ends.
     """
     result = await limiter.hit(rate_limit_key(scope, *parts), rule)
-    if not result.allowed:
-        _rejected(scope, rule, result.retry_after_seconds)
+    if result.allowed:
+        return
 
-
-async def ensure_rate_limit_available(
-    limiter: RateLimiter,
-    scope: str,
-    rule: RateLimitRule,
-    *parts: str,
-) -> None:
-    """
-    Check, without counting, that the subject ``parts`` may make another attempt.
-
-    Use it with ``record_rate_limit_hit`` to limit only some outcomes, such as
-    failed logins.
-
-    Raises:
-        RateLimitExceededError: ``rule`` is already used up for the current window.
-    """
-    result = await limiter.peek(rate_limit_key(scope, *parts), rule)
-    if not result.allowed:
-        _rejected(scope, rule, result.retry_after_seconds)
-
-
-async def record_rate_limit_hit(
-    limiter: RateLimiter,
-    scope: str,
-    rule: RateLimitRule,
-    *parts: str,
-) -> None:
-    """Count one hit for the subject ``parts`` within ``scope`` without raising."""
-    await limiter.hit(rate_limit_key(scope, *parts), rule)
+    logger.warning(
+        "Rate limit exceeded",
+        scope=scope,
+        limit=rule.limit,
+        window_seconds=rule.window_seconds,
+        retry_after_seconds=result.retry_after_seconds,
+    )
+    raise RateLimitExceededError(result.retry_after_seconds)

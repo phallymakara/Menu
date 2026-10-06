@@ -80,14 +80,13 @@ class Settings(BaseSettings):
     rate_limit_login_per_identifier: int = Field(default=10, ge=1)
     rate_limit_login_per_ip: int = Field(default=50, ge=1)
     rate_limit_login_window_seconds: int = Field(default=900, ge=1)
-    rate_limit_login_failures_per_account: int = Field(
-        default=30,
-        ge=1,
-        description=(
-            "Failed logins allowed per account from all IP addresses together in "
-            "one login window, after which the account is locked until it ends"
-        ),
-    )
+    # Login attempts per account from all IP addresses together. It only stops
+    # brute force spread over many addresses: one address is stopped much earlier by
+    # RATE_LIMIT_LOGIN_PER_IDENTIFIER. Keep it well above that limit with a short
+    # window, so that a flood from a few addresses can never lock the real user out,
+    # and a distributed attack can do so only until the window ends.
+    rate_limit_login_per_account: int = Field(default=50, ge=1)
+    rate_limit_login_account_window_seconds: int = Field(default=300, ge=1)
     rate_limit_refresh_per_ip: int = Field(default=300, ge=1)
     rate_limit_refresh_window_seconds: int = Field(default=900, ge=1)
     rate_limit_register_per_ip: int = Field(default=10, ge=1)
