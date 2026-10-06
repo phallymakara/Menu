@@ -2262,6 +2262,31 @@ export interface paths {
         patch: operations["update_item_variant_endpoint_api_v1_businesses__business_id__items__item_id__variants__variant_id__patch"];
         trace?: never;
     };
+    "/api/v1/businesses/{business_id}/items/{item_id}/recipe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the recipe (bill of materials) of a menu item
+         * @description Returns the ingredient lines consumed from branch stock per unit sold.
+         */
+        get: operations["get_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_get"];
+        /**
+         * Replace the whole recipe of a menu item
+         * @description Atomically replaces every recipe line of the menu item; an empty list clears it.
+         *     Quantities are per unit sold, in each inventory item's own unit of measure.
+         */
+        put: operations["replace_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/businesses/{business_id}/modifier-groups": {
         parameters: {
             query?: never;
@@ -6952,6 +6977,35 @@ export interface components {
             total_pages: number;
         };
         /**
+         * MenuItemRecipeReplaceRequest
+         * @description Full recipe for a menu item; replaces every existing line atomically.
+         */
+        MenuItemRecipeReplaceRequest: {
+            /**
+             * Lines
+             * @description The complete recipe. An empty list clears the recipe.
+             */
+            lines?: components["schemas"]["RecipeLineInput"][];
+        };
+        /**
+         * MenuItemRecipeResponse
+         * @description The full recipe (bill of materials) of a menu item.
+         */
+        MenuItemRecipeResponse: {
+            /**
+             * Menu Item Id
+             * Format: uuid
+             */
+            menu_item_id: string;
+            /**
+             * Business Id
+             * Format: uuid
+             */
+            business_id: string;
+            /** Lines */
+            lines?: components["schemas"]["RecipeLineResponse"][];
+        };
+        /**
          * MenuItemResponse
          * @description Response schema for a single menu item.
          */
@@ -8089,6 +8143,69 @@ export interface components {
             is_active?: boolean | null;
         };
         /**
+         * RecipeLineInput
+         * @description One ingredient line of a recipe replacement request.
+         */
+        RecipeLineInput: {
+            /**
+             * Inventory Item Id
+             * Format: uuid
+             */
+            inventory_item_id: string;
+            /**
+             * Variant Id
+             * @description Variant this line applies to. Omit or null to apply it to every variant; a variant-specific line overrides the all-variants line for the same inventory item.
+             */
+            variant_id?: string | null;
+            /**
+             * Quantity
+             * @description Amount used to make one unit of the menu item, in the inventory item's own unit of measure. Branch stock is tracked to 2 decimal places, so use a smaller unit (g, ml) for finer amounts.
+             */
+            quantity: number | string;
+        };
+        /**
+         * RecipeLineResponse
+         * @description One ingredient line of a menu item recipe.
+         */
+        RecipeLineResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Inventory Item Id
+             * Format: uuid
+             */
+            inventory_item_id: string;
+            /** Inventory Item Name En */
+            inventory_item_name_en: string;
+            /** Inventory Item Name Km */
+            inventory_item_name_km?: string | null;
+            unit_of_measure: components["schemas"]["UnitOfMeasure"];
+            /** Variant Id */
+            variant_id?: string | null;
+            /** Variant Name En */
+            variant_name_en?: string | null;
+            /** Quantity */
+            quantity: string;
+            /**
+             * Cost Per Unit Usd
+             * @description Current unit cost of the inventory item (not a snapshot).
+             */
+            cost_per_unit_usd: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
          * ResetBranchOverridesRequest
          * @description Request to reset branch price and availability overrides.
          */
@@ -8377,6 +8494,21 @@ export interface components {
             average_order_value_usd: string;
             /** Average Session Spend Usd */
             average_session_spend_usd: string;
+            /**
+             * Cost Of Goods Usd
+             * @description Ingredient cost of recipe depletions logged in the period: depleted quantity x unit cost snapshotted at depletion. Includes items voided after preparation (waste); items without a recipe add nothing.
+             */
+            cost_of_goods_usd: string;
+            /**
+             * Gross Margin Usd
+             * @description Gross sales minus discounts minus cost of goods. Tax and service charge are excluded.
+             */
+            gross_margin_usd: string;
+            /**
+             * Gross Margin Percent
+             * @description Gross margin as a percentage of gross sales minus discounts; 0 when there are no net sales.
+             */
+            gross_margin_percent: string;
         };
         /** StaffOrderPlacementRequest */
         StaffOrderPlacementRequest: {
@@ -8440,7 +8572,7 @@ export interface components {
          * StockAdjustmentReason
          * @enum {string}
          */
-        StockAdjustmentReason: "restock" | "stock_take_audit" | "spoilage_waste" | "damaged" | "transfer_out" | "transfer_in" | "other";
+        StockAdjustmentReason: "restock" | "stock_take_audit" | "spoilage_waste" | "damaged" | "transfer_out" | "transfer_in" | "other" | "recipe_depletion" | "recipe_waste";
         /** StockTransferCreateRequest */
         StockTransferCreateRequest: {
             /**
@@ -13905,6 +14037,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemVariantResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                business_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuItemRecipeResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    replace_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                business_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MenuItemRecipeReplaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MenuItemRecipeResponse"];
                 };
             };
             /** @description Validation Error */

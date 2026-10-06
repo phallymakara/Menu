@@ -348,6 +348,12 @@ class OrderItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         comment="When item was marked SERVED to table",
     )
 
+    stock_depleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="When recipe depletion ran for this item; set once so it never repeats",
+    )
+
     void_reason_code: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,

@@ -11124,6 +11124,164 @@
         }
       }
     },
+    "/api/v1/businesses/{business_id}/items/{item_id}/recipe": {
+      "get": {
+        "tags": [
+          "Menu Item Recipes (BOM)"
+        ],
+        "summary": "Get the recipe (bill of materials) of a menu item",
+        "description": "Returns the ingredient lines consumed from branch stock per unit sold.",
+        "operationId": "get_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenuItemRecipeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Menu Item Recipes (BOM)"
+        ],
+        "summary": "Replace the whole recipe of a menu item",
+        "description": "Atomically replaces every recipe line of the menu item; an empty list clears it.\nQuantities are per unit sold, in each inventory item's own unit of measure.",
+        "operationId": "replace_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "item_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Item Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MenuItemRecipeReplaceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenuItemRecipeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/businesses/{business_id}/modifier-groups": {
       "post": {
         "tags": [
@@ -23575,6 +23733,50 @@
         "title": "MenuItemPaginationResponse",
         "description": "Paginated list of menu items."
       },
+      "MenuItemRecipeReplaceRequest": {
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeLineInput"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Lines",
+            "description": "The complete recipe. An empty list clears the recipe."
+          }
+        },
+        "type": "object",
+        "title": "MenuItemRecipeReplaceRequest",
+        "description": "Full recipe for a menu item; replaces every existing line atomically."
+      },
+      "MenuItemRecipeResponse": {
+        "properties": {
+          "menu_item_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Menu Item Id"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Business Id"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RecipeLineResponse"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "type": "object",
+        "required": [
+          "menu_item_id",
+          "business_id"
+        ],
+        "title": "MenuItemRecipeResponse",
+        "description": "The full recipe (bill of materials) of a menu item."
+      },
       "MenuItemResponse": {
         "properties": {
           "id": {
@@ -26387,6 +26589,138 @@
         "title": "PromotionUpdate",
         "description": "Payload to update an existing promotion."
       },
+      "RecipeLineInput": {
+        "properties": {
+          "inventory_item_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Inventory Item Id"
+          },
+          "variant_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant Id",
+            "description": "Variant this line applies to. Omit or null to apply it to every variant; a variant-specific line overrides the all-variants line for the same inventory item."
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
+              }
+            ],
+            "title": "Quantity",
+            "description": "Amount used to make one unit of the menu item, in the inventory item's own unit of measure. Branch stock is tracked to 2 decimal places, so use a smaller unit (g, ml) for finer amounts."
+          }
+        },
+        "type": "object",
+        "required": [
+          "inventory_item_id",
+          "quantity"
+        ],
+        "title": "RecipeLineInput",
+        "description": "One ingredient line of a recipe replacement request."
+      },
+      "RecipeLineResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "inventory_item_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Inventory Item Id"
+          },
+          "inventory_item_name_en": {
+            "type": "string",
+            "title": "Inventory Item Name En"
+          },
+          "inventory_item_name_km": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inventory Item Name Km"
+          },
+          "unit_of_measure": {
+            "$ref": "#/components/schemas/UnitOfMeasure"
+          },
+          "variant_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant Id"
+          },
+          "variant_name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant Name En"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Quantity"
+          },
+          "cost_per_unit_usd": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Per Unit Usd",
+            "description": "Current unit cost of the inventory item (not a snapshot)."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "inventory_item_id",
+          "inventory_item_name_en",
+          "unit_of_measure",
+          "quantity",
+          "cost_per_unit_usd",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "RecipeLineResponse",
+        "description": "One ingredient line of a menu item recipe."
+      },
       "ResetBranchOverridesRequest": {
         "properties": {
           "category_id": {
@@ -26945,6 +27279,24 @@
             "type": "string",
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Average Session Spend Usd"
+          },
+          "cost_of_goods_usd": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Of Goods Usd",
+            "description": "Ingredient cost of recipe depletions logged in the period: depleted quantity x unit cost snapshotted at depletion. Includes items voided after preparation (waste); items without a recipe add nothing."
+          },
+          "gross_margin_usd": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Gross Margin Usd",
+            "description": "Gross sales minus discounts minus cost of goods. Tax and service charge are excluded."
+          },
+          "gross_margin_percent": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Gross Margin Percent",
+            "description": "Gross margin as a percentage of gross sales minus discounts; 0 when there are no net sales."
           }
         },
         "type": "object",
@@ -26960,7 +27312,10 @@
           "total_completed_orders",
           "total_closed_sessions",
           "average_order_value_usd",
-          "average_session_spend_usd"
+          "average_session_spend_usd",
+          "cost_of_goods_usd",
+          "gross_margin_usd",
+          "gross_margin_percent"
         ],
         "title": "SalesOverviewMetrics",
         "description": "High-level sales and operational summary."
@@ -27130,7 +27485,9 @@
           "damaged",
           "transfer_out",
           "transfer_in",
-          "other"
+          "other",
+          "recipe_depletion",
+          "recipe_waste"
         ],
         "title": "StockAdjustmentReason"
       },

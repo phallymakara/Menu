@@ -31,6 +31,27 @@ class SalesOverviewMetrics(BaseModel):
     average_order_value_usd: Decimal
     average_session_spend_usd: Decimal
 
+    # Cost metrics (recipe BOM depletion)
+    cost_of_goods_usd: Decimal = Field(
+        description=(
+            "Ingredient cost of recipe depletions logged in the period: depleted "
+            "quantity x unit cost snapshotted at depletion. Includes items voided "
+            "after preparation (waste); items without a recipe add nothing."
+        )
+    )
+    gross_margin_usd: Decimal = Field(
+        description=(
+            "Gross sales minus discounts minus cost of goods. Tax and service "
+            "charge are excluded."
+        )
+    )
+    gross_margin_percent: Decimal = Field(
+        description=(
+            "Gross margin as a percentage of gross sales minus discounts; "
+            "0 when there are no net sales."
+        )
+    )
+
 
 class BranchComparisonItem(BaseModel):
     """Comparative performance metrics for a single branch."""

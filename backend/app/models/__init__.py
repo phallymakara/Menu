@@ -15,6 +15,7 @@ from app.models.inventory import (
 from app.models.item_variant import ItemVariant
 from app.models.kitchen_station import KitchenStation
 from app.models.menu_item import MenuItem
+from app.models.menu_item_recipe import MenuItemRecipe
 from app.models.modifier import MenuItemModifierGroup, ModifierGroup, ModifierOption
 from app.models.order import Order, OrderItem, OrderItemModifier
 from app.models.organization import Organization
@@ -44,6 +45,7 @@ __all__ = [
     "KitchenStation",
     "MenuItem",
     "MenuItemModifierGroup",
+    "MenuItemRecipe",
     "ModifierGroup",
     "ModifierOption",
     "Order",

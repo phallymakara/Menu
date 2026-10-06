@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
 import structlog
@@ -16,8 +16,10 @@ from app.models.business import Business
 from app.models.enums import (
     OrderStatus,
     PaymentStatus,
+    StockAdjustmentReason,
     TableSessionStatus,
 )
+from app.models.inventory import StockAdjustmentLog
 from app.models.menu_item import MenuItem
 from app.models.order import Order, OrderItem
 from app.models.payment import Payment
@@ -59,6 +61,39 @@ def _resolve_analytics_branch_filter(
             detail="Access denied. You can only view analytics for your assigned branch.",
         )
     return membership.branch_id
+
+
+async def _get_cost_of_goods_usd(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID | None,
+    start_date: datetime | None,
+    end_date: datetime | None,
+) -> Decimal:
+    """
+    Sums the ingredient cost of recipe depletions logged in the period.
+
+    Each RECIPE_DEPLETION entry costs its depleted quantity times the unit cost
+    snapshotted at depletion. Items voided after preparation stay included (the
+    ingredients were used); items without a recipe contribute nothing.
+    """
+    line_cost = -StockAdjustmentLog.quantity_change * StockAdjustmentLog.unit_cost_usd
+    query = select(func.coalesce(func.sum(line_cost), Decimal("0.00"))).where(
+        StockAdjustmentLog.organization_id == tenant.organization_id,
+        StockAdjustmentLog.business_id == business_id,
+        StockAdjustmentLog.reason == StockAdjustmentReason.RECIPE_DEPLETION,
+        StockAdjustmentLog.unit_cost_usd.is_not(None),
+    )
+    if branch_id:
+        query = query.where(StockAdjustmentLog.branch_id == branch_id)
+    if start_date:
+        query = query.where(StockAdjustmentLog.created_at >= start_date)
+    if end_date:
+        query = query.where(StockAdjustmentLog.created_at <= end_date)
+
+    total = (await session.execute(query)).scalar_one()
+    return Decimal(str(total)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 async def get_sales_overview(
@@ -193,6 +228,20 @@ async def get_sales_overview(
     )
     net_khr = Decimal(_round_khr_to_hundred(net_revenue_usd * exchange_rate))
 
+    # 5. Cost of goods (recipe depletion) and gross margin on net sales
+    cost_of_goods_usd = await _get_cost_of_goods_usd(
+        session, tenant, business_id, effective_branch_id, start_date, end_date
+    )
+    net_sales_usd = gross_sales - discounts
+    gross_margin_usd = net_sales_usd - cost_of_goods_usd
+    gross_margin_percent = (
+        (gross_margin_usd / net_sales_usd * Decimal("100")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        if net_sales_usd > 0
+        else Decimal("0.00")
+    )
+
     return SalesOverviewMetrics(
         business_id=business_id,
         branch_id=effective_branch_id,
@@ -210,6 +259,9 @@ async def get_sales_overview(
         total_closed_sessions=closed_sessions,
         average_order_value_usd=aov,
         average_session_spend_usd=session_spend,
+        cost_of_goods_usd=cost_of_goods_usd,
+        gross_margin_usd=gross_margin_usd,
+        gross_margin_percent=gross_margin_percent,
     )
 
 
@@ -313,10 +365,8 @@ async def get_branch_comparison(
         row.branch_id: int(row.session_cnt) for row in session_res.all()
     }
 
-    total_network_revenue = (
-        sum(rev for rev, _ in branch_order_data.values())
-        if branch_order_data
-        else Decimal("0.00")
+    total_network_revenue = sum(
+        (rev for rev, _ in branch_order_data.values()), Decimal("0.00")
     )
     total_network_orders = (
         sum(cnt for _, cnt in branch_order_data.values()) if branch_order_data else 0
@@ -543,9 +593,7 @@ async def get_payment_method_breakdown(
     res = await session.execute(query)
     rows = res.all()
 
-    total_collected_usd = (
-        sum(Decimal(str(r.tot_usd)) for r in rows) if rows else Decimal("0.00")
-    )
+    total_collected_usd = sum((Decimal(str(r.tot_usd)) for r in rows), Decimal("0.00"))
     total_txns = sum(int(r.txn_count) for r in rows) if rows else 0
 
     methods: list[PaymentMethodMetric] = []
