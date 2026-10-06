@@ -10,7 +10,7 @@ A partial unique index allows at most one ``open`` request per type and table
 session, so concurrent duplicate submissions cannot both succeed.
 
 Revision ID: 08abac32e9a5
-Revises: 547f4d2dd11d
+Revises: 3cfb7fbc9aad
 Create Date: 2026-10-05 23:28:49.741059
 
 """
@@ -24,7 +24,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "08abac32e9a5"
-down_revision: str | Sequence[str] | None = "547f4d2dd11d"
+down_revision: str | Sequence[str] | None = "3cfb7fbc9aad"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
