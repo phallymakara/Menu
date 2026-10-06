@@ -4,6 +4,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.permissions import (
+    Permission,
+    require_permission_for_writes,
+)
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
@@ -25,6 +29,7 @@ from app.services.order_placement_service import (
 
 router = APIRouter(
     tags=["Orders & POS"],
+    dependencies=[Depends(require_permission_for_writes(Permission.TAKE_ORDERS))],
 )
 
 

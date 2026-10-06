@@ -4,6 +4,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.permissions import (
+    Permission,
+    require_permission_for_writes,
+)
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
@@ -25,6 +29,9 @@ from app.services.kitchen_station_service import (
 router = APIRouter(
     prefix="/businesses/{business_id}/branches/{branch_id}/kitchen-stations",
     tags=["Kitchen Stations"],
+    # Station setup and item routing are menu configuration; the KDS actions
+    # themselves stay under OPERATE_KITCHEN in the kds router.
+    dependencies=[Depends(require_permission_for_writes(Permission.MANAGE_MENU))],
 )
 
 
