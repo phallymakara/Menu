@@ -209,6 +209,7 @@ async def build_session_precheck_receipt_data(
 
     Raises:
         HTTPException (404): If the session is not found in this tenant scope.
+        TenantNotFoundError: If the branch is not part of the business and tenant.
     """
     sess_query = (
         select(TableSession)
@@ -283,6 +284,7 @@ async def build_session_precheck_receipt_data(
 
     account_id, m_name, m_city, bank = await _resolve_bakong_merchant_info(
         session=session,
+        tenant=tenant,
         business_id=business_id,
         branch_id=branch_id,
     )
@@ -340,6 +342,7 @@ async def build_order_precheck_receipt_data(
 
     Raises:
         HTTPException (404): If the order is not found in this tenant scope.
+        TenantNotFoundError: If the branch is not part of the business and tenant.
     """
     order_query = (
         select(Order)
@@ -411,6 +414,7 @@ async def build_order_precheck_receipt_data(
 
     account_id, m_name, m_city, bank = await _resolve_bakong_merchant_info(
         session=session,
+        tenant=tenant,
         business_id=business_id,
         branch_id=branch_id,
     )

@@ -19,6 +19,7 @@ from app.schemas.promotion import (
     PromotionResponse,
     PromotionUpdate,
 )
+from app.services.tenancy import get_branch_for_tenant
 
 logger = structlog.get_logger("app.services.promotion_service")
 
@@ -34,6 +35,8 @@ async def create_promotion(
 
     Raises:
         HTTPException (404): If the business is not in the caller's organization.
+        TenantNotFoundError: If the promotion is limited to a branch that is not
+            part of this business and tenant.
         HTTPException (409): If an active promotion already uses the code.
     """
     # 1. Verify business
@@ -49,6 +52,9 @@ async def create_promotion(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Business not found.",
         )
+
+    if payload.branch_id is not None:
+        await get_branch_for_tenant(session, tenant, business_id, payload.branch_id)
 
     # 2. If promo code supplied, ensure unique within business
     if payload.code:
@@ -150,6 +156,8 @@ async def update_promotion(
 
     Raises:
         HTTPException (404): If the promotion is not in this business and tenant.
+        TenantNotFoundError: If the new branch is not part of this business and
+            tenant.
     """
     query = select(Promotion).where(
         Promotion.id == promo_id,
@@ -164,6 +172,9 @@ async def update_promotion(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Promotion not found.",
         )
+
+    if payload.branch_id is not None:
+        await get_branch_for_tenant(session, tenant, business_id, payload.branch_id)
 
     update_data = payload.model_dump(exclude_unset=True)
     if "code" in update_data and update_data["code"]:

@@ -5,7 +5,11 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import TenantNotFoundError
+from app.core.exceptions import (
+    PermissionDeniedError,
+    TenantInactiveError,
+    TenantNotFoundError,
+)
 from app.db.session import get_db_session
 from app.schemas.billing import BillSummaryResponse
 from app.schemas.order import (
@@ -18,6 +22,7 @@ from app.schemas.table_session import (
     TableSessionOpenRequest,
     TableSessionResponse,
 )
+from app.services.order_placement_service import place_guest_order
 from app.services.table_qr_service import verify_public_table
 from app.services.table_session_service import (
     open_guest_table_session,
@@ -132,16 +137,31 @@ async def place_public_guest_order_endpoint(
     payload: GuestOrderPlacementRequest,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> OrderResponse:
-    """Guest places order directly from mobile phone at table."""
-    from app.services.order_placement_service import place_guest_order
+    """
+    Guest places order directly from mobile phone at table.
 
-    order = await place_guest_order(
-        session=session,
-        branch_id=branch_id,
-        table_id=table_id,
-        token=token,
-        payload=payload,
-    )
+    The token must be the table's QR token or its active session token, and is
+    checked before a dining session is opened. Inactive tables, branches,
+    businesses, and organizations do not accept orders.
+    """
+    try:
+        order = await place_guest_order(
+            session=session,
+            branch_id=branch_id,
+            table_id=table_id,
+            token=token,
+            payload=payload,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (PermissionDeniedError, TenantInactiveError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
     return OrderResponse.model_validate(order)
 
 

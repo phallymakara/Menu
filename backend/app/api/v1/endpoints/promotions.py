@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_user
@@ -10,6 +10,7 @@ from app.api.dependencies.permissions import (
     require_permission_for_writes,
 )
 from app.api.dependencies.tenant import get_current_tenant_context
+from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
 from app.models.user import User
@@ -50,12 +51,18 @@ async def create_promotion_endpoint(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PromotionResponse:
     """Creates a new promotional discount or coupon code for a business."""
-    return await create_promotion(
-        session=session,
-        business_id=business_id,
-        payload=payload,
-        tenant=tenant,
-    )
+    try:
+        return await create_promotion(
+            session=session,
+            business_id=business_id,
+            payload=payload,
+            tenant=tenant,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(
@@ -123,13 +130,19 @@ async def update_promotion_endpoint(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> PromotionResponse:
     """Updates promotion parameters, expiration, or active status."""
-    return await update_promotion(
-        session=session,
-        business_id=business_id,
-        promo_id=promo_id,
-        payload=payload,
-        tenant=tenant,
-    )
+    try:
+        return await update_promotion(
+            session=session,
+            business_id=business_id,
+            promo_id=promo_id,
+            payload=payload,
+            tenant=tenant,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.delete(

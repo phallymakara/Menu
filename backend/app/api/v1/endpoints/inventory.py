@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.permissions import (
@@ -9,6 +9,7 @@ from app.api.dependencies.permissions import (
     require_permission_for_writes,
 )
 from app.api.dependencies.tenant import get_current_tenant_context
+from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
 from app.schemas.inventory import (
@@ -71,12 +72,18 @@ async def create_inventory_item_endpoint(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> InventoryItemResponse:
     """Creates a new inventory item and seeds branch stock balances."""
-    return await create_inventory_item(
-        session=session,
-        tenant=tenant,
-        business_id=business_id,
-        payload=payload,
-    )
+    try:
+        return await create_inventory_item(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            payload=payload,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(
@@ -112,13 +119,19 @@ async def adjust_branch_stock_endpoint(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> BranchStockResponse:
     """Manually updates stock counts and logs an immutable audit event."""
-    return await adjust_branch_stock(
-        session=session,
-        tenant=tenant,
-        business_id=business_id,
-        branch_id=branch_id,
-        payload=payload,
-    )
+    try:
+        return await adjust_branch_stock(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            payload=payload,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(
@@ -154,12 +167,18 @@ async def create_stock_transfer_endpoint(
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> StockTransferResponse:
     """Requests stock to be moved from a source branch to destination branch."""
-    return await create_stock_transfer(
-        session=session,
-        tenant=tenant,
-        business_id=business_id,
-        payload=payload,
-    )
+    try:
+        return await create_stock_transfer(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            payload=payload,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post(

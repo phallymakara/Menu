@@ -11,11 +11,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
 from app.models.branch import Branch
 from app.models.enums import (
     StockAdjustmentReason,
     StockTransferStatus,
+    UnitOfMeasure,
 )
 from app.models.inventory import (
     BranchStock,
@@ -24,6 +26,7 @@ from app.models.inventory import (
     StockTransfer,
     StockTransferItem,
 )
+from app.models.menu_item import MenuItem
 from app.schemas.inventory import (
     BranchStockAdjustRequest,
     BranchStockResponse,
@@ -36,6 +39,7 @@ from app.schemas.inventory import (
     StockTransferResponse,
 )
 from app.services.branch_roaming_service import can_user_roam_branches
+from app.services.tenancy import get_branch_for_tenant, get_business_for_tenant
 
 logger = structlog.get_logger("app.services.inventory_service")
 
@@ -74,7 +78,24 @@ async def create_inventory_item(
     """
     Creates a new inventory master item and initializes stock records
     (0 quantity) for all active branches.
+
+    Raises:
+        TenantNotFoundError: If the business, or the linked menu item, is not part
+            of the caller's organization.
     """
+    await get_business_for_tenant(session, tenant, business_id)
+
+    if payload.menu_item_id is not None:
+        menu_item_res = await session.execute(
+            select(MenuItem.id).where(
+                MenuItem.id == payload.menu_item_id,
+                MenuItem.business_id == business_id,
+                MenuItem.organization_id == tenant.organization_id,
+            )
+        )
+        if menu_item_res.scalar_one_or_none() is None:
+            raise TenantNotFoundError("Menu item not found in this business.")
+
     item = InventoryItem(
         organization_id=tenant.organization_id,
         business_id=business_id,
@@ -204,7 +225,13 @@ async def adjust_branch_stock(
     """
     Adjusts current stock level (manual audit, restock, waste/spoilage)
     and writes audit log.
+
+    Raises:
+        TenantNotFoundError: If the branch is not part of the business and tenant.
+        HTTPException (403): If the caller is locked to another branch.
+        HTTPException (404): If the inventory item is not in this business and tenant.
     """
+    await get_branch_for_tenant(session, tenant, business_id, branch_id)
     _enforce_inventory_branch_access(tenant, branch_id)
 
     # Fetch or initialize BranchStock
@@ -214,6 +241,7 @@ async def adjust_branch_stock(
             selectinload(BranchStock.inventory_item), selectinload(BranchStock.branch)
         )
         .where(
+            BranchStock.organization_id == tenant.organization_id,
             BranchStock.business_id == business_id,
             BranchStock.branch_id == branch_id,
             BranchStock.inventory_item_id == payload.inventory_item_id,
@@ -228,6 +256,7 @@ async def adjust_branch_stock(
             select(InventoryItem).where(
                 InventoryItem.id == payload.inventory_item_id,
                 InventoryItem.business_id == business_id,
+                InventoryItem.organization_id == tenant.organization_id,
             )
         )
         item = item_res.scalar_one_or_none()
@@ -316,6 +345,13 @@ async def create_stock_transfer(
 ) -> StockTransferResponse:
     """
     Creates an inter-branch stock transfer request.
+
+    Both branches and every requested inventory item must belong to the business
+    and to the caller's organization.
+
+    Raises:
+        HTTPException (404): If a branch is not in this business and tenant.
+        TenantNotFoundError: If an inventory item is not in this business and tenant.
     """
     if payload.source_branch_id == payload.destination_branch_id:
         raise HTTPException(
@@ -341,6 +377,7 @@ async def create_stock_transfer(
         select(Branch).where(
             Branch.id.in_([payload.source_branch_id, payload.destination_branch_id]),
             Branch.business_id == business_id,
+            Branch.organization_id == tenant.organization_id,
         )
     )
     branches_map = {b.id: b for b in branches_res.scalars().all()}
@@ -352,6 +389,21 @@ async def create_stock_transfer(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="One or both branches not found.",
         )
+
+    # Verify every requested inventory item belongs to this business and tenant
+    requested_item_ids = {item_req.inventory_item_id for item_req in payload.items}
+    if requested_item_ids:
+        items_res = await session.execute(
+            select(InventoryItem.id).where(
+                InventoryItem.id.in_(requested_item_ids),
+                InventoryItem.business_id == business_id,
+                InventoryItem.organization_id == tenant.organization_id,
+            )
+        )
+        if set(items_res.scalars().all()) != requested_item_ids:
+            raise TenantNotFoundError(
+                "One or more inventory items not found in this business."
+            )
 
     transfer = StockTransfer(
         organization_id=tenant.organization_id,
@@ -380,7 +432,7 @@ async def create_stock_transfer(
     await session.commit()
 
     # Re-fetch with relationships loaded
-    return await _fetch_transfer_response(session, transfer.id)
+    return await _fetch_transfer_response(session, tenant, transfer.id)
 
 
 async def approve_stock_transfer(
@@ -393,7 +445,7 @@ async def approve_stock_transfer(
     Approves a stock transfer request.
     Only source branch staff, GM, or Owner can approve.
     """
-    transfer = await _get_transfer_or_404(session, business_id, transfer_id)
+    transfer = await _get_transfer_or_404(session, tenant, business_id, transfer_id)
 
     # Check approval permission (Source branch manager or Roaming GM/Owner)
     if (
@@ -419,7 +471,7 @@ async def approve_stock_transfer(
 
     await session.commit()
     logger.info("Stock transfer approved", transfer_number=transfer.transfer_number)
-    return await _fetch_transfer_response(session, transfer.id)
+    return await _fetch_transfer_response(session, tenant, transfer.id)
 
 
 async def dispatch_stock_transfer(
@@ -431,7 +483,7 @@ async def dispatch_stock_transfer(
     """
     Dispatches transfer (IN_TRANSIT) and immediately deducts stock from Source Branch.
     """
-    transfer = await _get_transfer_or_404(session, business_id, transfer_id)
+    transfer = await _get_transfer_or_404(session, tenant, business_id, transfer_id)
 
     if (
         not can_user_roam_branches(tenant.membership)
@@ -461,6 +513,8 @@ async def dispatch_stock_transfer(
     for t_item in transfer.items:
         t_item.shipped_quantity = t_item.requested_quantity
         stock_stmt = select(BranchStock).where(
+            BranchStock.organization_id == tenant.organization_id,
+            BranchStock.business_id == business_id,
             BranchStock.branch_id == transfer.source_branch_id,
             BranchStock.inventory_item_id == t_item.inventory_item_id,
         )
@@ -486,7 +540,7 @@ async def dispatch_stock_transfer(
 
     await session.commit()
     logger.info("Stock transfer dispatched", transfer_number=transfer.transfer_number)
-    return await _fetch_transfer_response(session, transfer.id)
+    return await _fetch_transfer_response(session, tenant, transfer.id)
 
 
 async def receive_stock_transfer(
@@ -498,7 +552,7 @@ async def receive_stock_transfer(
     """
     Receives shipment (COMPLETED) and increments stock at Destination Branch.
     """
-    transfer = await _get_transfer_or_404(session, business_id, transfer_id)
+    transfer = await _get_transfer_or_404(session, tenant, business_id, transfer_id)
 
     if (
         not can_user_roam_branches(tenant.membership)
@@ -529,6 +583,8 @@ async def receive_stock_transfer(
     for t_item in transfer.items:
         t_item.received_quantity = t_item.shipped_quantity
         stock_stmt = select(BranchStock).where(
+            BranchStock.organization_id == tenant.organization_id,
+            BranchStock.business_id == business_id,
             BranchStock.branch_id == transfer.destination_branch_id,
             BranchStock.inventory_item_id == t_item.inventory_item_id,
         )
@@ -570,7 +626,7 @@ async def receive_stock_transfer(
         "Stock transfer received and completed",
         transfer_number=transfer.transfer_number,
     )
-    return await _fetch_transfer_response(session, transfer.id)
+    return await _fetch_transfer_response(session, tenant, transfer.id)
 
 
 async def get_stock_transfers(
@@ -677,8 +733,17 @@ async def get_low_stock_alerts(
 
 # Helper Functions
 async def _get_transfer_or_404(
-    session: AsyncSession, business_id: UUID, transfer_id: UUID
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    transfer_id: UUID,
 ) -> StockTransfer:
+    """
+    Loads a stock transfer of the business within the caller's organization.
+
+    Raises:
+        HTTPException (404): If the transfer is not found in this tenant scope.
+    """
     stmt = (
         select(StockTransfer)
         .options(
@@ -693,6 +758,7 @@ async def _get_transfer_or_404(
         .where(
             StockTransfer.id == transfer_id,
             StockTransfer.business_id == business_id,
+            StockTransfer.organization_id == tenant.organization_id,
         )
     )
     res = await session.execute(stmt)
@@ -705,8 +771,11 @@ async def _get_transfer_or_404(
 
 
 async def _fetch_transfer_response(
-    session: AsyncSession, transfer_id: UUID
+    session: AsyncSession,
+    tenant: TenantContext,
+    transfer_id: UUID,
 ) -> StockTransferResponse:
+    """Reloads a transfer of the caller's organization with its relationships."""
     stmt = (
         select(StockTransfer)
         .options(
@@ -718,7 +787,10 @@ async def _fetch_transfer_response(
                 StockTransferItem.inventory_item
             ),
         )
-        .where(StockTransfer.id == transfer_id)
+        .where(
+            StockTransfer.id == transfer_id,
+            StockTransfer.organization_id == tenant.organization_id,
+        )
     )
     res = await session.execute(stmt)
     transfer = res.scalar_one()
@@ -733,7 +805,7 @@ def _build_transfer_response_from_entity(t: StockTransfer) -> StockTransferRespo
             item_name_en=i.inventory_item.name_en if i.inventory_item else "Unknown",
             unit_of_measure=i.inventory_item.unit_of_measure
             if i.inventory_item
-            else "piece",
+            else UnitOfMeasure.PIECE,
             requested_quantity=i.requested_quantity,
             shipped_quantity=i.shipped_quantity,
             received_quantity=i.received_quantity,
