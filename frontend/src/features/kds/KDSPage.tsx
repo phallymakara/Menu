@@ -91,7 +91,17 @@ export const KDSPage: FC = () => {
 
   useEffect(() => {
     if (rawStations.length > 0) {
-      setStations(rawStations as any[])
+      setStations(
+        rawStations.map((station) => ({
+          id: station.id,
+          name: station.name_en,
+          name_km: station.name_km,
+          station_code: station.code,
+          color_hex: station.color_hex,
+          is_active: station.is_active,
+          display_order: station.display_order,
+        }))
+      )
     }
   }, [rawStations, setStations])
 
