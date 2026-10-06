@@ -50,13 +50,17 @@ The backend has three layers. Keep business logic out of routes.
 
 **Tenancy.** The hierarchy is Organization → Business (brand) → Branch (location). Authenticated tenant routes depend on `get_current_tenant_context` (`app/api/dependencies/tenant.py`). It resolves a `TenantContext(user, organization, membership)` from the JWT and the optional `X-Organization-Id` header, and requires both the membership and the organization to be ACTIVE. Services must scope every query to `tenant.organization_id` and verify that the business and branch IDs in the path belong to it. Super Admin routes (`admin_*` endpoints) use `app/api/dependencies/admin.py` instead. Guest QR ordering goes through the unauthenticated `public_tables` endpoints using signed table tokens and session tokens.
 
-**Real-time.** `app/core/ws_manager.py` is an in-process, room-based WebSocket hub. The routes are in `endpoints/websockets.py` (prefix `/ws`), which is mounted both at the root and under `/api/v1`. The rooms are:
+**Real-time.** `app/core/ws_manager.py` keeps a room registry of the WebSocket connections on the current process. The routes are in `endpoints/websockets.py` (prefix `/ws`), which is mounted both at the root and under `/api/v1`. The rooms are:
 - `branch:{id}:pos`
 - `branch:{id}:expo`
 - `branch:{id}:station:{station_id}`
 - `session:{table_session_id}` for guests
 
-Services call `ws_manager.broadcast_to_rooms(...)` after they commit.
+Services call `ws_manager.broadcast_to_rooms(...)` after they commit. The manager serializes the event once and hands it to a pluggable broadcaster from `app/core/ws_broadcaster.py`, chosen by `REALTIME_BACKEND`:
+- `memory` is the default for development and tests. It sends straight to this process's sockets, so it only works with a single process.
+- `redis` publishes one JSON envelope, `{"rooms": [...], "message": "<event JSON>"}`, to the pub/sub channel `emenu:{ENVIRONMENT}:realtime` on `REDIS_URL`. Each process runs one subscriber task, started and cancelled by the FastAPI lifespan in `app/main.py`. It fans received messages out to its own sockets in those rooms and reconnects with capped backoff. If a publish fails, the event still reaches this process's sockets. Production with more than one worker or instance must use `redis`.
+
+Local sends run concurrently with a 2 s timeout per socket. A dead or slow socket is removed from its rooms and closed, so it never delays the others. Never log message payloads.
 
 **Config and logging.** `app/core/config.py` holds the pydantic-settings configuration, loaded from `.env`. Alembic uses `settings.sync_database_url` (psycopg), while the app uses asyncpg. Logging is structlog via `app/core/logging.py` with request-tracking middleware. Get loggers with `structlog.get_logger("app.<module path>")`. Uploaded media is served as static files from `backend/uploads/` at `/uploads`.
 

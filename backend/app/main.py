@@ -25,14 +25,22 @@ logger = structlog.get_logger("app.main")
 async def lifespan(app: FastAPI):
     """
     Application lifespan context manager for logging startup and shutdown.
+
+    It also runs the real-time broadcaster selected by REALTIME_BACKEND. With
+    "redis" that is this process's single subscriber task, which is cancelled
+    cleanly on shutdown.
     """
     logger.info(
         "Starting backend application",
         app_name=settings.app_name,
         version=settings.app_version,
     )
-    yield
-    logger.info("Shutting down backend application")
+    await ws_manager.start(create_broadcaster(settings))
+    try:
+        yield
+    finally:
+        logger.info("Shutting down backend application")
+        await ws_manager.stop()
 
 
 app = FastAPI(
