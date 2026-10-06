@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.0",
-    "@tanstack/react-query-devtools": "^5.104.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.475.0",
     "openapi-fetch": "^0.17.0",
@@ -27,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tanstack/react-query-devtools": "^5.104.1",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
