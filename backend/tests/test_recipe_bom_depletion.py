@@ -20,17 +20,22 @@ from app.main import app
 from app.models.audit_log import AuditLog
 from app.models.branch import Branch
 from app.models.enums import (
+    MembershipStatus,
     OrderItemStatus,
     OrderStatus,
+    StaffRole,
     StationType,
     StockAdjustmentReason,
     UnitOfMeasure,
+    UserStatus,
 )
 from app.models.inventory import BranchStock, InventoryItem, StockAdjustmentLog
 from app.models.item_variant import ItemVariant
 from app.models.kitchen_station import KitchenStation
 from app.models.menu_item import MenuItem
 from app.models.order import Order, OrderItem
+from app.models.organization_membership import OrganizationMembership
+from app.models.user import User
 from tests.test_staff_management import setup_test_tenant
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -345,6 +350,35 @@ async def _order_item(setup: dict[str, Any], item_id: UUID) -> OrderItem:
         return item
 
 
+async def _add_member(setup: dict[str, Any], role: StaffRole) -> dict[str, Any]:
+    """Adds an active member with ``role`` at the main branch; returns id and headers."""
+    async with setup["sessionmaker"]() as session:
+        user = User(
+            email=f"{role.value}@bom.example.com",
+            password_hash="not-used",
+            full_name=f"{role.value} member",
+            status=UserStatus.ACTIVE,
+            is_verified=True,
+        )
+        session.add(user)
+        await session.flush()
+        session.add(
+            OrganizationMembership(
+                organization_id=setup["org_id"],
+                user_id=user.id,
+                branch_id=setup["branch_id"],
+                role=role,
+                status=MembershipStatus.ACTIVE,
+                is_owner=False,
+            )
+        )
+        await session.commit()
+        return {
+            "user_id": user.id,
+            "headers": {"Authorization": f"Bearer {create_access_token(user.id)}"},
+        }
+
+
 # ==============================================================================
 # Recipe management
 # ==============================================================================
@@ -517,6 +551,54 @@ async def test_recipe_cross_tenant_references_return_404(bom_setup):
         assert [line["inventory_item_id"] for line in unchanged.json()["lines"]] == [
             str(s["beans_id"])
         ]
+
+
+@pytest.mark.anyio
+async def test_recipe_writes_need_inventory_permission_but_bumps_still_deplete(
+    bom_setup,
+):
+    """Only inventory managers edit recipes; any kitchen bump still depletes stock."""
+    s = bom_setup
+    url = _recipe_url(s["business_id"], s["latte_id"])
+    waiter = await _add_member(s, StaffRole.WAITER)
+    kitchen = await _add_member(s, StaffRole.KITCHEN)
+    menu_editor = await _add_member(s, StaffRole.MENU_EDITOR)
+    inventory = await _add_member(s, StaffRole.INVENTORY)
+    _, (item_id,) = await _create_order(s, [(s["latte_id"], None, 1)])
+
+    async with _api(s) as client:
+        body = {"lines": [_line(s["beans_id"], "18")]}
+        for member in (waiter, kitchen, menu_editor):
+            denied = await client.put(url, headers=member["headers"], json=body)
+            assert denied.status_code == status.HTTP_403_FORBIDDEN
+            assert denied.json()["detail"] == (
+                "Your staff role does not allow this action."
+            )
+        unchanged = await client.get(url, headers=waiter["headers"])
+        assert unchanged.status_code == status.HTTP_200_OK
+        assert unchanged.json()["lines"] == []
+
+        allowed = await client.put(url, headers=inventory["headers"], json=body)
+        assert allowed.status_code == status.HTTP_200_OK, allowed.text
+        assert [line["inventory_item_id"] for line in allowed.json()["lines"]] == [
+            str(s["beans_id"])
+        ]
+
+        readable = await client.get(url, headers=kitchen["headers"])
+        assert readable.status_code == status.HTTP_200_OK
+        assert len(readable.json()["lines"]) == 1
+
+        bumped = await client.post(
+            f"/api/v1/businesses/{s['business_id']}/branches/{s['branch_id']}"
+            f"/kds/items/{item_id}/bump",
+            headers=kitchen["headers"],
+            json={"target_status": "cooking"},
+        )
+        assert bumped.status_code == status.HTTP_200_OK, bumped.text
+
+    (log,) = await _logs(s, [item_id])
+    assert log.adjusted_by_user_id == kitchen["user_id"]
+    assert await _quantity(s, "beans_id") == Decimal("982.00")
 
 
 # ==============================================================================
