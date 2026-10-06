@@ -4,7 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.schemas.branch import BranchResponse
+from app.schemas.branch import (
+    BAKONG_ACCOUNT_ID_PATTERN,
+    BAKONG_MERCHANT_CITY_MAX,
+    BAKONG_MERCHANT_NAME_MAX,
+    BranchResponse,
+)
 
 
 class BusinessResponse(BaseModel):
@@ -26,6 +31,10 @@ class BusinessResponse(BaseModel):
     is_tax_inclusive: bool = True
     service_charge_percentage: Decimal = Decimal("0.00")
     is_service_charge_inclusive: bool = False
+    bakong_account_id: str | None = None
+    bakong_merchant_name: str | None = None
+    bakong_merchant_city: str | None = None
+    bakong_acquiring_bank: str | None = None
     is_active: bool
     branches: list[BranchResponse] = []
     created_at: datetime
@@ -47,3 +56,16 @@ class BusinessUpdate(BaseModel):
     is_tax_inclusive: bool | None = None
     service_charge_percentage: Decimal | None = Field(default=None, ge=0, le=100)
     is_service_charge_inclusive: bool | None = None
+    bakong_account_id: str | None = Field(
+        default=None,
+        max_length=100,
+        pattern=BAKONG_ACCOUNT_ID_PATTERN,
+        description="Bakong account that receives KHQR payments, e.g. name@bank",
+    )
+    bakong_merchant_name: str | None = Field(
+        default=None, min_length=1, max_length=BAKONG_MERCHANT_NAME_MAX
+    )
+    bakong_merchant_city: str | None = Field(
+        default=None, min_length=1, max_length=BAKONG_MERCHANT_CITY_MAX
+    )
+    bakong_acquiring_bank: str | None = Field(default=None, min_length=1, max_length=50)

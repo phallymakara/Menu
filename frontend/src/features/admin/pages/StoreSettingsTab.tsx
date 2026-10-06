@@ -1,29 +1,75 @@
 import { useState, type FC } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
-import { useOnboardingStore } from '@/features/onboarding/stores/useOnboardingStore'
 import { Button } from '@/components/ui/Button'
+import { getApiErrorMessage } from '@/lib/api-error'
+import type { components } from '@/types/api'
+import { useBusinesses, useUpdateBusiness } from '../hooks/useTenantQueries'
 
+type Business = components['schemas']['BusinessResponse']
+
+// Same rule as the API: Bakong account IDs look like "name@bank".
+const BAKONG_ACCOUNT_ID_PATTERN = /^[A-Za-z0-9._-]{1,64}@[A-Za-z0-9]{2,16}$/
+// KHQR (EMVCo tag 59) allows at most 25 characters for the merchant name.
+const BAKONG_MERCHANT_NAME_MAX = 25
+
+/** Loads the current business and renders its settings form. */
 export const StoreSettingsTab: FC = () => {
   const { language } = useLanguageStore()
-  const { branch, updateBranch, updateBusinessProfile } = useOnboardingStore()
+  const { data: businesses = [], isLoading, isError } = useBusinesses()
+  const storedBusinessId = localStorage.getItem('emenu_business_id')
+  const business = businesses.find((b) => b.id === storedBusinessId) ?? businesses[0]
 
-  // Financial Settings State (empty by default if user hasn't input it)
-  const [baseCurrency, setBaseCurrency] = useState<'USD' | 'KHR'>('USD')
-  const [exchangeRate, setExchangeRate] = useState('')
-  const [vatRate, setVatRate] = useState('')
-  const [serviceChargeRate, setServiceChargeRate] = useState('')
+  if (isLoading) {
+    return (
+      <div className="h-64 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+      </div>
+    )
+  }
+  if (isError || !business) {
+    return (
+      <p className="max-w-3xl mx-auto py-8 text-sm text-red-600 dark:text-red-400">
+        {language === 'km' ? 'មិនអាចផ្ទុកការកំណត់ហាងបានទេ' : 'Could not load the store settings.'}
+      </p>
+    )
+  }
+  // Keyed by business so the form starts from that business's saved values.
+  return <StoreSettingsForm key={business.id} business={business} />
+}
 
-  // Bakong KHQR Settings State
-  const [bakongAccountId, setBakongAccountId] = useState(branch.bakong_account_id || '')
-  const [bakongMerchantName, setBakongMerchantName] = useState(branch.bakong_merchant_name || '')
-  const [bakongAcquiringBank, setBakongAcquiringBank] = useState(branch.bakong_acquiring_bank || 'ABA Bank')
+const toFormNumber = (value: string | number | null | undefined) =>
+  value === null || value === undefined ? '' : String(Number(value))
 
-  // Telegram Alert State
-  const [telegramBotToken, setTelegramBotToken] = useState('')
+const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
+  const { language } = useLanguageStore()
+  const updateBusiness = useUpdateBusiness()
+
+  // Financial settings, starting from what is saved for this business
+  const [baseCurrency, setBaseCurrency] = useState<'USD' | 'KHR'>(
+    business.base_currency === 'KHR' ? 'KHR' : 'USD'
+  )
+  const [exchangeRate, setExchangeRate] = useState(toFormNumber(business.exchange_rate))
+  const [vatRate, setVatRate] = useState(toFormNumber(business.tax_percentage))
+  const [serviceChargeRate, setServiceChargeRate] = useState(
+    toFormNumber(business.service_charge_percentage)
+  )
+  const [isTaxInclusive, setIsTaxInclusive] = useState(business.is_tax_inclusive ?? true)
+  const [isServiceChargeInclusive, setIsServiceChargeInclusive] = useState(
+    business.is_service_charge_inclusive ?? false
+  )
+
+  // Bakong KHQR merchant account that receives payments
+  const [bakongAccountId, setBakongAccountId] = useState(business.bakong_account_id ?? '')
+  const [bakongMerchantName, setBakongMerchantName] = useState(business.bakong_merchant_name ?? '')
+  const [bakongAcquiringBank, setBakongAcquiringBank] = useState(
+    business.bakong_acquiring_bank ?? 'ABA Bank'
+  )
 
   // Inline Validation Errors
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSaved, setIsSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const validate = () => {
     const errs: Record<string, string> = {}
@@ -43,33 +89,55 @@ export const StoreSettingsTab: FC = () => {
         errs.serviceChargeRate = language === 'km' ? 'ថ្លៃសេវាត្រូវនៅចន្លោះ ០ ទៅ ១០០' : 'Service charge must be between 0% and 100%'
       }
     }
-    if (!bakongAccountId.trim()) {
-      errs.bakongAccountId = language === 'km' ? 'សូមបញ្ចូលលេខគណនីបាគង' : 'Bakong Account ID is required'
+    if (bakongAccountId.trim() && !BAKONG_ACCOUNT_ID_PATTERN.test(bakongAccountId.trim())) {
+      errs.bakongAccountId =
+        language === 'km'
+          ? 'លេខគណនីបាគងត្រូវមានទម្រង់ name@bank'
+          : 'Bakong Account ID must look like name@bank'
     }
-    if (!bakongMerchantName.trim()) {
+    if (bakongAccountId.trim() && !bakongMerchantName.trim()) {
       errs.bakongMerchantName = language === 'km' ? 'សូមបញ្ចូលឈ្មោះហាងដែលត្រូវបង្ហាញលើ QR' : 'Store name for QR code is required'
+    } else if (bakongMerchantName.trim().length > BAKONG_MERCHANT_NAME_MAX) {
+      errs.bakongMerchantName =
+        language === 'km'
+          ? `ឈ្មោះលើ QR មិនអាចលើស ${BAKONG_MERCHANT_NAME_MAX} តួអក្សរ`
+          : `The QR store name can be at most ${BAKONG_MERCHANT_NAME_MAX} characters`
     }
     setErrors(errs)
     return Object.keys(errs).length === 0
   }
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
 
-    updateBranch({
-      bakong_account_id: bakongAccountId,
-      bakong_merchant_name: bakongMerchantName,
-      bakong_acquiring_bank: bakongAcquiringBank,
-    })
-    if (exchangeRate) {
-      updateBusinessProfile({
-        exchange_rate: parseFloat(exchangeRate) || 4100,
-        base_currency: baseCurrency,
+    setSaveError('')
+    const accountId = bakongAccountId.trim()
+    try {
+      await updateBusiness.mutateAsync({
+        businessId: business.id,
+        payload: {
+          base_currency: baseCurrency,
+          exchange_rate: exchangeRate,
+          tax_percentage: vatRate || '0',
+          is_tax_inclusive: isTaxInclusive,
+          service_charge_percentage: serviceChargeRate || '0',
+          is_service_charge_inclusive: isServiceChargeInclusive,
+          bakong_account_id: accountId || null,
+          bakong_merchant_name: accountId ? bakongMerchantName.trim() : null,
+          bakong_acquiring_bank: accountId ? bakongAcquiringBank : null,
+        },
       })
+      setIsSaved(true)
+      setTimeout(() => setIsSaved(false), 3000)
+    } catch (err) {
+      setSaveError(
+        getApiErrorMessage(
+          err,
+          language === 'km' ? 'មិនអាចរក្សាទុកការកំណត់បានទេ' : 'Could not save the settings.'
+        )
+      )
     }
-    setIsSaved(true)
-    setTimeout(() => setIsSaved(false), 3000)
   }
 
   const acquiringBanks = [
@@ -146,7 +214,7 @@ export const StoreSettingsTab: FC = () => {
                   inputMode="numeric"
                   value={vatRate}
                   onChange={(e) => {
-                    const numericVal = e.target.value.replace(/[^0-9]/g, '')
+                    const numericVal = e.target.value.replace(/[^0-9.]/g, '')
                     setVatRate(numericVal)
                     if (errors.vatRate) setErrors((prev) => ({ ...prev, vatRate: '' }))
                   }}
@@ -173,7 +241,7 @@ export const StoreSettingsTab: FC = () => {
                   inputMode="numeric"
                   value={serviceChargeRate}
                   onChange={(e) => {
-                    const numericVal = e.target.value.replace(/[^0-9]/g, '')
+                    const numericVal = e.target.value.replace(/[^0-9.]/g, '')
                     setServiceChargeRate(numericVal)
                     if (errors.serviceChargeRate) setErrors((prev) => ({ ...prev, serviceChargeRate: '' }))
                   }}
@@ -190,6 +258,26 @@ export const StoreSettingsTab: FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <label className="flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={isTaxInclusive}
+                  onChange={(e) => setIsTaxInclusive(e.target.checked)}
+                  className="h-4 w-4 accent-emerald-600"
+                />
+                {language === 'km' ? 'តម្លៃមុខម្ហូបរួមបញ្ចូល VAT រួចហើយ' : 'Menu prices already include VAT'}
+              </label>
+              <label className="flex items-center gap-2 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={isServiceChargeInclusive}
+                  onChange={(e) => setIsServiceChargeInclusive(e.target.checked)}
+                  className="h-4 w-4 accent-emerald-600"
+                />
+                {language === 'km' ? 'តម្លៃមុខម្ហូបរួមបញ្ចូលថ្លៃសេវារួចហើយ' : 'Menu prices already include the service charge'}
+              </label>
             </div>
           </div>
 
@@ -281,20 +369,31 @@ export const StoreSettingsTab: FC = () => {
               </label>
               <input
                 type="text"
-                value={telegramBotToken}
-                onChange={(e) => setTelegramBotToken(e.target.value)}
-                placeholder={language === 'km' ? 'បញ្ចូល Telegram Bot Token' : 'Enter Telegram Bot Token'}
-                className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm font-mono outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors shadow-none"
+                disabled
+                value=""
+                placeholder={language === 'km' ? 'មិនទាន់អាចប្រើបាន' : 'Not available yet'}
+                className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 text-sm font-mono outline-none shadow-none cursor-not-allowed"
               />
+              <p className="text-xs text-zinc-500">
+                {language === 'km'
+                  ? 'ការជូនដំណឹង Telegram នឹងអាចកំណត់បាន នៅពេលប្រព័ន្ធអាចរក្សាទុក Bot Token ដោយការអ៊ិនគ្រីប។'
+                  : 'Telegram alerts will be configurable once bot tokens can be stored encrypted.'}
+              </p>
             </div>
           </div>
 
           {/* Bottom Save Button */}
           <div className="pt-4 flex items-center justify-end">
+            {saveError && (
+              <p role="alert" className="mr-4 text-xs font-medium text-red-600 dark:text-red-400">
+                {saveError}
+              </p>
+            )}
             <Button
               type="submit"
               variant="primary"
               size="md"
+              disabled={updateBusiness.isPending}
               className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-full"
             >
               {isSaved

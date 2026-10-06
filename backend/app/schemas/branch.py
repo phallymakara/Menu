@@ -5,6 +5,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Bakong account IDs look like "name@bank" (for example "riverside_cafe@abaa").
+BAKONG_ACCOUNT_ID_PATTERN = r"^[A-Za-z0-9._-]{1,64}@[A-Za-z0-9]{2,16}$"
+# KHQR follows EMVCo: merchant name (tag 59) and city (tag 60) are length-limited.
+BAKONG_MERCHANT_NAME_MAX = 25
+BAKONG_MERCHANT_CITY_MAX = 15
+
 
 class TimeSlot(BaseModel):
     """Represents an open and close time range (e.g., for split shifts)."""
@@ -136,6 +142,19 @@ class BranchUpdate(BaseModel):
     is_service_charge_inclusive: bool | None = None
     operating_hours: dict[str, Any] | None = Field(default=None)
     is_active: bool | None = Field(default=None)
+    bakong_account_id: str | None = Field(
+        default=None,
+        max_length=100,
+        pattern=BAKONG_ACCOUNT_ID_PATTERN,
+        description="Bakong account that receives KHQR payments, e.g. name@bank",
+    )
+    bakong_merchant_name: str | None = Field(
+        default=None, min_length=1, max_length=BAKONG_MERCHANT_NAME_MAX
+    )
+    bakong_merchant_city: str | None = Field(
+        default=None, min_length=1, max_length=BAKONG_MERCHANT_CITY_MAX
+    )
+    bakong_acquiring_bank: str | None = Field(default=None, min_length=1, max_length=50)
 
 
 class BranchResponse(BaseModel):
@@ -160,6 +179,10 @@ class BranchResponse(BaseModel):
     service_charge_percentage: Decimal | None = None
     is_service_charge_inclusive: bool | None = None
     operating_hours: dict[str, Any] | list[Any] | None = None
+    bakong_account_id: str | None = None
+    bakong_merchant_name: str | None = None
+    bakong_merchant_city: str | None = None
+    bakong_acquiring_bank: str | None = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
