@@ -1686,7 +1686,7 @@
           "Public Table QR Verification"
         ],
         "summary": "Guest places multi-round order from table QR",
-        "description": "Guest places order directly from mobile phone at table.",
+        "description": "Guest places order directly from mobile phone at table.\n\nThe token must be the table's QR token or its active session token, and is\nchecked before a dining session is opened. Inactive tables, branches,\nbusinesses, and organizations do not accept orders.",
         "operationId": "place_public_guest_order_endpoint_api_v1_public_tables_orders_post",
         "parameters": [
           {
@@ -4863,6 +4863,22 @@
               "format": "uuid",
               "title": "Branch Id"
             }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
           }
         ],
         "requestBody": {
@@ -4963,6 +4979,22 @@
               ],
               "title": "Table Id"
             }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
           }
         ],
         "responses": {
@@ -5036,6 +5068,22 @@
               "format": "uuid",
               "title": "Order Id"
             }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
           }
         ],
         "responses": {
@@ -5104,6 +5152,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Order Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
             }
           }
         ],
@@ -6015,7 +6079,7 @@
           "KHQR Digital Payments (Bakong)"
         ],
         "summary": "Generate static merchant KHQR code",
-        "description": "Generates a static merchant KHQR code for acrylic table stands or counter stickers.",
+        "description": "Generates a static merchant KHQR code for acrylic table stands or counter stickers.\n\nThe business and branch must belong to the caller's organization.",
         "operationId": "generate_static_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_static_get",
         "security": [
           {
@@ -8392,6 +8456,22 @@
               "format": "uuid",
               "title": "Branch Id"
             }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
           }
         ],
         "requestBody": {
@@ -8458,6 +8538,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Branch Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
             }
           }
         ],
@@ -8531,6 +8627,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Station Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
             }
           }
         ],
@@ -8609,6 +8721,22 @@
               "format": "uuid",
               "title": "Station Id"
             }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
           }
         ],
         "responses": {
@@ -8670,6 +8798,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Station Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
             }
           }
         ],
