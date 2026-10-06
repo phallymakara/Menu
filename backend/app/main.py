@@ -4,12 +4,13 @@ from pathlib import Path
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.endpoints.websockets import router as ws_router
 from app.api.v1.router import api_router
+from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.config import settings
 from app.core.logging import LoggingMiddleware, setup_logging
+from app.core.static_files import UploadStaticFiles
 
 # Initialize logging configuration
 setup_logging(
@@ -41,6 +42,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Innermost: reject oversized bodies before they are read (CORS and logging still apply)
+app.add_middleware(
+    BodySizeLimitMiddleware,
+    max_body_bytes=settings.max_request_body_bytes,
+)
+
 # Add HTTP request tracking middleware
 app.add_middleware(LoggingMiddleware)
 
@@ -63,7 +70,7 @@ app.include_router(ws_router)
 # Mount local uploads static directory
 upload_path = Path("uploads")
 upload_path.mkdir(parents=True, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=str(upload_path)), name="uploads")
+app.mount("/uploads", UploadStaticFiles(directory=str(upload_path)), name="uploads")
 
 
 @app.get("/")

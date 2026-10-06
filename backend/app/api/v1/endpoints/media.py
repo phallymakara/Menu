@@ -1,10 +1,12 @@
-import re
+import io
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 
 import structlog
+from anyio import CapacityLimiter, to_thread
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,6 +39,75 @@ ALLOWED_IMAGE_TYPES = {
     "image/avif",
 }
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+# Stored images are scaled down to fit in this box (also keeps menus light on mobile).
+MAX_DIMENSION = 2048
+# Largest decoded frame accepted, after JPEG draft decoding (about 5000 x 5000).
+MAX_SOURCE_PIXELS = 25_000_000
+# Image decoding is CPU and memory heavy; bound how many uploads decode at once.
+_IMAGE_DECODE_LIMITER = CapacityLimiter(2)
+
+# Pillow format name -> (MIME type, file extension) of the stored file.
+_IMAGE_FORMATS = {
+    "JPEG": ("image/jpeg", ".jpg"),
+    "PNG": ("image/png", ".png"),
+    "WEBP": ("image/webp", ".webp"),
+    "GIF": ("image/gif", ".gif"),
+    "AVIF": ("image/avif", ".avif"),
+}
+
+
+class InvalidImageError(ValueError):
+    """Raised when an upload is not a supported, decodable raster image."""
+
+
+def _reencode_image(contents: bytes) -> tuple[bytes, str, str]:
+    """
+    Verifies that the upload is a supported raster image and re-encodes it.
+
+    The stored file is produced by Pillow from the decoded pixels, so metadata and
+    anything appended to or hidden in the original bytes (HTML, scripts, polyglot
+    payloads) are dropped. The type comes from the decoded data, never from the
+    client's declared content type or file name.
+
+    Work is bounded: only the first frame is ever decoded (animations are stored as
+    still images, so no later frame, which may declare a larger canvas, is read),
+    its size is checked before decoding, JPEGs are decoded at a reduced scale, and
+    the stored image is scaled down to fit ``MAX_DIMENSION``.
+
+    Returns:
+        A tuple of (image bytes, MIME type, file extension).
+    """
+    try:
+        with Image.open(io.BytesIO(contents)) as probe:
+            image_format = probe.format
+            probe.verify()
+        if image_format not in _IMAGE_FORMATS:
+            raise InvalidImageError(f"Unsupported image format: {image_format}.")
+
+        with Image.open(io.BytesIO(contents)) as image:
+            # Pillow reports the first frame's size here, including a frame larger
+            # than the declared canvas. For JPEG, decode at a smaller scale when the
+            # photo is large.
+            image.draft("RGB", (MAX_DIMENSION, MAX_DIMENSION))
+            width, height = image.size
+            if width * height > MAX_SOURCE_PIXELS:
+                raise InvalidImageError("Image dimensions are too large.")
+            image.load()
+            output_image: Image.Image = image
+            if image_format == "JPEG" and image.mode not in ("RGB", "L"):
+                output_image = image.convert("RGB")
+            output_image.thumbnail((MAX_DIMENSION, MAX_DIMENSION))
+            buffer = io.BytesIO()
+            output_image.save(buffer, format=image_format)
+    except InvalidImageError:
+        raise
+    except Image.DecompressionBombError as exc:
+        raise InvalidImageError("Image dimensions are too large.") from exc
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError) as exc:
+        raise InvalidImageError("The file is not a valid image.") from exc
+
+    mime_type, extension = _IMAGE_FORMATS[image_format]
+    return buffer.getvalue(), mime_type, extension
 
 
 class MediaUploadResponse(BaseModel):
@@ -83,34 +154,55 @@ async def upload_menu_image(
             detail=msg,
         )
 
-    contents = await file.read()
+    # Read at most one byte past the limit instead of buffering arbitrarily large bodies.
+    contents = await file.read(MAX_FILE_SIZE + 1)
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File size exceeds the 5MB limit.",
         )
 
-    # Sanitize filename and generate unique name
-    raw_name = file.filename or "image.jpg"
-    clean_name = re.sub(r"[^a-zA-Z0-9_.-]", "_", raw_name)
-    unique_filename = f"{uuid4().hex[:12]}_{clean_name}"
-    target_path = UPLOAD_DIR / unique_filename
+    try:
+        image_bytes, mime_type, extension = await to_thread.run_sync(
+            _reencode_image, contents, limiter=_IMAGE_DECODE_LIMITER
+        )
+    except InvalidImageError as exc:
+        logger.warning(
+            "Rejected media upload",
+            business_id=str(business_id),
+            declared_type=file.content_type,
+            reason=str(exc),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
-    with open(target_path, "wb") as f:
-        f.write(contents)
+    # Generated names only (never the client's), stored per organization and business.
+    unique_filename = f"{uuid4().hex}{extension}"
+    relative_dir = Path(str(tenant.organization_id)) / str(business_id)
+    target_dir = UPLOAD_DIR / relative_dir
+    target_path = target_dir / unique_filename
 
-    relative_url = f"/uploads/menu_items/{unique_filename}"
+    def _write() -> None:
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path.write_bytes(image_bytes)
+
+    await to_thread.run_sync(_write)
+
+    relative_url = f"/uploads/menu_items/{relative_dir.as_posix()}/{unique_filename}"
 
     logger.info(
         "Media image uploaded",
         business_id=str(business_id),
         filename=unique_filename,
-        size_bytes=len(contents),
+        content_type=mime_type,
+        size_bytes=len(image_bytes),
     )
 
     return MediaUploadResponse(
         url=relative_url,
         filename=unique_filename,
-        content_type=file.content_type,
-        size_bytes=len(contents),
+        content_type=mime_type,
+        size_bytes=len(image_bytes),
     )
