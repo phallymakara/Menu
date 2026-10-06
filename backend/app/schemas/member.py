@@ -57,7 +57,9 @@ class MemberInvite(BaseModel):
     )
     password: str | None = Field(
         default=None,
-        min_length=6,
+        # Same minimum as login and registration; a shorter password could be set
+        # here but never used to sign in.
+        min_length=8,
         max_length=128,
         description="Optional direct password for staff login without invitation token",
     )
