@@ -1,99 +1,77 @@
-import { useState, useEffect, type FC } from 'react'
-import {
-  X,
-  Droplets,
-  Utensils,
-  Receipt,
-  SprayCan,
-  Bell,
-  Clock,
-  CheckCircle2,
-  Volume2,
-  VolumeX,
-} from 'lucide-react'
-import { ServiceRequest, ServiceRequestType } from '../types/serviceHub.types'
-import { useServiceHubStore } from '../stores/useServiceHubStore'
+import { useMemo, useState, type FC } from 'react'
+import { Bell, CheckCircle2, Clock, RefreshCw, Volume2, VolumeX, X } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { playSuccessSound } from '@/lib/audio'
+import { getApiErrorStatus } from '@/lib/api-error'
+import type { StaffServiceRequest } from '../types/serviceHub.types'
+import { useServiceHubStore } from '../stores/useServiceHubStore'
+import { useNow } from '../hooks/useNow'
+import {
+  useAcknowledgeServiceRequest,
+  useBranchServiceRequests,
+  useResolveServiceRequest,
+} from '../hooks/useServiceRequestQueries'
+import {
+  formatElapsed,
+  getSlaLevel,
+  interpolate,
+  secondsSince,
+  serviceRequestTypeLabelKey,
+  sortServiceQueue,
+  staffActionErrorKey,
+  type SlaLevel,
+} from '../utils/serviceRequests'
+import { SERVICE_REQUEST_TYPE_ICONS } from './serviceRequestIcons'
 
-export const ServiceHubDrawer: FC = () => {
-  const { language } = useLanguageStore()
-  const {
-    requests,
-    isDrawerOpen,
-    toggleDrawer,
-    isMuted,
-    toggleMute,
-    acknowledgeRequest,
-    resolveRequest,
-  } = useServiceHubStore()
+export interface ServiceHubDrawerProps {
+  businessId: string | null
+  branchId: string | null
+}
 
-  // Live timer tick
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(timer)
-  }, [])
+const SLA_CARD_STYLES: Record<SlaLevel, string> = {
+  critical: 'border-red-500 dark:border-red-600 bg-red-50/40 dark:bg-red-950/20',
+  warning: 'border-amber-400 dark:border-amber-600 bg-amber-50/40 dark:bg-amber-950/20',
+  normal: 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900',
+}
 
+/** POS slide-over listing the branch's guest service requests, live. */
+export const ServiceHubDrawer: FC<ServiceHubDrawerProps> = ({ businessId, branchId }) => {
+  const isDrawerOpen = useServiceHubStore((state) => state.isDrawerOpen)
+  // Mount the panel only while open, so its one-second timer does not tick in the background.
   if (!isDrawerOpen) return null
+  return <ServiceHubDrawerPanel businessId={businessId} branchId={branchId} />
+}
 
-  const getIconForType = (type: ServiceRequestType) => {
-    switch (type) {
-      case 'WATER':
-        return Droplets
-      case 'NAPKINS_UTENSILS':
-        return Utensils
-      case 'REQUEST_BILL':
-        return Receipt
-      case 'TABLE_CLEANING':
-        return SprayCan
-      default:
-        return Bell
-    }
+const ServiceHubDrawerPanel: FC<ServiceHubDrawerProps> = ({ businessId, branchId }) => {
+  const { language, t } = useLanguageStore()
+  const { toggleDrawer, isMuted, toggleMute } = useServiceHubStore()
+  const { data, isLoading, isError, refetch } = useBranchServiceRequests(businessId, branchId)
+  const acknowledge = useAcknowledgeServiceRequest(businessId, branchId)
+  const resolve = useResolveServiceRequest(businessId, branchId)
+  const [actionErrorKey, setActionErrorKey] = useState<string | null>(null)
+  const now = useNow()
+
+  const queue = useMemo(() => sortServiceQueue(data ?? []), [data])
+
+  const runAction = (
+    mutation: typeof acknowledge | typeof resolve,
+    request: StaffServiceRequest
+  ) => {
+    setActionErrorKey(null)
+    mutation.mutate(request.id, {
+      onSuccess: () => {
+        if (!isMuted) playSuccessSound()
+      },
+      onError: (err) => setActionErrorKey(staffActionErrorKey(getApiErrorStatus(err))),
+    })
   }
 
-  const getLabelForType = (type: ServiceRequestType) => {
-    switch (type) {
-      case 'WATER':
-        return language === 'km' ? 'សុំទឹក / ទឹកកក' : 'Water & Ice Refill'
-      case 'NAPKINS_UTENSILS':
-        return language === 'km' ? 'ក្រដាស / ស្លាបព្រា' : 'Napkins & Cutlery'
-      case 'REQUEST_BILL':
-        return language === 'km' ? 'សុំគិតប្រាក់' : 'Bill Request'
-      case 'TABLE_CLEANING':
-        return language === 'km' ? 'សម្អាតតុ' : 'Table Cleanup'
-      default:
-        return language === 'km' ? 'ហៅអ្នកបម្រើ' : 'General Server Call'
-    }
-  }
+  const isBusy = (request: StaffServiceRequest) =>
+    (acknowledge.isPending && acknowledge.variables === request.id) ||
+    (resolve.isPending && resolve.variables === request.id)
 
-  const formatElapsed = (isoDate: string) => {
-    const totalSecs = Math.max(0, Math.floor((now - new Date(isoDate).getTime()) / 1000))
-    const mins = Math.floor(totalSecs / 60)
-    const secs = totalSecs % 60
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-  }
-
-  const getSLAStyle = (isoDate: string) => {
-    const totalMins = (now - new Date(isoDate).getTime()) / 1000 / 60
-    if (totalMins >= 5) {
-      return 'border-red-500 dark:border-red-600 bg-red-50/40 dark:bg-red-950/20'
-    }
-    if (totalMins >= 2) {
-      return 'border-amber-400 dark:border-amber-600 bg-amber-50/40 dark:bg-amber-950/20'
-    }
-    return 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900'
-  }
-
-  const handleAcknowledge = (req: ServiceRequest) => {
-    acknowledgeRequest(req.id, 'Staff')
-    playSuccessSound()
-  }
-
-  const handleResolve = (req: ServiceRequest) => {
-    resolveRequest(req.id)
-    playSuccessSound()
-  }
+  const areaName = (request: StaffServiceRequest) =>
+    (language === 'km' && request.dining_area_name_km) || request.dining_area_name_en || null
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -103,8 +81,13 @@ export const ServiceHubDrawer: FC = () => {
         onClick={toggleDrawer}
       />
 
-      {/* Drawer Body (Zero Shadow, Clean Flat Borders) */}
-      <div className="relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 z-10 flex flex-col justify-between h-full animate-in slide-in-from-right duration-200">
+      {/* Drawer body (zero shadow, clean flat borders) */}
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="service-hub-title"
+        className="relative w-full max-w-md bg-white dark:bg-zinc-900 border-l border-zinc-200 dark:border-zinc-800 z-10 flex flex-col justify-between h-full animate-in slide-in-from-right duration-200"
+      >
         {/* Header */}
         <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -112,59 +95,87 @@ export const ServiceHubDrawer: FC = () => {
               <Bell className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-zinc-950 dark:text-zinc-50">
-                {language === 'km' ? 'មជ្ឈមណ្ឌលហៅអ្នកបម្រើ' : 'Waiter Service Hub'}
+              <h3 id="service-hub-title" className="font-bold text-sm text-zinc-950 dark:text-zinc-50">
+                {t('serviceHub.staff.title')}
               </h3>
               <p className="text-[11px] text-zinc-500">
-                {requests.length} {language === 'km' ? 'សំណើកំពុងរង់ចាំ' : 'active requests in queue'}
+                {interpolate(t('serviceHub.staff.activeCount'), { count: queue.length })}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5">
             <button
+              type="button"
               onClick={toggleMute}
               className={`p-1.5 rounded-lg border transition-colors ${
                 isMuted
                   ? 'border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300'
                   : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
               }`}
-              title={isMuted ? 'Unmute Audio Chime' : 'Mute Audio Chime'}
+              title={t(isMuted ? 'serviceHub.staff.unmute' : 'serviceHub.staff.mute')}
+              aria-label={t(isMuted ? 'serviceHub.staff.unmute' : 'serviceHub.staff.mute')}
+              aria-pressed={isMuted}
             >
               {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </button>
 
             <button
+              type="button"
               onClick={toggleDrawer}
-              className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors"
+              aria-label={t('serviceHub.staff.close')}
+              className="p-1.5 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Requests Queue */}
+        {/* Request queue */}
         <div className="p-4 flex-1 overflow-y-auto space-y-3">
-          {requests.length === 0 ? (
+          {actionErrorKey && (
+            <p role="alert" className="text-xs text-red-500 text-center font-medium">
+              {t(actionErrorKey)}
+            </p>
+          )}
+
+          {isLoading ? (
+            <div className="py-20 text-center text-xs text-zinc-500 space-y-2">
+              <RefreshCw className="w-6 h-6 mx-auto text-zinc-400 animate-spin" />
+              <p>{t('serviceHub.staff.loading')}</p>
+            </div>
+          ) : isError && queue.length === 0 ? (
+            <div className="py-20 text-center text-xs space-y-3">
+              <p className="text-red-500 font-medium">{t('serviceHub.staff.loadError')}</p>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-800 dark:text-zinc-200 transition-colors"
+              >
+                {t('serviceHub.staff.retry')}
+              </button>
+            </div>
+          ) : queue.length === 0 ? (
             <div className="py-20 text-center text-xs text-zinc-400 space-y-2">
               <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500" />
               <p className="font-semibold text-zinc-700 dark:text-zinc-300">
-                {language === 'km' ? 'គ្មានសំណើកំពុងរង់ចាំទេ!' : 'All Caught Up!'}
+                {t('serviceHub.staff.emptyTitle')}
               </p>
-              <p>{language === 'km' ? 'សំណើថ្មីពីភ្ញៀវនឹងបង្ហាញនៅទីនេះ' : 'Guest service calls will appear here in real time.'}</p>
+              <p>{t('serviceHub.staff.emptyBody')}</p>
             </div>
           ) : (
-            requests.map((req) => {
-              const Icon = getIconForType(req.request_type)
-              const slaStyle = getSLAStyle(req.requested_at)
-              const isInProgress = req.status === 'IN_PROGRESS'
+            queue.map((request) => {
+              const Icon = SERVICE_REQUEST_TYPE_ICONS[request.request_type]
+              const isAcknowledged = request.status === 'acknowledged'
+              const busy = isBusy(request)
+              const area = areaName(request)
 
               return (
                 <div
-                  key={req.id}
-                  className={`p-3.5 rounded-2xl border ${slaStyle} space-y-3 transition-colors`}
+                  key={request.id}
+                  className={`p-3.5 rounded-2xl border ${SLA_CARD_STYLES[getSlaLevel(request.created_at, now)]} space-y-3 transition-colors`}
                 >
-                  {/* Card Header: Table + Time Elapsed */}
+                  {/* Card header: table and time waited */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-700 dark:text-zinc-300">
@@ -172,53 +183,63 @@ export const ServiceHubDrawer: FC = () => {
                       </div>
                       <div>
                         <h4 className="font-extrabold text-sm text-zinc-950 dark:text-zinc-50">
-                          Table {req.table_number}
+                          {interpolate(t('serviceHub.staff.table'), { table: request.table_number })}
                         </h4>
-                        <span className="text-[11px] text-zinc-500 font-medium block">
-                          {req.dining_area_name || 'Main Hall'}
-                        </span>
+                        {area && (
+                          <span className="text-[11px] text-zinc-500 font-medium block">{area}</span>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1 font-mono text-xs text-zinc-600 dark:text-zinc-400">
                       <Clock className="w-3 h-3" />
-                      <span>{formatElapsed(req.requested_at)}</span>
+                      <span>{formatElapsed(secondsSince(request.created_at, now))}</span>
                     </div>
                   </div>
 
-                  {/* Request Type & Notes */}
+                  {/* Request type and note */}
                   <div className="text-xs space-y-1">
                     <div className="font-semibold text-zinc-900 dark:text-zinc-100">
-                      {getLabelForType(req.request_type)}
+                      {t(serviceRequestTypeLabelKey(request.request_type))}
                     </div>
-                    {req.note && (
-                      <p className="text-[11px] text-amber-700 dark:text-amber-300 italic">
-                        "{req.note}"
+                    {request.note && (
+                      <p className="text-[11px] text-amber-700 dark:text-amber-300 italic break-words">
+                        "{request.note}"
                       </p>
                     )}
                   </div>
 
-                  {/* Action Buttons */}
+                  {/* Actions */}
                   <div className="pt-2 border-t border-zinc-200/60 dark:border-zinc-800/60 flex items-center gap-2">
-                    {!isInProgress ? (
-                      <button
-                        onClick={() => handleAcknowledge(req)}
-                        className="flex-1 py-2 px-3 rounded-xl border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-900 dark:text-zinc-100 transition-colors"
-                      >
-                        {language === 'km' ? 'ទទួលស្គាល់ (Acknowledge)' : 'Acknowledge'}
-                      </button>
-                    ) : (
-                      <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold px-2 py-1 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        {language === 'km' ? 'កំពុងបម្រើ' : 'In Progress'}
+                    {isAcknowledged ? (
+                      <span className="flex-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold px-2 py-1 flex items-center gap-1 min-w-0">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">
+                          {request.acknowledged_by_name
+                            ? interpolate(t('serviceHub.staff.takenBy'), {
+                                name: request.acknowledged_by_name,
+                              })
+                            : t('serviceHub.staff.inProgress')}
+                        </span>
                       </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => runAction(acknowledge, request)}
+                        className="flex-1 py-2 px-3 rounded-xl border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 text-xs font-semibold text-zinc-900 dark:text-zinc-100 transition-colors"
+                      >
+                        {t('serviceHub.staff.acknowledge')}
+                      </button>
                     )}
 
                     <button
-                      onClick={() => handleResolve(req)}
-                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors"
+                      type="button"
+                      disabled={busy}
+                      onClick={() => runAction(resolve, request)}
+                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white text-xs font-bold transition-colors"
                     >
-                      {language === 'km' ? 'រួចរាល់ (Mark Done)' : 'Mark Done'}
+                      {t('serviceHub.staff.markDone')}
                     </button>
                   </div>
                 </div>

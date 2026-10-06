@@ -1,26 +1,16 @@
-export type ServiceRequestType =
-  | 'WATER'
-  | 'NAPKINS_UTENSILS'
-  | 'REQUEST_BILL'
-  | 'TABLE_CLEANING'
-  | 'CALL_WAITER'
+import type { components } from '@/types/api'
 
-export type ServiceRequestStatus =
-  | 'PENDING'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'CANCELLED'
+/** What a guest is asking staff for. */
+export type ServiceRequestType = components['schemas']['ServiceRequestType']
 
-export interface ServiceRequest {
-  id: string
-  table_id: string
-  table_number: string
-  dining_area_name?: string | null
-  request_type: ServiceRequestType
-  note?: string | null
-  status: ServiceRequestStatus
-  requested_at: string
-  acknowledged_at?: string | null
-  attended_by_name?: string | null
-  elapsed_seconds?: number
-}
+/** Lifecycle of a request: open, then acknowledged, then resolved (or cancelled). */
+export type ServiceRequestStatus = components['schemas']['ServiceRequestStatus']
+
+/** A request as the guest who raised it sees it (no staff identities). */
+export type GuestServiceRequest = components['schemas']['GuestServiceRequestResponse']
+
+/** Body the guest sends to raise a request. */
+export type GuestServiceRequestCreate = components['schemas']['GuestServiceRequestCreate']
+
+/** A request as staff see it in the POS service hub. */
+export type StaffServiceRequest = components['schemas']['ServiceRequestResponse']

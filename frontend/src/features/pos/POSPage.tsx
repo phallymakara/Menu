@@ -14,6 +14,13 @@ import { POSSupervisorVoidModal } from './components/POSSupervisorVoidModal'
 import { POSReceiptModal } from './components/POSReceiptModal'
 import { KHQRPaymentModal } from '@/features/guest/components/KHQRPaymentModal'
 import { ServiceHubDrawer } from '@/features/service-hub/components/ServiceHubDrawer'
+import { serviceRequestKeys } from '@/features/service-hub/hooks/useServiceRequestQueries'
+import { useServiceHubStore } from '@/features/service-hub/stores/useServiceHubStore'
+import {
+  isServiceRequestEvent,
+  parseServiceHubEvent,
+  type ServiceHubEvent,
+} from '@/features/service-hub/utils/serviceRequests'
 import { usePOSStore } from './stores/usePOSStore'
 import {
   sessionRoundsQuery,
@@ -222,7 +229,26 @@ export const POSPage: FC = () => {
     }
   }
 
-  // 8. WebSocket Real-Time Listener for POS Room
+  // 8. Service hub events: refresh the request queue, and flag tables that asked for the bill
+  const handleServiceHubEvent = useCallback(
+    (event: ServiceHubEvent) => {
+      const { isMuted } = useServiceHubStore.getState()
+      if (isServiceRequestEvent(event)) {
+        queryClient.invalidateQueries({
+          queryKey: serviceRequestKeys.branch(tenantBizId, tenantBranchId),
+        })
+        if (event.name === 'service_request.created' && !isMuted) playChime(659.25, 880, 0.3)
+        return
+      }
+      // table_session.bill_requested
+      if (event.tableId) updateTableStatus(event.tableId, 'bill_requested')
+      fetchPOSData()
+      if (!isMuted) playChime(659.25, 880, 0.4)
+    },
+    [queryClient, tenantBizId, tenantBranchId, updateTableStatus, fetchPOSData]
+  )
+
+  // 9. WebSocket Real-Time Listener for POS Room
   const wsUrl =
     accessToken && isUuid(tenantBranchId)
       ? `/ws/branches/${tenantBranchId}?token=${accessToken}&room_type=pos`
@@ -231,15 +257,16 @@ export const POSPage: FC = () => {
   const { isConnected } = useWebSocket(wsUrl, {
     autoConnect: !!wsUrl,
     onMessage: (rawMsg) => {
+      const hubEvent = parseServiceHubEvent(rawMsg)
+      if (hubEvent) {
+        handleServiceHubEvent(hubEvent)
+        return
+      }
       try {
         const data = typeof rawMsg === 'object' && rawMsg !== null ? (rawMsg as any) : {}
         if (data.event === 'TABLE_STATUS_CHANGED') {
           updateTableStatus(data.table_id, data.status)
           fetchPOSData()
-        } else if (data.event === 'BILL_REQUESTED') {
-          updateTableStatus(data.table_id, 'bill_requested')
-          fetchPOSData()
-          playChime(659.25, 880, 0.4)
         } else if (data.event === 'PAYMENT_SETTLED') {
           updateTableStatus(data.table_id, 'dirty_cleaning')
           fetchPOSData()
@@ -278,6 +305,8 @@ export const POSPage: FC = () => {
           storeName={resolvedStoreName}
           storeLogo={storeInfo.logoUrl}
           isConnected={isConnected}
+          businessId={tenantBizId}
+          branchId={tenantBranchId}
         />
 
         {/* Main Workspace Body */}
@@ -360,7 +389,7 @@ export const POSPage: FC = () => {
       />
 
       {/* Waiter Service Requests Hub Slide-Over Drawer */}
-      <ServiceHubDrawer />
+      <ServiceHubDrawer businessId={tenantBizId} branchId={tenantBranchId} />
     </div>
   )
 }
