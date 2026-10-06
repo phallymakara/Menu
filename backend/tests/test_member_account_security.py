@@ -283,3 +283,36 @@ async def test_org_cannot_rewrite_identity_of_shared_account():
 
         await session.refresh(victim)
         assert victim.email == "victim@example.com"
+
+
+@pytest.mark.anyio
+async def test_invite_password_must_meet_the_login_minimum():
+    """A password shorter than login's 8-character minimum would lock the staff out."""
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with sessionmaker() as session:
+        owner, org, _, _ = await setup_test_tenant(session)
+        headers = {"Authorization": f"Bearer {create_access_token(owner.id)}"}
+        url = f"/api/v1/organizations/{org.id}/members/invite"
+        staff = {
+            "email": "cashier@example.com",
+            "full_name": "Cashier",
+            "role": "cashier",
+        }
+
+        try:
+            async with await _client_for(session) as client:
+                too_short = await client.post(
+                    url, headers=headers, json={**staff, "password": "1234567"}
+                )
+                assert too_short.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
+
+                accepted = await client.post(
+                    url, headers=headers, json={**staff, "password": "12345678x"}
+                )
+                assert accepted.status_code == status.HTTP_201_CREATED
+        finally:
+            app.dependency_overrides.clear()

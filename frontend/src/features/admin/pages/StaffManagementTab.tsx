@@ -177,6 +177,12 @@ export const StaffManagementTab: FC = () => {
     if (newStaff.pin_code && newStaff.pin_code.length !== 4) {
       errs.pin_code = language === 'km' ? 'លេខកូដ PIN ត្រូវតែមាន ៤ ខ្ទង់' : 'PIN code must be exactly 4 digits'
     }
+    if (newStaff.password.length < 8) {
+      errs.password =
+        language === 'km'
+          ? 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងហោចណាស់ ៨ តួអក្សរ'
+          : 'Password must be at least 8 characters'
+    }
     setFormErrors(errs)
     return Object.keys(errs).length === 0
   }
@@ -207,7 +213,7 @@ export const StaffManagementTab: FC = () => {
         branch_id: assignedBranch,
         pos_pin: newStaff.pin_code.trim() || null,
         avatar_url: newStaff.avatar_url || null,
-        password: newStaff.password.trim() || '12345678',
+        password: newStaff.password,
       })
 
       queryClient.invalidateQueries({ queryKey: ['staff', orgId] })
@@ -462,7 +468,7 @@ export const StaffManagementTab: FC = () => {
                 {/* 5. POS PIN Code with Reveal Toggle */}
                 <div className="flex items-center gap-2">
                   <div className="text-xs font-mono font-bold tracking-widest text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
-                    {isPinVisible ? staff.pos_pin || staff.pin_code || '1234' : '••••'}
+                    {isPinVisible ? staff.pos_pin || (language === 'km' ? 'មិនទាន់កំណត់' : 'Not set') : '••••'}
                   </div>
                   <button
                     type="button"
@@ -678,9 +684,14 @@ export const StaffManagementTab: FC = () => {
                   autoComplete="new-password"
                   placeholder={language === 'km' ? 'បញ្ចូលពាក្យសម្ងាត់' : 'Enter password'}
                   value={newStaff.password}
+                  required
+                  minLength={8}
                   onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
                   className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600 transition-all"
                 />
+                {formErrors.password && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.password}</p>
+                )}
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2">
