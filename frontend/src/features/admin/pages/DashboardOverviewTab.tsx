@@ -12,6 +12,8 @@ import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
 import { useSalesOverview, useTopSellingItems } from '../hooks/useAnalyticsQueries'
 import { useTables } from '../hooks/useTableQueries'
+import { todayRangeInPhnomPenh } from '@/lib/dates'
+import { isUuid } from '@/lib/utils'
 
 export const DashboardOverviewTab: FC = () => {
   const { language } = useLanguageStore()
@@ -39,15 +41,32 @@ export const DashboardOverviewTab: FC = () => {
     }
   }, [branches, branchId])
 
-  const { data: overviewData, isLoading: isOverviewLoading } = useSalesOverview(businessId, branchId)
-  const { data: topItemsData = [], isLoading: isTopItemsLoading } = useTopSellingItems(businessId, branchId)
-  const { data: tablesData = [], isLoading: isTablesLoading } = useTables(businessId, branchId)
+  // "All branches" is stored as a non-ID value; analytics then cover the whole business.
+  const scopedBranchId = isUuid(branchId) ? branchId : null
+  // Today's figures: from midnight in Cambodia until the dashboard was opened.
+  const today = useMemo(() => todayRangeInPhnomPenh(), [])
+
+  const { data: overviewData, isLoading: isOverviewLoading } = useSalesOverview(
+    businessId,
+    scopedBranchId,
+    today.start,
+    today.end
+  )
+  const { data: topItemsData = [], isLoading: isTopItemsLoading } = useTopSellingItems(
+    businessId,
+    scopedBranchId,
+    today.start,
+    today.end
+  )
+  const { data: tablesData = [], isLoading: isTablesLoading } = useTables(businessId, scopedBranchId)
 
   const isLoading = (isOverviewLoading || isTopItemsLoading || isTablesLoading) && !overviewData
 
   const metrics = useMemo(() => {
-    const revUsd = Number(overviewData?.total_gross_sales_usd || overviewData?.total_net_revenue_usd || 0)
-    const revKhr = Number(overviewData?.total_net_revenue_khr || Math.round(revUsd * 4100))
+    // Net revenue in both currencies, converted at the business's own exchange rate.
+    const revUsd = Number(overviewData?.total_net_revenue_usd || 0)
+    const revKhr = Number(overviewData?.total_net_revenue_khr || 0)
+    const exchangeRate = Number(overviewData?.exchange_rate || 0)
     const totalOrd = Number(overviewData?.total_completed_orders || 0)
     const avgUsd = Number(overviewData?.average_order_value_usd || (totalOrd > 0 ? revUsd / totalOrd : 0))
     const occupied = tablesData.filter((t) => (t.status || '').toUpperCase() === 'OCCUPIED').length
@@ -57,6 +76,7 @@ export const DashboardOverviewTab: FC = () => {
       totalRevenueKhr: revKhr,
       totalOrders: totalOrd,
       averageBillUsd: avgUsd,
+      averageBillKhr: Math.round(avgUsd * exchangeRate),
       occupiedTables: occupied,
       totalTables: tablesData.length,
     }
@@ -81,8 +101,8 @@ export const DashboardOverviewTab: FC = () => {
       color: 'text-emerald-600 dark:text-emerald-400',
     },
     {
-      labelKm: 'ការកុម្ម៉ង់សរុប',
-      labelEn: 'Total Orders',
+      labelKm: 'ការកុម្ម៉ង់ថ្ងៃនេះ',
+      labelEn: 'Orders Today',
       value: `${metrics.totalOrders} Orders`,
       icon: ShoppingBag,
       color: 'text-blue-600 dark:text-blue-400',
@@ -98,7 +118,7 @@ export const DashboardOverviewTab: FC = () => {
       labelKm: 'តម្លៃជាមធ្យម/វិក្កយបត្រ',
       labelEn: 'Average Bill',
       valueUsd: `$${metrics.averageBillUsd.toFixed(2)}`,
-      valueKhr: `${Math.round(metrics.averageBillUsd * 4100).toLocaleString()} ៛`,
+      valueKhr: `${metrics.averageBillKhr.toLocaleString()} ៛`,
       icon: TrendingUp,
       color: 'text-purple-600 dark:text-purple-400',
     },

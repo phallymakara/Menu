@@ -20,6 +20,7 @@ export type UrgencyLevel = 'normal' | 'warning' | 'critical'
 export interface KitchenStation {
   id: string
   name: string
+  name_km?: string | null
   station_code: string
   color_hex?: string | null
   is_active: boolean

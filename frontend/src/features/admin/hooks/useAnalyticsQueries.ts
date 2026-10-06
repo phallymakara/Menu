@@ -36,9 +36,14 @@ export function useSalesOverview(
   })
 }
 
-export function useTopSellingItems(businessId: string | null, branchId?: string | null) {
+export function useTopSellingItems(
+  businessId: string | null,
+  branchId?: string | null,
+  startDate?: string | null,
+  endDate?: string | null
+) {
   return useQuery({
-    queryKey: ['analytics', 'top-items', businessId, branchId],
+    queryKey: ['analytics', 'top-items', businessId, branchId, startDate, endDate],
     queryFn: async () => {
       if (!businessId) return []
       const { data, error } = await apiFetch.GET(
@@ -46,7 +51,11 @@ export function useTopSellingItems(businessId: string | null, branchId?: string 
         {
           params: {
             path: { business_id: businessId },
-            query: { branch_id: branchId || undefined },
+            query: {
+              branch_id: branchId || undefined,
+              start_date: startDate || undefined,
+              end_date: endDate || undefined,
+            },
           },
         }
       )

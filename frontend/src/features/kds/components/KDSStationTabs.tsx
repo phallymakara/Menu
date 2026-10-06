@@ -1,5 +1,9 @@
 import { type FC } from 'react'
+import { useLanguageStore } from '@/stores/useLanguageStore'
 import { KitchenStation } from '../types/kds.types'
+
+/** Station ID the KDS page uses for the expediter view of all tickets. */
+const EXPO_STATION_ID = 'expo'
 
 export interface KDSStationTabsProps {
   stations: KitchenStation[]
@@ -14,14 +18,28 @@ export const KDSStationTabs: FC<KDSStationTabsProps> = ({
   onSelectStation,
   ticketCountByStation = {},
 }) => {
+  const { language } = useLanguageStore()
+
   if (!stations || stations.length === 0) {
     return null
   }
 
+  // The expediter view comes first, so staff can always get back to all tickets.
+  const tabs = [
+    {
+      id: EXPO_STATION_ID,
+      label: language === 'km' ? 'ទាំងអស់ (Expo)' : 'Expo (All)',
+    },
+    ...stations.map((st) => ({
+      id: st.id,
+      label: (language === 'km' && st.name_km) || st.name || st.station_code,
+    })),
+  ]
+
   return (
     <div className="bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 px-4 py-2 overflow-x-auto no-scrollbar">
       <div className="flex gap-2 min-w-max">
-        {stations.map((st) => {
+        {tabs.map((st) => {
           const isSelected = selectedStationId === st.id
           const count = ticketCountByStation[st.id] ?? 0
 
@@ -35,7 +53,7 @@ export const KDSStationTabs: FC<KDSStationTabsProps> = ({
                   : 'bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800'
               }`}
             >
-              <span>{st.name}</span>
+              <span>{st.label}</span>
               <span
                 className={`text-[10px] font-mono px-1.5 py-0.2 rounded-md ${
                   isSelected
