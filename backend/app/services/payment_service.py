@@ -4,6 +4,9 @@ Payment Settlement and Financial Processing Service.
 Provides complete business logic for Cambodian dual-currency billing, cash change
 calculations with 100-Riel rounding, Bakong KHQR settlement workflows,
 audit logging, real-time WebSocket broadcasting, and Telegram manager notifications.
+
+A KHQR bill is only settled from a payment attempt that Bakong confirmed as paid,
+or through a manual confirmation by an owner or manager that is audited.
 """
 
 from __future__ import annotations
@@ -11,7 +14,8 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timezone
 from decimal import Decimal
-from uuid import UUID
+from typing import Any
+from uuid import UUID, uuid4
 
 import structlog
 from fastapi import HTTPException, status
@@ -19,24 +23,36 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import (
+    PermissionDeniedError,
+    ResourceConflictError,
+    TenantNotFoundError,
+)
 from app.core.tenant import TenantContext
 from app.core.ws_manager import ws_manager
+from app.integrations.bakong import BakongClient
 from app.models.enums import (
     ChangeCurrencyPreference,
+    KHQRPaymentAttemptStatus,
     OrderStatus,
     PaymentMethod,
     PaymentStatus,
+    StaffRole,
     TableSessionStatus,
     TableStatus,
 )
+from app.models.khqr_payment_attempt import KHQRPaymentAttempt
 from app.models.order import Order
 from app.models.payment import Payment
 from app.models.promotion import Promotion
+from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession
 from app.models.user import User
 from app.schemas.billing import BillFinancialBreakdown, BillSummaryResponse
 from app.schemas.payment import (
     CashPaymentRequest,
+    KHQRBillAdjustments,
+    KHQRManualConfirmationRequest,
     KHQRPaymentRequest,
     PaymentResponse,
 )
@@ -47,6 +63,18 @@ from app.services.billing_service import (
     calculate_financial_breakdown,
     get_order_bill_summary,
     get_table_session_bill_summary,
+)
+from app.services.khqr_service import (
+    KHQRBillQuote,
+    check_attempt_with_bakong,
+    confirm_attempt_under_lock,
+    ensure_attempt_open,
+    ensure_attempt_targets,
+    ensure_quote_matches_attempt,
+    get_khqr_attempt,
+    lock_khqr_attempt,
+    quote_order_bill,
+    quote_table_session_bill,
 )
 from app.services.promotion_service import evaluate_discount
 from app.services.telegram_service import send_payment_telegram_notification
@@ -437,21 +465,33 @@ async def settle_table_session_cash_payment(
     )
 
 
-async def settle_table_session_khqr_payment(
+# ------------------------------------------------------------------------------
+# KHQR settlement helpers (shared by dine-in sessions and single orders)
+# ------------------------------------------------------------------------------
+
+_KHQR_VERIFIED_NOTE = "Settled via KHQR (verified by Bakong)"
+_KHQR_MANUAL_NOTE = "KHQR payment confirmed manually"
+
+
+async def _load_khqr_table_session(
     session: AsyncSession,
     business_id: UUID,
     branch_id: UUID,
     table_session_id: UUID,
-    payload: KHQRPaymentRequest,
-    current_user: User,
-    tenant: TenantContext | None = None,
-) -> PaymentResponse:
+    tenant: TenantContext | None,
+    *,
+    lock: bool = False,
+) -> TableSession:
     """
-    Settles a dine-in table session with KHQR (Bakong) payment confirmation,
-    closes session, sets table to DIRTY, records audit logs,
-    broadcasts WebSocket events, and dispatches Telegram notifications.
+    Load a table session of the tenant with its table and branch.
+
+    With ``lock`` the row is re-read under SELECT ... FOR UPDATE (a no-op on
+    SQLite), replacing the copy already loaded in the session.
+
+    Raises:
+        TenantNotFoundError: If the session does not exist for this tenant.
     """
-    sess_query = (
+    query = (
         select(TableSession)
         .options(
             selectinload(TableSession.table),
@@ -464,68 +504,220 @@ async def settle_table_session_khqr_payment(
         )
     )
     if tenant:
-        sess_query = sess_query.where(
-            TableSession.organization_id == tenant.organization_id
-        )
-
-    sess_res = await session.execute(sess_query)
-    table_sess = sess_res.scalar_one_or_none()
+        query = query.where(TableSession.organization_id == tenant.organization_id)
+    if lock:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    table_sess = (await session.execute(query)).scalar_one_or_none()
     if table_sess is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Table dining session not found.",
-        )
+        raise TenantNotFoundError("Table dining session not found.")
+    return table_sess
 
+
+def _ensure_session_settleable(table_sess: TableSession) -> None:
+    """Raise ResourceConflictError when the session can no longer be paid."""
     if table_sess.status not in _SETTLEABLE_SESSION_STATUSES:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This table session has already been settled.",
-        )
+        raise ResourceConflictError("This table session has already been settled.")
 
-    bill = await get_table_session_bill_summary(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        table_session_id=table_session_id,
+
+async def _load_khqr_order(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+    tenant: TenantContext | None,
+    *,
+    lock: bool = False,
+) -> Order:
+    """
+    Load an order of the tenant with its table and branch.
+
+    With ``lock`` the row is re-read under SELECT ... FOR UPDATE (a no-op on
+    SQLite), replacing the copy already loaded in the session.
+
+    Raises:
+        TenantNotFoundError: If the order does not exist for this tenant.
+    """
+    query = (
+        select(Order)
+        .options(
+            selectinload(Order.table),
+            selectinload(Order.branch),
+        )
+        .where(
+            Order.id == order_id,
+            Order.business_id == business_id,
+            Order.branch_id == branch_id,
+        )
+    )
+    if tenant:
+        query = query.where(Order.organization_id == tenant.organization_id)
+    if lock:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    order = (await session.execute(query)).scalar_one_or_none()
+    if order is None:
+        raise TenantNotFoundError("Order not found.")
+    return order
+
+
+def _ensure_order_settleable(order: Order) -> None:
+    """Raise ResourceConflictError when the order can no longer be paid."""
+    if order.status == OrderStatus.SERVED:
+        raise ResourceConflictError("This order has already been settled.")
+    if order.status == OrderStatus.CANCELLED:
+        raise ResourceConflictError("This order has been cancelled.")
+
+
+async def _quote_session_for_khqr(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    table_session_id: UUID,
+    adjustments: KHQRBillAdjustments,
+    tenant: TenantContext | None,
+) -> KHQRBillQuote:
+    """Price a session bill with the discount sent for a KHQR settlement."""
+    return await quote_table_session_bill(
+        session,
+        business_id,
+        branch_id,
+        table_session_id,
+        promo_code=adjustments.promo_code,
+        manual_discount_type=adjustments.manual_discount_type,
+        manual_discount_value=adjustments.manual_discount_value,
+        discount_reason=adjustments.discount_reason,
         tenant=tenant,
     )
 
-    eval_result = await evaluate_discount(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        subtotal_usd=bill.financials.subtotal_usd,
-        promo_code=payload.promo_code,
-        manual_discount_type=payload.manual_discount_type,
-        manual_discount_value=payload.manual_discount_value,
-        discount_reason=payload.discount_reason,
+
+async def _quote_order_for_khqr(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+    adjustments: KHQRBillAdjustments,
+    tenant: TenantContext | None,
+) -> KHQRBillQuote:
+    """Price an order bill with the discount sent for a KHQR settlement."""
+    return await quote_order_bill(
+        session,
+        business_id,
+        branch_id,
+        order_id,
+        promo_code=adjustments.promo_code,
+        manual_discount_type=adjustments.manual_discount_type,
+        manual_discount_value=adjustments.manual_discount_value,
+        discount_reason=adjustments.discount_reason,
         tenant=tenant,
     )
 
-    if eval_result.discount_usd > Decimal("0.00"):
-        financials = await _discounted_financials(
-            session=session,
-            branch_id=branch_id,
-            bill=bill,
-            discount_usd=eval_result.discount_usd,
-        )
-        if eval_result.promotion_id:
-            promo_res = await session.execute(
-                select(Promotion).where(Promotion.id == eval_result.promotion_id)
-            )
-            promo_obj = promo_res.scalar_one_or_none()
-            if promo_obj:
-                promo_obj.current_usage_count += 1
-    else:
-        financials = bill.financials
 
-    now_utc = datetime.now(timezone.utc)
-    payment = Payment(
-        organization_id=table_sess.organization_id,
+def _ensure_can_confirm_khqr_manually(tenant: TenantContext, branch_id: UUID) -> str:
+    """
+    Allow manual KHQR confirmation for owners and managers only.
+
+    A manager assigned to one branch may only confirm payments of that branch.
+
+    Returns:
+        The role recorded in the audit log ("owner" or "manager").
+
+    Raises:
+        PermissionDeniedError: For any other role, or a branch mismatch.
+    """
+    membership = tenant.membership
+    is_owner = membership.is_owner or membership.role == StaffRole.OWNER
+    if not is_owner and membership.role != StaffRole.MANAGER:
+        logger.warning(
+            "Manual KHQR confirmation denied: owner or manager role required",
+            user_id=str(tenant.user_id),
+            organization_id=str(tenant.organization_id),
+            role=str(membership.role),
+        )
+        raise PermissionDeniedError(
+            "Only owners and managers can confirm a KHQR payment manually."
+        )
+    if (
+        not is_owner
+        and membership.branch_id is not None
+        and membership.branch_id != branch_id
+    ):
+        logger.warning(
+            "Manual KHQR confirmation denied: manager of another branch",
+            user_id=str(tenant.user_id),
+            organization_id=str(tenant.organization_id),
+            branch_id=str(branch_id),
+        )
+        raise PermissionDeniedError(
+            "Branch managers can only confirm KHQR payments of their own branch."
+        )
+    return "owner" if is_owner else StaffRole.MANAGER.value
+
+
+async def _lock_attempt_for_manual_confirmation(
+    session: AsyncSession,
+    attempt_id: UUID | None,
+    *,
+    business_id: UUID,
+    branch_id: UUID,
+    organization_id: UUID,
+    table_session_id: UUID | None = None,
+    order_id: UUID | None = None,
+) -> KHQRPaymentAttempt | None:
+    """
+    Lock the attempt a manual confirmation refers to, if any.
+
+    The attempt may be in any status (for example expired, or still pending
+    because Bakong is not configured) but must belong to this bill and must not
+    have settled a bill already.
+    """
+    if attempt_id is None:
+        return None
+    attempt = await get_khqr_attempt(
+        session,
+        attempt_id=attempt_id,
+        business_id=business_id,
+        branch_id=branch_id,
+        organization_id=organization_id,
+    )
+    ensure_attempt_targets(
+        attempt, table_session_id=table_session_id, order_id=order_id
+    )
+    attempt = await lock_khqr_attempt(session, attempt.id)
+    if attempt.payment_id is not None:
+        raise ResourceConflictError(
+            "This KHQR payment attempt has already been settled."
+        )
+    return attempt
+
+
+def _new_khqr_payment(
+    *,
+    organization_id: UUID,
+    business_id: UUID,
+    branch_id: UUID,
+    table_session_id: UUID | None,
+    order_id: UUID | None,
+    quote: KHQRBillQuote,
+    current_user: User,
+    notes: str | None,
+    attempt: KHQRPaymentAttempt | None,
+    manual_reason: str | None,
+    settled_at: datetime,
+) -> Payment:
+    """Build the Payment of a KHQR settlement with its verification evidence."""
+    financials = quote.financials
+    is_manual = manual_reason is not None
+    bakong_reference = (
+        attempt.bakong_reference
+        if attempt is not None and attempt.status == KHQRPaymentAttemptStatus.SUCCEEDED
+        else None
+    )
+    return Payment(
+        id=uuid4(),
+        organization_id=organization_id,
         business_id=business_id,
         branch_id=branch_id,
         table_session_id=table_session_id,
-        order_id=None,
+        order_id=order_id,
         payment_number=_generate_payment_number(),
         payment_method=PaymentMethod.KHQR,
         payment_status=PaymentStatus.COMPLETED,
@@ -541,90 +733,82 @@ async def settle_table_session_khqr_payment(
         total_tendered_usd=financials.grand_total_usd,
         change_usd=Decimal("0.00"),
         change_khr=0,
-        promotion_id=eval_result.promotion_id,
-        discount_reason=eval_result.discount_reason,
+        promotion_id=quote.promotion_id,
+        discount_reason=quote.discount_reason,
         received_by_user_id=current_user.id,
-        notes=payload.notes or "Settled via KHQR (Bakong)",
-        settled_at=now_utc,
+        notes=notes or (_KHQR_MANUAL_NOTE if is_manual else _KHQR_VERIFIED_NOTE),
+        bakong_reference=bakong_reference,
+        is_manually_confirmed=is_manual,
+        manual_confirmation_reason=manual_reason,
+        settled_at=settled_at,
     )
+
+
+async def _record_khqr_payment(
+    session: AsyncSession,
+    payment: Payment,
+    attempt: KHQRPaymentAttempt | None,
+    quote: KHQRBillQuote,
+) -> None:
+    """Persist the Payment, link the attempt to it, and count the promotion use."""
     session.add(payment)
+    await session.flush()
+    if attempt is not None:
+        attempt.status = KHQRPaymentAttemptStatus.SUCCEEDED
+        attempt.payment_id = payment.id
+    if quote.promotion_id:
+        promo_res = await session.execute(
+            select(Promotion).where(Promotion.id == quote.promotion_id)
+        )
+        promo_obj = promo_res.scalar_one_or_none()
+        if promo_obj:
+            promo_obj.current_usage_count += 1
 
-    table_sess.status = TableSessionStatus.COMPLETED
-    table_sess.closed_at = now_utc
 
-    table = table_sess.table
-    if table:
-        table.status = TableStatus.DIRTY_CLEANING
+def _khqr_audit_details(
+    payment: Payment,
+    attempt: KHQRPaymentAttempt | None,
+    attempt_status_before: str | None,
+    manual_reason: str | None,
+    confirmed_by_role: str | None,
+) -> dict[str, Any]:
+    """Audit details shared by verified and manually confirmed KHQR payments."""
+    details: dict[str, Any] = {
+        "payment_number": payment.payment_number,
+        "method": "khqr",
+        "verification": "manual_override" if manual_reason is not None else "bakong",
+        "grand_total_usd": str(payment.grand_total_usd),
+        "grand_total_khr": payment.grand_total_khr,
+        "bakong_reference": payment.bakong_reference,
+        "khqr_attempt_id": str(attempt.id) if attempt is not None else None,
+        "khqr_amount": str(attempt.amount) if attempt is not None else None,
+        "khqr_currency": attempt.currency if attempt is not None else None,
+    }
+    if manual_reason is not None:
+        details.update(
+            {
+                "manual_override": True,
+                "reason": manual_reason,
+                "confirmed_by_role": confirmed_by_role,
+                "attempt_status_before_override": attempt_status_before,
+            }
+        )
+    return details
 
-    orders_stmt = select(Order).where(Order.table_session_id == table_session_id)
-    orders_res = await session.execute(orders_stmt)
-    for ord_entity in orders_res.scalars().all():
-        if ord_entity.status != OrderStatus.CANCELLED:
-            ord_entity.status = OrderStatus.SERVED
 
-    await record_audit_log(
-        session=session,
-        organization_id=table_sess.organization_id,
-        user_id=current_user.id,
-        action="payment.settled",
-        resource_type="payment",
-        resource_id=str(payment.id),
-        details={
-            "payment_number": payment.payment_number,
-            "method": "khqr",
-            "table_session_id": str(table_session_id),
-            "table_number": table.table_number if table else None,
-            "grand_total_usd": str(financials.grand_total_usd),
-            "grand_total_khr": financials.grand_total_khr,
-        },
+def _khqr_audit_action(manual_reason: str | None) -> str:
+    """Audit action of a KHQR settlement: a regular settlement or a manual override."""
+    return (
+        "payment.khqr_manual_override"
+        if manual_reason is not None
+        else "payment.settled"
     )
 
-    await session.commit()
 
-    notify_rooms = [f"branch:{branch_id}:pos"]
-    if table_session_id:
-        notify_rooms.append(f"session:{table_session_id}")
-
-    await ws_manager.broadcast_to_rooms(
-        rooms=notify_rooms,
-        event="payment.completed",
-        data={
-            "payment_id": str(payment.id),
-            "payment_number": payment.payment_number,
-            "payment_method": payment.payment_method.value,
-            "payment_status": payment.payment_status.value,
-            "grand_total_usd": str(payment.grand_total_usd),
-            "grand_total_khr": int(payment.grand_total_khr),
-            "table_session_id": str(payment.table_session_id)
-            if payment.table_session_id
-            else None,
-        },
-        business_id=business_id,
-        branch_id=branch_id,
-    )
-
-    branch_name = table_sess.branch.name_en if table_sess.branch else "Branch"
-    table_ident = (
-        f"Table {table.table_number} (Session {table_sess.session_code})"
-        if table
-        else f"Session {table_sess.session_code}"
-    )
-    await send_payment_telegram_notification(
-        session=session,
-        payment=payment,
-        branch_name=branch_name,
-        table_identifier=table_ident,
-        cashier_name=current_user.full_name,
-    )
-
-    logger.info(
-        "KHQR payment settled successfully",
-        payment_number=payment.payment_number,
-        session_id=str(table_session_id),
-        grand_total_usd=float(financials.grand_total_usd),
-        cashier_id=str(current_user.id),
-    )
-
+def _khqr_payment_response(
+    payment: Payment, table: RestaurantTable | None
+) -> PaymentResponse:
+    """Serialize a KHQR Payment, including its verification evidence."""
     return PaymentResponse(
         id=payment.id,
         organization_id=payment.organization_id,
@@ -653,8 +837,273 @@ async def settle_table_session_khqr_payment(
         discount_reason=payment.discount_reason,
         received_by_user_id=payment.received_by_user_id,
         notes=payment.notes,
+        bakong_reference=payment.bakong_reference,
+        is_manually_confirmed=payment.is_manually_confirmed,
+        manual_confirmation_reason=payment.manual_confirmation_reason,
         settled_at=payment.settled_at,
         created_at=payment.created_at,
+    )
+
+
+# ------------------------------------------------------------------------------
+# KHQR settlement of dine-in table sessions
+# ------------------------------------------------------------------------------
+
+
+async def _complete_session_khqr_payment(
+    session: AsyncSession,
+    *,
+    table_sess: TableSession,
+    quote: KHQRBillQuote,
+    current_user: User,
+    notes: str | None,
+    attempt: KHQRPaymentAttempt | None,
+    manual_reason: str | None = None,
+    confirmed_by_role: str | None = None,
+) -> PaymentResponse:
+    """
+    Record a KHQR payment for a locked dine-in session and close the session.
+
+    Creates the Payment, links the attempt, closes the session, sets the table
+    to DIRTY_CLEANING, marks the orders SERVED, writes the audit log and
+    commits. Then broadcasts ``payment.completed`` and notifies Telegram.
+    """
+    now_utc = datetime.now(timezone.utc)
+    table_session_id = table_sess.id
+    business_id = table_sess.business_id
+    branch_id = table_sess.branch_id
+    attempt_status_before = attempt.status.value if attempt is not None else None
+
+    payment = _new_khqr_payment(
+        organization_id=table_sess.organization_id,
+        business_id=business_id,
+        branch_id=branch_id,
+        table_session_id=table_session_id,
+        order_id=None,
+        quote=quote,
+        current_user=current_user,
+        notes=notes,
+        attempt=attempt,
+        manual_reason=manual_reason,
+        settled_at=now_utc,
+    )
+    await _record_khqr_payment(session, payment, attempt, quote)
+
+    table_sess.status = TableSessionStatus.COMPLETED
+    table_sess.closed_at = now_utc
+
+    table = table_sess.table
+    if table:
+        table.status = TableStatus.DIRTY_CLEANING
+
+    orders_stmt = select(Order).where(Order.table_session_id == table_session_id)
+    orders_res = await session.execute(orders_stmt)
+    for ord_entity in orders_res.scalars().all():
+        if ord_entity.status != OrderStatus.CANCELLED:
+            ord_entity.status = OrderStatus.SERVED
+
+    details = _khqr_audit_details(
+        payment, attempt, attempt_status_before, manual_reason, confirmed_by_role
+    )
+    details.update(
+        {
+            "table_session_id": str(table_session_id),
+            "table_number": table.table_number if table else None,
+        }
+    )
+    await record_audit_log(
+        session=session,
+        organization_id=table_sess.organization_id,
+        user_id=current_user.id,
+        action=_khqr_audit_action(manual_reason),
+        resource_type="payment",
+        resource_id=str(payment.id),
+        details=details,
+    )
+
+    await session.commit()
+
+    await ws_manager.broadcast_to_rooms(
+        rooms=[f"branch:{branch_id}:pos", f"session:{table_session_id}"],
+        event="payment.completed",
+        data={
+            "payment_id": str(payment.id),
+            "payment_number": payment.payment_number,
+            "payment_method": payment.payment_method.value,
+            "payment_status": payment.payment_status.value,
+            "grand_total_usd": str(payment.grand_total_usd),
+            "grand_total_khr": int(payment.grand_total_khr),
+            "table_session_id": str(table_session_id),
+        },
+        business_id=business_id,
+        branch_id=branch_id,
+    )
+
+    branch_name = table_sess.branch.name_en if table_sess.branch else "Branch"
+    table_ident = (
+        f"Table {table.table_number} (Session {table_sess.session_code})"
+        if table
+        else f"Session {table_sess.session_code}"
+    )
+    await send_payment_telegram_notification(
+        session=session,
+        payment=payment,
+        branch_name=branch_name,
+        table_identifier=table_ident,
+        cashier_name=current_user.full_name,
+    )
+
+    logger.info(
+        "KHQR payment settled successfully",
+        payment_number=payment.payment_number,
+        session_id=str(table_session_id),
+        grand_total_usd=float(payment.grand_total_usd),
+        cashier_id=str(current_user.id),
+        khqr_attempt_id=str(attempt.id) if attempt is not None else None,
+        manual_override=manual_reason is not None,
+    )
+
+    return _khqr_payment_response(payment, table)
+
+
+async def settle_table_session_khqr_payment(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    table_session_id: UUID,
+    payload: KHQRPaymentRequest,
+    current_user: User,
+    tenant: TenantContext | None = None,
+    bakong_client: BakongClient | None = None,
+) -> PaymentResponse:
+    """
+    Settles a dine-in table session with a KHQR payment that Bakong confirmed.
+
+    The payment attempt must belong to this session, be pending (or already
+    confirmed but unsettled), and charge exactly the current bill, with the same
+    discount, in its currency. A pending attempt is checked with Bakong (check
+    transaction by MD5). Only when Bakong reports the money as received is the
+    attempt marked SUCCEEDED and the Payment created with the Bakong transaction
+    hash; the session is then closed as before (table DIRTY_CLEANING, audit log,
+    WebSocket broadcast, Telegram notification).
+
+    The session row and then the attempt row are locked (SELECT ... FOR UPDATE)
+    and their status re-checked before anything is written, so a session or an
+    attempt cannot be settled twice.
+
+    Raises:
+        TenantNotFoundError: If the session or attempt does not exist.
+        ResourceConflictError: If the session or attempt was already settled, the
+            attempt belongs to another bill, failed or was cancelled, or the
+            bill no longer matches the KHQR amount.
+        PaymentNotReceivedError: If Bakong has not received the payment yet.
+        PaymentAttemptExpiredError: If the KHQR expired unpaid.
+        PaymentProviderNotConfiguredError: If no Bakong API token is set.
+        PaymentProviderUnavailableError: If Bakong cannot be reached.
+    """
+    table_sess = await _load_khqr_table_session(
+        session, business_id, branch_id, table_session_id, tenant
+    )
+    _ensure_session_settleable(table_sess)
+
+    attempt = await get_khqr_attempt(
+        session,
+        attempt_id=payload.attempt_id,
+        business_id=business_id,
+        branch_id=branch_id,
+        organization_id=table_sess.organization_id,
+    )
+    ensure_attempt_targets(attempt, table_session_id=table_session_id)
+    ensure_attempt_open(attempt)
+
+    quote = await _quote_session_for_khqr(
+        session, business_id, branch_id, table_session_id, payload, tenant
+    )
+    ensure_quote_matches_attempt(attempt, quote)
+
+    check = await check_attempt_with_bakong(attempt, bakong_client)
+
+    # Serialize settlements: lock the session row first, then the attempt row.
+    table_sess = await _load_khqr_table_session(
+        session, business_id, branch_id, table_session_id, tenant, lock=True
+    )
+    attempt = await confirm_attempt_under_lock(session, attempt.id, check)
+    try:
+        _ensure_session_settleable(table_sess)
+        quote = await _quote_session_for_khqr(
+            session, business_id, branch_id, table_session_id, payload, tenant
+        )
+        ensure_quote_matches_attempt(attempt, quote)
+    except ResourceConflictError:
+        # Bakong confirmed the money: keep that on the attempt for reconciliation.
+        await session.commit()
+        raise
+
+    return await _complete_session_khqr_payment(
+        session,
+        table_sess=table_sess,
+        quote=quote,
+        current_user=current_user,
+        notes=payload.notes,
+        attempt=attempt,
+    )
+
+
+async def confirm_table_session_khqr_payment_manually(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    table_session_id: UUID,
+    payload: KHQRManualConfirmationRequest,
+    current_user: User,
+    tenant: TenantContext,
+) -> PaymentResponse:
+    """
+    Settles a dine-in session with a KHQR payment confirmed manually.
+
+    For when Bakong verification is not configured, or as an override after an
+    owner or manager checked the payment in a banking app. Requires the owner
+    or manager role and a reason. The Payment is marked as manually confirmed
+    and the action is recorded in the audit log as
+    ``payment.khqr_manual_override``. When an attempt is given it must belong to
+    this session and match the bill; it is then linked to the Payment.
+
+    Raises:
+        PermissionDeniedError: If the caller is not an owner or manager.
+        TenantNotFoundError: If the session or attempt does not exist.
+        ResourceConflictError: If the session or attempt was already settled, or
+            the attempt belongs to another bill or does not match the bill.
+    """
+    confirmed_by_role = _ensure_can_confirm_khqr_manually(tenant, branch_id)
+
+    table_sess = await _load_khqr_table_session(
+        session, business_id, branch_id, table_session_id, tenant, lock=True
+    )
+    _ensure_session_settleable(table_sess)
+    attempt = await _lock_attempt_for_manual_confirmation(
+        session,
+        payload.attempt_id,
+        business_id=business_id,
+        branch_id=branch_id,
+        organization_id=tenant.organization_id,
+        table_session_id=table_session_id,
+    )
+
+    quote = await _quote_session_for_khqr(
+        session, business_id, branch_id, table_session_id, payload, tenant
+    )
+    if attempt is not None:
+        ensure_quote_matches_attempt(attempt, quote)
+
+    return await _complete_session_khqr_payment(
+        session,
+        table_sess=table_sess,
+        quote=quote,
+        current_user=current_user,
+        notes=payload.notes,
+        attempt=attempt,
+        manual_reason=payload.reason,
+        confirmed_by_role=confirmed_by_role,
     )
 
 
@@ -872,132 +1321,57 @@ async def settle_order_cash_payment(
     )
 
 
-async def settle_order_khqr_payment(
+async def _complete_order_khqr_payment(
     session: AsyncSession,
-    business_id: UUID,
-    branch_id: UUID,
-    order_id: UUID,
-    payload: KHQRPaymentRequest,
+    *,
+    order: Order,
+    quote: KHQRBillQuote,
     current_user: User,
-    tenant: TenantContext | None = None,
+    notes: str | None,
+    attempt: KHQRPaymentAttempt | None,
+    manual_reason: str | None = None,
+    confirmed_by_role: str | None = None,
 ) -> PaymentResponse:
     """
-    Settles a single/takeaway order with KHQR payment confirmation
-    and dispatches Telegram notification.
+    Record a KHQR payment for a locked single order and mark it SERVED.
+
+    Creates the Payment, links the attempt, writes the audit log and commits.
+    Then broadcasts ``payment.completed`` and notifies Telegram.
     """
-    order_query = (
-        select(Order)
-        .options(
-            selectinload(Order.table),
-            selectinload(Order.branch),
-        )
-        .where(
-            Order.id == order_id,
-            Order.business_id == business_id,
-            Order.branch_id == branch_id,
-        )
-    )
-    if tenant:
-        order_query = order_query.where(Order.organization_id == tenant.organization_id)
-
-    order_res = await session.execute(order_query)
-    order = order_res.scalar_one_or_none()
-    if order is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found.",
-        )
-
-    if order.status == OrderStatus.SERVED:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This order has already been settled.",
-        )
-
-    bill = await get_order_bill_summary(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        order_id=order_id,
-        tenant=tenant,
-    )
-
-    eval_result = await evaluate_discount(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        subtotal_usd=bill.financials.subtotal_usd,
-        promo_code=payload.promo_code,
-        manual_discount_type=payload.manual_discount_type,
-        manual_discount_value=payload.manual_discount_value,
-        discount_reason=payload.discount_reason,
-        tenant=tenant,
-    )
-
-    if eval_result.discount_usd > Decimal("0.00"):
-        financials = await _discounted_financials(
-            session=session,
-            branch_id=branch_id,
-            bill=bill,
-            discount_usd=eval_result.discount_usd,
-        )
-        if eval_result.promotion_id:
-            promo_res = await session.execute(
-                select(Promotion).where(Promotion.id == eval_result.promotion_id)
-            )
-            promo_obj = promo_res.scalar_one_or_none()
-            if promo_obj:
-                promo_obj.current_usage_count += 1
-    else:
-        financials = bill.financials
-
     now_utc = datetime.now(timezone.utc)
-    payment = Payment(
+    business_id = order.business_id
+    branch_id = order.branch_id
+    attempt_status_before = attempt.status.value if attempt is not None else None
+
+    payment = _new_khqr_payment(
         organization_id=order.organization_id,
         business_id=business_id,
         branch_id=branch_id,
         table_session_id=None,
-        order_id=order_id,
-        payment_number=_generate_payment_number(),
-        payment_method=PaymentMethod.KHQR,
-        payment_status=PaymentStatus.COMPLETED,
-        bill_subtotal_usd=financials.subtotal_usd,
-        discount_usd=financials.discount_usd,
-        service_charge_usd=financials.service_charge_amount_usd,
-        tax_usd=financials.tax_amount_usd,
-        grand_total_usd=financials.grand_total_usd,
-        exchange_rate=financials.exchange_rate,
-        grand_total_khr=financials.grand_total_khr,
-        amount_tendered_usd=financials.grand_total_usd,
-        amount_tendered_khr=0,
-        total_tendered_usd=financials.grand_total_usd,
-        change_usd=Decimal("0.00"),
-        change_khr=0,
-        promotion_id=eval_result.promotion_id,
-        discount_reason=eval_result.discount_reason,
-        received_by_user_id=current_user.id,
-        notes=payload.notes or "Settled via KHQR (Bakong)",
+        order_id=order.id,
+        quote=quote,
+        current_user=current_user,
+        notes=notes,
+        attempt=attempt,
+        manual_reason=manual_reason,
         settled_at=now_utc,
     )
-    session.add(payment)
+    await _record_khqr_payment(session, payment, attempt, quote)
 
     order.status = OrderStatus.SERVED
 
+    details = _khqr_audit_details(
+        payment, attempt, attempt_status_before, manual_reason, confirmed_by_role
+    )
+    details.update({"order_id": str(order.id), "order_number": order.order_number})
     await record_audit_log(
         session=session,
         organization_id=order.organization_id,
         user_id=current_user.id,
-        action="payment.settled",
+        action=_khqr_audit_action(manual_reason),
         resource_type="payment",
         resource_id=str(payment.id),
-        details={
-            "payment_number": payment.payment_number,
-            "method": "khqr",
-            "order_id": str(order_id),
-            "order_number": order.order_number,
-            "grand_total_usd": str(financials.grand_total_usd),
-            "grand_total_khr": financials.grand_total_khr,
-        },
+        details=details,
     )
 
     await session.commit()
@@ -1031,37 +1405,146 @@ async def settle_order_khqr_payment(
         cashier_name=current_user.full_name,
     )
 
-    table = order.table
-    return PaymentResponse(
-        id=payment.id,
-        organization_id=payment.organization_id,
-        business_id=payment.business_id,
-        branch_id=payment.branch_id,
-        table_session_id=payment.table_session_id,
-        order_id=payment.order_id,
-        table_number=table.table_number if table else None,
-        table_name=f"Table {table.table_number}" if table else None,
+    logger.info(
+        "KHQR payment settled successfully",
         payment_number=payment.payment_number,
-        payment_method=payment.payment_method,
-        payment_status=payment.payment_status,
-        bill_subtotal_usd=payment.bill_subtotal_usd,
-        discount_usd=payment.discount_usd,
-        service_charge_usd=payment.service_charge_usd,
-        tax_usd=payment.tax_usd,
-        grand_total_usd=payment.grand_total_usd,
-        exchange_rate=payment.exchange_rate,
-        grand_total_khr=payment.grand_total_khr,
-        amount_tendered_usd=payment.amount_tendered_usd,
-        amount_tendered_khr=payment.amount_tendered_khr,
-        total_tendered_usd=payment.total_tendered_usd,
-        change_usd=payment.change_usd,
-        change_khr=payment.change_khr,
-        promotion_id=payment.promotion_id,
-        discount_reason=payment.discount_reason,
-        received_by_user_id=payment.received_by_user_id,
-        notes=payment.notes,
-        settled_at=payment.settled_at,
-        created_at=payment.created_at,
+        order_id=str(order.id),
+        grand_total_usd=float(payment.grand_total_usd),
+        cashier_id=str(current_user.id),
+        khqr_attempt_id=str(attempt.id) if attempt is not None else None,
+        manual_override=manual_reason is not None,
+    )
+
+    return _khqr_payment_response(payment, order.table)
+
+
+async def settle_order_khqr_payment(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+    payload: KHQRPaymentRequest,
+    current_user: User,
+    tenant: TenantContext | None = None,
+    bakong_client: BakongClient | None = None,
+) -> PaymentResponse:
+    """
+    Settles a single/takeaway order with a KHQR payment that Bakong confirmed.
+
+    Same rules as ``settle_table_session_khqr_payment``: the attempt must
+    belong to this order, still be open and match the bill; a pending attempt
+    is checked with Bakong; the order and attempt rows are locked before the
+    Payment is created with the Bakong transaction hash.
+
+    Raises:
+        TenantNotFoundError: If the order or attempt does not exist.
+        ResourceConflictError: If the order or attempt was already settled, the
+            order was cancelled, the attempt belongs to another bill, failed or
+            was cancelled, or the bill no longer matches the KHQR amount.
+        PaymentNotReceivedError: If Bakong has not received the payment yet.
+        PaymentAttemptExpiredError: If the KHQR expired unpaid.
+        PaymentProviderNotConfiguredError: If no Bakong API token is set.
+        PaymentProviderUnavailableError: If Bakong cannot be reached.
+    """
+    order = await _load_khqr_order(session, business_id, branch_id, order_id, tenant)
+    _ensure_order_settleable(order)
+
+    attempt = await get_khqr_attempt(
+        session,
+        attempt_id=payload.attempt_id,
+        business_id=business_id,
+        branch_id=branch_id,
+        organization_id=order.organization_id,
+    )
+    ensure_attempt_targets(attempt, order_id=order_id)
+    ensure_attempt_open(attempt)
+
+    quote = await _quote_order_for_khqr(
+        session, business_id, branch_id, order_id, payload, tenant
+    )
+    ensure_quote_matches_attempt(attempt, quote)
+
+    check = await check_attempt_with_bakong(attempt, bakong_client)
+
+    # Serialize settlements: lock the order row first, then the attempt row.
+    order = await _load_khqr_order(
+        session, business_id, branch_id, order_id, tenant, lock=True
+    )
+    attempt = await confirm_attempt_under_lock(session, attempt.id, check)
+    try:
+        _ensure_order_settleable(order)
+        quote = await _quote_order_for_khqr(
+            session, business_id, branch_id, order_id, payload, tenant
+        )
+        ensure_quote_matches_attempt(attempt, quote)
+    except ResourceConflictError:
+        # Bakong confirmed the money: keep that on the attempt for reconciliation.
+        await session.commit()
+        raise
+
+    return await _complete_order_khqr_payment(
+        session,
+        order=order,
+        quote=quote,
+        current_user=current_user,
+        notes=payload.notes,
+        attempt=attempt,
+    )
+
+
+async def confirm_order_khqr_payment_manually(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+    payload: KHQRManualConfirmationRequest,
+    current_user: User,
+    tenant: TenantContext,
+) -> PaymentResponse:
+    """
+    Settles a single/takeaway order with a KHQR payment confirmed manually.
+
+    Same rules as ``confirm_table_session_khqr_payment_manually``: owner or
+    manager role and a reason are required, the Payment is marked as manually
+    confirmed, and the override is audited as ``payment.khqr_manual_override``.
+
+    Raises:
+        PermissionDeniedError: If the caller is not an owner or manager.
+        TenantNotFoundError: If the order or attempt does not exist.
+        ResourceConflictError: If the order or attempt was already settled, the
+            order was cancelled, or the attempt belongs to another bill or does
+            not match the bill.
+    """
+    confirmed_by_role = _ensure_can_confirm_khqr_manually(tenant, branch_id)
+
+    order = await _load_khqr_order(
+        session, business_id, branch_id, order_id, tenant, lock=True
+    )
+    _ensure_order_settleable(order)
+    attempt = await _lock_attempt_for_manual_confirmation(
+        session,
+        payload.attempt_id,
+        business_id=business_id,
+        branch_id=branch_id,
+        organization_id=tenant.organization_id,
+        order_id=order_id,
+    )
+
+    quote = await _quote_order_for_khqr(
+        session, business_id, branch_id, order_id, payload, tenant
+    )
+    if attempt is not None:
+        ensure_quote_matches_attempt(attempt, quote)
+
+    return await _complete_order_khqr_payment(
+        session,
+        order=order,
+        quote=quote,
+        current_user=current_user,
+        notes=payload.notes,
+        attempt=attempt,
+        manual_reason=payload.reason,
+        confirmed_by_role=confirmed_by_role,
     )
 
 
@@ -1137,6 +1620,9 @@ async def get_payment_by_id(
         discount_reason=payment.discount_reason,
         received_by_user_id=payment.received_by_user_id,
         notes=payment.notes,
+        bakong_reference=payment.bakong_reference,
+        is_manually_confirmed=payment.is_manually_confirmed,
+        manual_confirmation_reason=payment.manual_confirmation_reason,
         settled_at=payment.settled_at,
         created_at=payment.created_at,
     )

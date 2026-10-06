@@ -2,7 +2,7 @@ import sys
 from functools import lru_cache
 from typing import Any, Literal
 
-from pydantic import Field, ValidationError, field_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
@@ -53,6 +53,37 @@ class Settings(BaseSettings):
 
     # Largest accepted request body; larger requests get 413 before being read.
     max_request_body_bytes: int = 10 * 1024 * 1024
+
+    # Bakong Open API (National Bank of Cambodia) for KHQR payment verification
+    bakong_api_base_url: str = Field(
+        default="https://api-bakong.nbc.gov.kh",
+        description=(
+            "Bakong Open API base URL without the /v1 suffix. The SIT (test) "
+            "environment is https://sit-api-bakong.nbc.gov.kh."
+        ),
+    )
+    bakong_api_token: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Bakong Open API bearer token. When unset, KHQR payments cannot be "
+            "verified automatically and need an audited manual confirmation."
+        ),
+    )
+    bakong_api_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0,
+        le=30,
+        description="Total timeout for one Bakong Open API request, in seconds.",
+    )
+    khqr_expiration_seconds: int = Field(
+        default=600,
+        ge=60,
+        le=600,
+        description=(
+            "Lifetime of a dynamic KHQR. NBC asks that a QR time-out does not "
+            "exceed 10 minutes."
+        ),
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

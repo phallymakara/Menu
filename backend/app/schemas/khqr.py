@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
 from decimal import Decimal
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.models.enums import DiscountReason, DiscountType
+from app.models.enums import DiscountReason, DiscountType, KHQRPaymentAttemptStatus
 
 
 class DynamicKHQRRequest(BaseModel):
@@ -42,3 +44,46 @@ class KHQRResponse(BaseModel):
     bakong_account_id: str
     bill_reference: str
     deep_link_url: str = Field(description="Native app deep-link: bakong://qr?data=...")
+
+
+class DynamicKHQRResponse(KHQRResponse):
+    """Dynamic KHQR together with the payment attempt that tracks it."""
+
+    attempt_id: UUID = Field(
+        description="Payment attempt to poll and to pass when settling the bill"
+    )
+    md5: str = Field(
+        description="MD5 of qr_string, the key Bakong uses to look up the payment"
+    )
+    expires_at: datetime = Field(
+        description="After this time banking apps refuse to pay the KHQR"
+    )
+    status: KHQRPaymentAttemptStatus
+
+
+class KHQRPaymentAttemptResponse(BaseModel):
+    """Current state of a KHQR payment attempt."""
+
+    attempt_id: UUID
+    status: KHQRPaymentAttemptStatus
+    table_session_id: UUID | None = None
+    order_id: UUID | None = None
+    amount: Decimal
+    currency: Literal["USD", "KHR"]
+    md5: str
+    expires_at: datetime
+    verified_at: datetime | None = None
+    bakong_reference: str | None = Field(
+        default=None, description="Bakong transaction hash once the payment is seen"
+    )
+    failure_reason: str | None = None
+    payment_id: UUID | None = Field(
+        default=None, description="Payment created from this attempt, once settled"
+    )
+    created_at: datetime
+    verification_available: bool = Field(
+        description=(
+            "False when the server has no Bakong API token, so the payment can "
+            "only be confirmed manually by an owner or manager"
+        )
+    )

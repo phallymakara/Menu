@@ -13,6 +13,7 @@ from app.models.inventory import (
     StockTransferItem,
 )
 from app.models.item_variant import ItemVariant
+from app.models.khqr_payment_attempt import KHQRPaymentAttempt
 from app.models.kitchen_station import KitchenStation
 from app.models.menu_item import MenuItem
 from app.models.menu_item_recipe import MenuItemRecipe
@@ -42,6 +43,7 @@ __all__ = [
     "DiningArea",
     "InventoryItem",
     "ItemVariant",
+    "KHQRPaymentAttempt",
     "KitchenStation",
     "MenuItem",
     "MenuItemModifierGroup",
