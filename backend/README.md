@@ -34,6 +34,24 @@ uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 ---
 
+## Authentication in Production
+
+Login returns a short-lived access token and a rotating refresh token, and the
+auth endpoints are rate limited. Before going live:
+
+- **Password reset delivery.** No email or SMS provider is integrated yet, so reset
+  tokens are not delivered and users cannot finish a reset on their own. Implement
+  `PasswordResetDelivery` in `app/services/password_reset_delivery.py` and return it
+  from `get_password_reset_delivery`.
+- **`ENVIRONMENT=production`.** Only `development` returns `debug_reset_token` in the
+  reset response.
+- **`RATE_LIMIT_BACKEND=redis`.** The `memory` backend counts per process.
+- **`TRUSTED_PROXIES`.** Behind a load balancer or reverse proxy, list its addresses,
+  or every client shares one rate limit bucket. `X-Forwarded-For` is ignored from
+  any other address.
+
+---
+
 ## Testing and Code Quality
 
 ```bash

@@ -166,7 +166,11 @@ Menu/
 | Feature Area | Method | Endpoint | Description |
 |---|---|---|---|
 | **Authentication** | `POST` | `/api/v1/auth/register` | Register new owner & provision initial workspace |
-| | `POST` | `/api/v1/auth/login` | Authenticate & retrieve JWT access token |
+| | `POST` | `/api/v1/auth/login` | Authenticate & retrieve a JWT access token and a refresh token |
+| | `POST` | `/api/v1/auth/refresh` | Rotate the refresh token and get a new access token |
+| | `POST` | `/api/v1/auth/logout` | Revoke the session that owns a refresh token |
+| | `POST` | `/api/v1/auth/password-reset/request` | Request reset instructions (always 202, no account enumeration) |
+| | `POST` | `/api/v1/auth/password-reset/confirm` | Set a new password with a single-use reset token |
 | | `GET` | `/api/v1/auth/me` | Fetch authenticated user profile & memberships |
 | **Organizations & Staff** | `GET` | `/api/v1/businesses` | List tenant businesses |
 | | `POST` | `/api/v1/members/invite` | Invite staff member with branch & role assignment |
