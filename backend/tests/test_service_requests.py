@@ -526,7 +526,7 @@ async def test_unknown_request_id_returns_404(hub):
 
 @pytest.mark.anyio
 async def test_branch_locked_staff_only_work_their_own_branch(hub):
-    """Branch staff use their own branch only; back-of-house roles are refused."""
+    """A waiter assigned to one branch can neither see nor take another branch's requests."""
     second_branch = Branch(
         organization_id=hub.org.id,
         business_id=hub.biz.id,
@@ -536,35 +536,75 @@ async def test_branch_locked_staff_only_work_their_own_branch(hub):
     )
     hub.session.add(second_branch)
     await hub.session.commit()
+    other_table, other_session = await _open_table(
+        hub.session, hub.org, hub.biz, second_branch, "T-21"
+    )
+    other_request = await hub.client.post(
+        PUBLIC_URL,
+        params=_table_params(other_table),
+        headers=_guest(other_session),
+        json={"request_type": "bill"},
+    )
+    assert other_request.status_code == status.HTTP_201_CREATED
     waiter = await _add_member(
         hub.session, hub.org, StaffRole.WAITER, hub.branch.id, "waiter@example.com"
     )
-    cook = await _add_member(
-        hub.session, hub.org, StaffRole.KITCHEN, hub.branch.id, "cook@example.com"
-    )
-    request_id = (await _create(hub, "water")).json()["id"]
 
     own = await hub.client.get(_staff_url(hub.biz, hub.branch), headers=_bearer(waiter))
     other = await hub.client.get(
         _staff_url(hub.biz, second_branch), headers=_bearer(waiter)
     )
-    cook_list = await hub.client.get(
-        _staff_url(hub.biz, hub.branch), headers=_bearer(cook)
-    )
-    cook_ack = await hub.client.post(
-        _staff_url(hub.biz, hub.branch, f"/{request_id}/acknowledge"),
-        headers=_bearer(cook),
-    )
-    waiter_ack = await hub.client.post(
-        _staff_url(hub.biz, hub.branch, f"/{request_id}/acknowledge"),
+    other_ack = await hub.client.post(
+        _staff_url(
+            hub.biz, second_branch, f"/{other_request.json()['id']}/acknowledge"
+        ),
         headers=_bearer(waiter),
     )
 
     assert own.status_code == status.HTTP_200_OK
     assert other.status_code == status.HTTP_403_FORBIDDEN
-    assert cook_list.status_code == status.HTTP_403_FORBIDDEN
+    assert other_ack.status_code == status.HTTP_403_FORBIDDEN
+    assert other_ack.json()["detail"] == (
+        "You can only manage service requests for your own branch."
+    )
+
+
+@pytest.mark.anyio
+async def test_kitchen_role_cannot_acknowledge_but_waiter_can(hub):
+    """Changing a request needs SERVE_TABLES: kitchen staff get 403, waiters succeed."""
+    cook = await _add_member(
+        hub.session, hub.org, StaffRole.KITCHEN, hub.branch.id, "cook@example.com"
+    )
+    waiter = await _add_member(
+        hub.session, hub.org, StaffRole.WAITER, hub.branch.id, "waiter@example.com"
+    )
+    request_id = (await _create(hub, "water")).json()["id"]
+    ack_url = _staff_url(hub.biz, hub.branch, f"/{request_id}/acknowledge")
+
+    cook_ack = await hub.client.post(ack_url, headers=_bearer(cook))
+    cook_resolve = await hub.client.post(
+        _staff_url(hub.biz, hub.branch, f"/{request_id}/resolve"),
+        headers=_bearer(cook),
+    )
+
     assert cook_ack.status_code == status.HTTP_403_FORBIDDEN
+    assert cook_ack.json()["detail"] == "Your staff role does not allow this action."
+    assert cook_resolve.status_code == status.HTTP_403_FORBIDDEN
+    stored = (await hub.session.execute(select(ServiceRequest))).scalar_one()
+    assert stored.status == ServiceRequestStatus.OPEN
+    assert stored.acknowledged_by_user_id is None
+
+    # Like the rest of the staff API, reading is open to every active member.
+    cook_list = await hub.client.get(
+        _staff_url(hub.biz, hub.branch), headers=_bearer(cook)
+    )
+    assert cook_list.status_code == status.HTTP_200_OK
+    assert [row["id"] for row in cook_list.json()] == [request_id]
+
+    waiter_ack = await hub.client.post(ack_url, headers=_bearer(waiter))
+
     assert waiter_ack.status_code == status.HTTP_200_OK
+    assert waiter_ack.json()["status"] == "acknowledged"
     assert waiter_ack.json()["acknowledged_by_name"] == "Waiter Staff"
 
 

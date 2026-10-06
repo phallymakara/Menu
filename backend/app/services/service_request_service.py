@@ -2,9 +2,10 @@
 Guest service requests: guests raise them from their table, staff work them in the POS.
 
 Guests authenticate with the session token of a live table session. Staff calls are
-scoped to the tenant's organization, a front-of-house role, and (for branch-locked
-staff) their own branch. Every state change is broadcast after commit to the
-branch POS room and to the guest's session room.
+scoped to the tenant's organization and, for branch-locked staff, their own branch;
+the staff router's RBAC dependency requires ``SERVE_TABLES`` to change a request.
+Every state change is broadcast after commit to the branch POS room and to the
+guest's session room.
 """
 
 from __future__ import annotations
@@ -33,7 +34,6 @@ from app.models.branch import Branch
 from app.models.enums import (
     ServiceRequestStatus,
     ServiceRequestType,
-    StaffRole,
     TableSessionStatus,
 )
 from app.models.restaurant_table import RestaurantTable
@@ -54,11 +54,6 @@ GUEST_SESSION_STATUSES = (TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQ
 
 ACTIVE_REQUEST_STATUSES = (ServiceRequestStatus.OPEN, ServiceRequestStatus.ACKNOWLEDGED)
 """Requests still waiting on staff; the default filter for the staff queue."""
-
-SERVICE_HUB_ROLES = frozenset(
-    {StaffRole.OWNER, StaffRole.MANAGER, StaffRole.CASHIER, StaffRole.WAITER}
-)
-"""Front-of-house roles that work the service request queue."""
 
 GUEST_REQUEST_LIST_LIMIT = 50
 """Most requests returned to a guest; a session never legitimately needs more."""
@@ -327,12 +322,12 @@ async def _enforce_service_hub_access(
     branch_id: UUID,
 ) -> None:
     """
-    Checks that the caller may work this branch's service request queue.
+    Checks that the caller may use this branch's service request queue.
 
     The branch must belong to the business and to the caller's organization
-    (``TenantNotFoundError`` otherwise, so other tenants cannot probe branch IDs).
-    The caller needs a front-of-house role, and branch-locked staff may only work
-    their own branch (``PermissionDeniedError``).
+    (``TenantNotFoundError`` otherwise, so other tenants cannot probe branch IDs),
+    and branch-locked staff may only use their own branch (``PermissionDeniedError``).
+    Which roles may change requests is enforced by the router's RBAC dependency.
     """
     branch_res = await session.execute(
         select(Branch.id).where(
@@ -345,16 +340,6 @@ async def _enforce_service_hub_access(
         raise TenantNotFoundError("Branch not found.")
 
     membership = tenant.membership
-    if not membership.is_owner and membership.role not in SERVICE_HUB_ROLES:
-        logger.warning(
-            "Service hub access denied: role not allowed",
-            user_id=str(tenant.user_id),
-            role=str(membership.role),
-            branch_id=str(branch_id),
-        )
-        raise PermissionDeniedError(
-            "Only owners, managers, cashiers, and waiters can manage service requests."
-        )
     if not can_user_roam_branches(membership) and membership.branch_id != branch_id:
         logger.warning(
             "Service hub access denied: branch-locked staff outside own branch",

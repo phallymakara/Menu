@@ -6,6 +6,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies.permissions import (
+    Permission,
+    require_permission_for_writes,
+)
 from app.api.dependencies.tenant import get_current_tenant_context
 from app.core.exceptions import (
     PermissionDeniedError,
@@ -22,9 +26,11 @@ from app.services.service_request_service import (
     resolve_service_request,
 )
 
+# Any active member may view the queue; acknowledging or resolving needs SERVE_TABLES.
 router = APIRouter(
     prefix="/businesses/{business_id}/branches/{branch_id}/service-requests",
     tags=["Service Hub (Guest Service Requests)"],
+    dependencies=[Depends(require_permission_for_writes(Permission.SERVE_TABLES))],
 )
 
 
