@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.core.rate_limit import MemoryRateLimiter, get_rate_limiter
 from app.core.security import hash_opaque_token
 from app.db.base import Base
-from app.db.session import get_db_session
+from app.db.session import get_db_session, get_session_factory
 from app.main import app
 from app.models.enums import UserStatus
 from app.models.password_reset_token import PasswordResetToken
@@ -70,6 +70,9 @@ async def reset_env():
         async with sessionmaker() as session:
             yield session
 
+    async def _override_session_factory():
+        return sessionmaker
+
     limiter = MemoryRateLimiter()
     delivery = RecordingDelivery()
 
@@ -77,6 +80,7 @@ async def reset_env():
         return limiter
 
     app.dependency_overrides[get_db_session] = _override_db
+    app.dependency_overrides[get_session_factory] = _override_session_factory
     app.dependency_overrides[get_rate_limiter] = _override_limiter
     app.dependency_overrides[get_password_reset_delivery] = lambda: delivery
     try:
@@ -92,6 +96,15 @@ async def reset_env():
 
 def _client() -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+
+def _comparable_headers(response) -> dict[str, str]:
+    """Response headers without the per-request tracing id."""
+    return {
+        name: value
+        for name, value in response.headers.items()
+        if name.lower() != "x-request-id"
+    }
 
 
 async def _request_reset(client: AsyncClient, identifier: str = OWNER_EMAIL):
@@ -130,6 +143,11 @@ async def test_request_response_is_identical_for_known_and_unknown_accounts(
     assert unknown.status_code == status.HTTP_202_ACCEPTED
     assert unknown_phone.status_code == status.HTTP_202_ACCEPTED
     assert known.content == unknown.content == unknown_phone.content
+    assert (
+        _comparable_headers(known)
+        == _comparable_headers(unknown)
+        == _comparable_headers(unknown_phone)
+    )
     assert "debug_reset_token" not in known.json()
 
     # Only the real account received a token.
@@ -139,6 +157,45 @@ async def test_request_response_is_identical_for_known_and_unknown_accounts(
     assert ticket.channel == "email"
     assert ticket.destination == OWNER_EMAIL
     assert ticket.reset_url.endswith(f"/reset-password?token={ticket.token}")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("environment", ["production", "test", "staging", ""])
+async def test_debug_token_never_leaves_development(
+    reset_env, monkeypatch, environment
+):
+    monkeypatch.setattr(settings, "environment", environment)
+
+    async with _client() as client:
+        response = await _request_reset(client)
+
+    assert response.status_code == status.HTTP_202_ACCEPTED
+    assert "debug_reset_token" not in response.json()
+    assert len(reset_env.delivery.tickets) == 1
+
+
+@pytest.mark.anyio
+async def test_response_does_not_depend_on_the_account_lookup(reset_env, monkeypatch):
+    """Outside development the lookup runs after the response, so it cannot shape it."""
+    monkeypatch.setattr(settings, "environment", "production")
+
+    async with _client() as client:
+        baseline = await _request_reset(client, "nobody@example.com")
+
+        class _BrokenSessionFactory:
+            def __call__(self):
+                raise ConnectionError("database unavailable")
+
+        async def _broken_factory():
+            return _BrokenSessionFactory()
+
+        app.dependency_overrides[get_session_factory] = _broken_factory
+        with_broken_database = await _request_reset(client, OWNER_EMAIL)
+
+    assert with_broken_database.status_code == status.HTTP_202_ACCEPTED
+    assert with_broken_database.content == baseline.content
+    assert _comparable_headers(with_broken_database) == _comparable_headers(baseline)
+    assert reset_env.delivery.tickets == []
 
 
 @pytest.mark.anyio

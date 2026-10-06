@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 import structlog
 from sqlalchemy import delete, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings
 from app.core.exceptions import InvalidTokenError
@@ -21,7 +21,9 @@ from app.services.audit_service import record_audit_log
 from app.services.auth_service import find_users_by_identifier
 from app.services.password_reset_delivery import (
     PasswordResetChannel,
+    PasswordResetDelivery,
     PasswordResetTicket,
+    deliver_password_reset,
 )
 from app.services.token_service import revoke_all_sessions
 
@@ -95,6 +97,37 @@ async def request_password_reset(
         token=raw_token,
         expires_at=expires_at,
     )
+
+
+async def process_password_reset_request(
+    session_factory: async_sessionmaker[AsyncSession],
+    identifier: str,
+    delivery: PasswordResetDelivery,
+) -> PasswordResetTicket | None:
+    """
+    Look up the account, issue a token, and deliver it, in a session of its own.
+
+    Outside development this runs as a background task after the response has
+    been sent, so neither the response nor its timing depends on whether an
+    account matched. It never raises: failures are logged without the identifier.
+
+    Returns:
+        The delivered ticket, or None when no active account matches or the
+        request could not be processed.
+    """
+    try:
+        async with session_factory() as session:
+            ticket = await request_password_reset(session, identifier)
+    except Exception as exc:
+        logger.error(
+            "Password reset request could not be processed",
+            error_type=type(exc).__name__,
+        )
+        return None
+
+    if ticket is not None:
+        await deliver_password_reset(delivery, ticket)
+    return ticket
 
 
 async def confirm_password_reset(

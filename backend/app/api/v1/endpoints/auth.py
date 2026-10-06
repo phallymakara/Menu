@@ -5,10 +5,11 @@ import structlog
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.dependencies.auth import get_current_token_expiry, get_current_user
 from app.api.dependencies.tenant import get_current_tenant_context
+from app.core.client_ip import client_ip_from_request
 from app.core.config import settings
 from app.core.exceptions import (
     InactiveAccountError,
@@ -19,7 +20,7 @@ from app.core.exceptions import (
 )
 from app.core.rate_limit import RateLimiter, get_rate_limiter
 from app.core.tenant import TenantContext
-from app.db.session import get_db_session
+from app.db.session import get_db_session, get_session_factory
 from app.models.enums import MembershipStatus, OrganizationStatus
 from app.models.organization import Organization
 from app.models.organization_membership import OrganizationMembership
@@ -45,7 +46,9 @@ from app.schemas.branch_roaming import (
 from app.services.auth_service import (
     authenticate_user,
     enforce_login_rate_limit,
+    enforce_password_reset_confirm_rate_limit,
     enforce_password_reset_rate_limit,
+    enforce_refresh_rate_limit,
     enforce_registration_rate_limit,
     register_owner,
 )
@@ -55,12 +58,11 @@ from app.services.branch_roaming_service import (
 )
 from app.services.password_reset_delivery import (
     PasswordResetDelivery,
-    deliver_password_reset,
     get_password_reset_delivery,
 )
 from app.services.password_reset_service import (
     confirm_password_reset,
-    request_password_reset,
+    process_password_reset_request,
 )
 from app.services.token_service import (
     revoke_session,
@@ -79,17 +81,6 @@ PASSWORD_RESET_REQUEST_MESSAGE = (
     "If an account matches the details provided, "
     "instructions to reset the password have been sent."
 )
-
-
-def _client_ip(request: Request) -> str:
-    """
-    Return the client IP address as seen by the ASGI server.
-
-    Behind a reverse proxy, run uvicorn with ``--proxy-headers`` and
-    ``--forwarded-allow-ips`` set to the proxy, or every client shares the proxy's
-    address and therefore one rate limit bucket.
-    """
-    return request.client.host if request.client else "unknown"
 
 
 def _too_many_requests(exc: RateLimitExceededError) -> HTTPException:
@@ -141,7 +132,7 @@ async def register_owner_endpoint(
         is already in use; 429 when the client IP made too many attempts.
     """
     try:
-        await enforce_registration_rate_limit(limiter, _client_ip(request))
+        await enforce_registration_rate_limit(limiter, client_ip_from_request(request))
     except RateLimitExceededError as exc:
         raise _too_many_requests(exc) from exc
 
@@ -207,13 +198,14 @@ async def login(
     Authenticate by email or Cambodian phone number and start a session.
 
     Returns a short-lived access token and a refresh token. Attempts are rate
-    limited per client IP and per identifier and client IP.
+    limited per client IP and per identifier and client IP, and failed attempts
+    per account across all IP addresses.
     """
     try:
         await enforce_login_rate_limit(
             limiter,
             identifier=payload.identifier,
-            client_ip=_client_ip(request),
+            client_ip=client_ip_from_request(request),
         )
     except RateLimitExceededError as exc:
         raise _too_many_requests(exc) from exc
@@ -223,7 +215,10 @@ async def login(
             session=session,
             identifier=payload.identifier,
             password=payload.password,
+            limiter=limiter,
         )
+    except RateLimitExceededError as exc:
+        raise _too_many_requests(exc) from exc
     except InvalidCredentialsError as exc:
         logger.warning(
             "Login request rejected: invalid credentials",
@@ -270,18 +265,29 @@ async def login(
 @router.post(
     "/refresh",
     response_model=AccessTokenResponse,
-    responses={401: {"description": "Invalid, expired, or revoked refresh token"}},
+    responses={
+        401: {"description": "Invalid, expired, or revoked refresh token"},
+        429: {"description": "Too many refresh requests"},
+    },
 )
 async def refresh_session(
     payload: RefreshTokenRequest,
+    request: Request,
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
 ) -> AccessTokenResponse:
     """
     Rotate a refresh token and return a new access token and refresh token.
 
     The presented refresh token is single use. Presenting it again revokes every
-    token of the session, which signs the session out everywhere.
+    token of the session, which signs the session out everywhere. Requests are
+    rate limited per client IP.
     """
+    try:
+        await enforce_refresh_rate_limit(limiter, client_ip_from_request(request))
+    except RateLimitExceededError as exc:
+        raise _too_many_requests(exc) from exc
+
     try:
         tokens = await rotate_refresh_token(session, payload.refresh_token)
     except InvalidTokenError as exc:
@@ -326,55 +332,79 @@ async def request_password_reset_endpoint(
     payload: PasswordResetRequest,
     request: Request,
     background_tasks: BackgroundTasks,
-    session: Annotated[AsyncSession, Depends(get_db_session)],
     limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
+    session_factory: Annotated[
+        async_sessionmaker[AsyncSession], Depends(get_session_factory)
+    ],
     delivery: Annotated[PasswordResetDelivery, Depends(get_password_reset_delivery)],
 ) -> PasswordResetRequestResponse:
     """
     Send password reset instructions to the account with this email or phone.
 
-    Always answers 202 with the same body, whether or not an account matches, and
-    delivers in the background so response time does not reveal it either. Only
-    when ENVIRONMENT is 'development' does the response include
-    ``debug_reset_token``, because no email or SMS provider is configured yet.
+    The response cannot reveal whether an account matches: it is always 202 with
+    the same body and headers, and the account lookup, token, and delivery all run
+    in a background task after the response is sent, so timing does not differ
+    either. Rate limits apply per identifier and client IP before anything else,
+    for known and unknown identifiers alike.
+
+    Only when ENVIRONMENT is 'development' is the work done inline, so the
+    response can include ``debug_reset_token`` (no email or SMS provider exists
+    yet).
     """
     try:
         await enforce_password_reset_rate_limit(
             limiter,
             identifier=payload.identifier,
-            client_ip=_client_ip(request),
+            client_ip=client_ip_from_request(request),
         )
     except RateLimitExceededError as exc:
         raise _too_many_requests(exc) from exc
 
-    ticket = await request_password_reset(session, payload.identifier)
-    if ticket is not None:
-        background_tasks.add_task(deliver_password_reset, delivery, ticket)
+    if settings.is_development:
+        ticket = await process_password_reset_request(
+            session_factory, payload.identifier, delivery
+        )
+        return PasswordResetRequestResponse(
+            message=PASSWORD_RESET_REQUEST_MESSAGE,
+            debug_reset_token=ticket.token if ticket is not None else None,
+        )
 
-    debug_reset_token = None
-    if ticket is not None and settings.is_development:
-        debug_reset_token = ticket.token
-
-    return PasswordResetRequestResponse(
-        message=PASSWORD_RESET_REQUEST_MESSAGE,
-        debug_reset_token=debug_reset_token,
+    background_tasks.add_task(
+        process_password_reset_request,
+        session_factory,
+        payload.identifier,
+        delivery,
     )
+    return PasswordResetRequestResponse(message=PASSWORD_RESET_REQUEST_MESSAGE)
 
 
 @router.post(
     "/password-reset/confirm",
     response_model=MessageResponse,
-    responses={400: {"description": "Invalid, used, or expired reset token"}},
+    responses={
+        400: {"description": "Invalid, used, or expired reset token"},
+        429: {"description": "Too many attempts"},
+    },
 )
 async def confirm_password_reset_endpoint(
     payload: PasswordResetConfirmRequest,
+    request: Request,
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
 ) -> MessageResponse:
     """
     Set a new password with a reset token and sign the account out everywhere.
 
     The token is single use. The password policy is the same as for registration.
+    Attempts are rate limited per client IP.
     """
+    try:
+        await enforce_password_reset_confirm_rate_limit(
+            limiter, client_ip_from_request(request)
+        )
+    except RateLimitExceededError as exc:
+        raise _too_many_requests(exc) from exc
+
     try:
         await confirm_password_reset(
             session,

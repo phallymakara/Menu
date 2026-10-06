@@ -13,7 +13,13 @@ from app.core.exceptions import (
     RegistrationConflictError,
 )
 from app.core.phone import normalize_cambodian_phone
-from app.core.rate_limit import RateLimiter, RateLimitRule, enforce_rate_limit
+from app.core.rate_limit import (
+    RateLimiter,
+    RateLimitRule,
+    enforce_rate_limit,
+    ensure_rate_limit_available,
+    record_rate_limit_hit,
+)
 from app.core.security import hash_password_async, verify_password_async
 from app.models.branch import Branch
 from app.models.business import Business
@@ -226,8 +232,11 @@ def canonical_identifier(identifier: str) -> str:
     """
     Return one canonical form of an email or phone identifier.
 
-    Emails are lowercased and valid Cambodian phone numbers become E.164, so that
-    "012 345 678" and "+85512345678" count against the same rate limit bucket.
+    Emails are trimmed and lowercased, and valid Cambodian phone numbers become
+    E.164, so "Owner@Example.com ", "012 345 678" and "+85512345678" each share a
+    rate limit bucket with their other spellings. It applies the same normalization
+    as ``find_users_by_identifier``, so every spelling that reaches an account maps
+    to the same bucket.
     """
     normalized_identifier = identifier.strip().lower()
     if "@" in normalized_identifier:
@@ -250,35 +259,95 @@ async def find_users_by_identifier(
     else:
         condition = User.phone.in_(sorted(_phone_candidates(normalized_identifier)))
 
-    result = await session.execute(select(User).where(condition))
+    result = await session.execute(
+        select(User).where(condition).order_by(User.created_at, User.id)
+    )
     return list(result.scalars().all())
+
+
+LOGIN_FAILURE_SCOPE = "login:account_failures"
+
+_dummy_password_hash: str | None = None
+
+
+async def _spend_password_check_time(password: str) -> None:
+    """
+    Run one Argon2 verification against a throwaway hash.
+
+    It is used when no account matches, so an unknown identifier takes as long to
+    reject as a wrong password and response time does not reveal which accounts
+    exist.
+    """
+    global _dummy_password_hash
+    if _dummy_password_hash is None:
+        _dummy_password_hash = await hash_password_async(secrets.token_urlsafe(32))
+    await verify_password_async(password, _dummy_password_hash)
+
+
+def _login_failure_rule() -> RateLimitRule:
+    """Failed logins allowed per account, from all IP addresses, per login window."""
+    return RateLimitRule(
+        settings.rate_limit_login_failures_per_account,
+        settings.rate_limit_login_window_seconds,
+    )
+
+
+def _login_account_key(identifier: str, matched_users: list[User]) -> str:
+    """
+    Return the subject that failed logins are counted against, across all IPs.
+
+    It is the account when one matches, so its email and phone share one budget.
+    Otherwise it is the canonical identifier, so unknown identifiers are limited
+    exactly like real accounts and a lockout reveals nothing about which exist.
+    """
+    if matched_users:
+        return f"user:{matched_users[0].id}"
+    return f"identifier:{canonical_identifier(identifier)}"
 
 
 async def authenticate_user(
     session: AsyncSession,
     identifier: str,
     password: str,
+    limiter: RateLimiter,
 ) -> User:
     """
     Authenticate a user using either email or Cambodian phone number.
 
-    The same generic credential error is returned for unknown users and
-    incorrect passwords to avoid revealing registered accounts.
+    The same generic credential error, and comparable response time, is returned
+    for unknown users and incorrect passwords to avoid revealing registered
+    accounts. Failed attempts are counted per account across all IP addresses.
+    A successful login does not reset any counter.
+
+    Raises:
+        RateLimitExceededError: The account has too many failed logins in the
+            current window, from any IP address. The password is not checked.
+        InvalidCredentialsError: The identifier or password is wrong.
+        InactiveAccountError: The password is right but the account is not active.
     """
     matched_users = await find_users_by_identifier(session, identifier)
-
-    if not matched_users:
-        logger.warning("Authentication failed: user not found")
-        raise InvalidCredentialsError("Invalid email, phone number, or password.")
+    account_key = _login_account_key(identifier, matched_users)
+    failure_rule = _login_failure_rule()
+    await ensure_rate_limit_available(
+        limiter, LOGIN_FAILURE_SCOPE, failure_rule, account_key
+    )
 
     user = None
+    if not matched_users:
+        await _spend_password_check_time(password)
     for candidate_user in matched_users:
         if await verify_password_async(password, candidate_user.password_hash):
             user = candidate_user
             break
 
     if user is None:
-        logger.warning("Authentication failed: incorrect password")
+        await record_rate_limit_hit(
+            limiter, LOGIN_FAILURE_SCOPE, failure_rule, account_key
+        )
+        if matched_users:
+            logger.warning("Authentication failed: incorrect password")
+        else:
+            logger.warning("Authentication failed: user not found")
         raise InvalidCredentialsError("Invalid email, phone number, or password.")
 
     if user.status != UserStatus.ACTIVE:
@@ -304,6 +373,9 @@ async def enforce_login_rate_limit(
 ) -> None:
     """
     Count a login attempt per client IP and per identifier and client IP.
+
+    Every attempt counts, successful or not. Failed attempts are also counted per
+    account across all IP addresses by ``authenticate_user``.
 
     Raises:
         RateLimitExceededError: Either limit is exhausted for the current window.
@@ -345,6 +417,30 @@ async def enforce_registration_rate_limit(
     )
 
 
+async def enforce_refresh_rate_limit(
+    limiter: RateLimiter,
+    client_ip: str,
+) -> None:
+    """
+    Count a refresh token exchange per client IP.
+
+    Refresh tokens are long random values, so this bounds load and abuse rather
+    than guessing.
+
+    Raises:
+        RateLimitExceededError: The limit is exhausted for the current window.
+    """
+    await enforce_rate_limit(
+        limiter,
+        "refresh:ip",
+        RateLimitRule(
+            settings.rate_limit_refresh_per_ip,
+            settings.rate_limit_refresh_window_seconds,
+        ),
+        client_ip,
+    )
+
+
 async def enforce_password_reset_rate_limit(
     limiter: RateLimiter,
     identifier: str,
@@ -376,4 +472,27 @@ async def enforce_password_reset_rate_limit(
             window_seconds,
         ),
         canonical_identifier(identifier),
+    )
+
+
+async def enforce_password_reset_confirm_rate_limit(
+    limiter: RateLimiter,
+    client_ip: str,
+) -> None:
+    """
+    Count an attempt to redeem a password reset token per client IP.
+
+    Reset tokens are long random values, so this bounds token guessing and load.
+
+    Raises:
+        RateLimitExceededError: The limit is exhausted for the current window.
+    """
+    await enforce_rate_limit(
+        limiter,
+        "password_reset_confirm:ip",
+        RateLimitRule(
+            settings.rate_limit_password_reset_confirm_per_ip,
+            settings.rate_limit_password_reset_window_seconds,
+        ),
+        client_ip,
     )

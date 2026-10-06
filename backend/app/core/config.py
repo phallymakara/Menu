@@ -1,3 +1,4 @@
+import ipaddress
 import sys
 from functools import lru_cache
 from typing import Any, Literal
@@ -5,6 +6,22 @@ from typing import Any, Literal
 from pydantic import Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
+
+
+def _parse_networks(value: str) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """Parse a comma-separated list of IP addresses and CIDR ranges."""
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for entry in value.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError as exc:
+            raise ValueError(
+                f"'{entry}' is not an IP address or CIDR range in TRUSTED_PROXIES"
+            ) from exc
+    return networks
 
 
 class Settings(BaseSettings):
@@ -63,11 +80,32 @@ class Settings(BaseSettings):
     rate_limit_login_per_identifier: int = Field(default=10, ge=1)
     rate_limit_login_per_ip: int = Field(default=50, ge=1)
     rate_limit_login_window_seconds: int = Field(default=900, ge=1)
+    rate_limit_login_failures_per_account: int = Field(
+        default=30,
+        ge=1,
+        description=(
+            "Failed logins allowed per account from all IP addresses together in "
+            "one login window, after which the account is locked until it ends"
+        ),
+    )
+    rate_limit_refresh_per_ip: int = Field(default=300, ge=1)
+    rate_limit_refresh_window_seconds: int = Field(default=900, ge=1)
     rate_limit_register_per_ip: int = Field(default=10, ge=1)
     rate_limit_register_window_seconds: int = Field(default=3600, ge=1)
     rate_limit_password_reset_per_identifier: int = Field(default=5, ge=1)
     rate_limit_password_reset_per_ip: int = Field(default=20, ge=1)
     rate_limit_password_reset_window_seconds: int = Field(default=3600, ge=1)
+    rate_limit_password_reset_confirm_per_ip: int = Field(default=20, ge=1)
+
+    # Reverse proxies whose X-Forwarded-For header may be trusted for client IPs
+    trusted_proxies: str = Field(
+        default="",
+        description=(
+            "Comma-separated IP addresses or CIDR ranges of reverse proxies. "
+            "X-Forwarded-For is read only on requests from these addresses; when "
+            "empty, the socket peer address is always used."
+        ),
+    )
 
     frontend_base_url: str = Field(
         default="http://localhost:3000",
@@ -117,6 +155,20 @@ class Settings(BaseSettings):
                     pass
             return [x.strip() for x in v.split(",") if x.strip()]
         return v
+
+    @field_validator("trusted_proxies")
+    @classmethod
+    def validate_trusted_proxies(cls, value: str) -> str:
+        """Reject TRUSTED_PROXIES entries that are not IP addresses or CIDR ranges."""
+        _parse_networks(value)
+        return value
+
+    @property
+    def trusted_proxy_networks(
+        self,
+    ) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+        """TRUSTED_PROXIES parsed into networks (a single address is a /32 or /128)."""
+        return _parse_networks(self.trusted_proxies)
 
     @property
     def is_development(self) -> bool:
