@@ -187,7 +187,7 @@ export const PricingTable: FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12 items-center justify-center">
           <div className="flex items-center justify-center">
             <img
-              src="/images/biz-restaurant.png"
+              src="/images/biz-restaurant.webp"
               alt="Khmer Restaurant"
               className="w-full max-w-[340px] h-auto object-contain drop-shadow-xl transition-transform duration-500 hover:scale-105"
               loading="lazy"
@@ -195,7 +195,7 @@ export const PricingTable: FC = () => {
           </div>
           <div className="flex items-center justify-center">
             <img
-              src="/images/biz-boba.png"
+              src="/images/biz-boba.webp"
               alt="Boba Shop"
               className="w-full max-w-[340px] h-auto object-contain drop-shadow-xl transition-transform duration-500 hover:scale-105"
               loading="lazy"
@@ -203,7 +203,7 @@ export const PricingTable: FC = () => {
           </div>
           <div className="flex items-center justify-center">
             <img
-              src="/images/biz-bakery.png"
+              src="/images/biz-bakery.webp"
               alt="Bakery"
               className="w-full max-w-[340px] h-auto object-contain drop-shadow-xl transition-transform duration-500 hover:scale-105"
               loading="lazy"
