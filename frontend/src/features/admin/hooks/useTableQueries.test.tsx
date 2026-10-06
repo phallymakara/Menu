@@ -64,7 +64,8 @@ describe('useTableQrCodes', () => {
 
 describe('useDownloadTableQrZip', () => {
   it('asks the backend for the ZIP archive, not its JSON listing', async () => {
-    const fetchMock = stubFetch(new Blob(['zip-bytes']), 'application/zip')
+    // A plain body: jsdom's Blob has no stream(), which the fetch Response needs on Node 22.
+    const fetchMock = stubFetch('zip-bytes', 'application/zip')
 
     const { result } = renderHook(() => useDownloadTableQrZip(BIZ, BRANCH), { wrapper })
     await act(async () => {
