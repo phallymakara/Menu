@@ -6,13 +6,15 @@ import structlog
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.exceptions import (
     InactiveAccountError,
     InvalidCredentialsError,
     RegistrationConflictError,
 )
 from app.core.phone import normalize_cambodian_phone
-from app.core.security import hash_password, verify_password
+from app.core.rate_limit import RateLimiter, RateLimitRule, enforce_rate_limit
+from app.core.security import hash_password_async, verify_password_async
 from app.models.branch import Branch
 from app.models.business import Business
 from app.models.enums import MembershipStatus, OrganizationStatus, StaffRole, UserStatus
@@ -64,7 +66,7 @@ async def register_owner(
     if payload.email is not None:
         contact_conditions.append(User.email == str(payload.email).lower())
 
-    if normalized_phone is not None:
+    if normalized_phone is not None and payload.phone is not None:
         phone_variants = [normalized_phone, payload.phone.strip()]
         if normalized_phone.startswith("+855"):
             phone_variants.append("0" + normalized_phone[4:])
@@ -127,7 +129,7 @@ async def register_owner(
         id=user_id,
         email=str(payload.email).lower() if payload.email else None,
         phone=normalized_phone,
-        password_hash=hash_password(payload.password),
+        password_hash=await hash_password_async(payload.password),
         full_name=payload.full_name,
         preferred_language="km",
         status=UserStatus.ACTIVE,
@@ -206,6 +208,52 @@ async def register_owner(
     return user, organization, business, branch
 
 
+def _phone_candidates(phone: str) -> set[str]:
+    """Return the formats a phone number may have been stored in."""
+    candidates = {phone}
+    try:
+        e164_phone = normalize_cambodian_phone(phone)
+    except ValueError:
+        return candidates
+
+    candidates.add(e164_phone)
+    if e164_phone.startswith("+855"):
+        candidates.add("0" + e164_phone[4:])
+    return candidates
+
+
+def canonical_identifier(identifier: str) -> str:
+    """
+    Return one canonical form of an email or phone identifier.
+
+    Emails are lowercased and valid Cambodian phone numbers become E.164, so that
+    "012 345 678" and "+85512345678" count against the same rate limit bucket.
+    """
+    normalized_identifier = identifier.strip().lower()
+    if "@" in normalized_identifier:
+        return normalized_identifier
+    try:
+        return normalize_cambodian_phone(normalized_identifier)
+    except ValueError:
+        return normalized_identifier
+
+
+async def find_users_by_identifier(
+    session: AsyncSession,
+    identifier: str,
+) -> list[User]:
+    """Return the users whose email or phone number matches a login identifier."""
+    normalized_identifier = identifier.strip().lower()
+
+    if "@" in normalized_identifier:
+        condition = User.email == normalized_identifier
+    else:
+        condition = User.phone.in_(sorted(_phone_candidates(normalized_identifier)))
+
+    result = await session.execute(select(User).where(condition))
+    return list(result.scalars().all())
+
+
 async def authenticate_user(
     session: AsyncSession,
     identifier: str,
@@ -217,24 +265,7 @@ async def authenticate_user(
     The same generic credential error is returned for unknown users and
     incorrect passwords to avoid revealing registered accounts.
     """
-    normalized_identifier = identifier.strip().lower()
-
-    if "@" in normalized_identifier:
-        condition = User.email == normalized_identifier
-    else:
-        phone_candidates = {normalized_identifier}
-        try:
-            norm_e164 = normalize_cambodian_phone(normalized_identifier)
-            phone_candidates.add(norm_e164)
-            if norm_e164.startswith("+855"):
-                phone_candidates.add("0" + norm_e164[4:])
-        except ValueError:
-            pass
-
-        condition = User.phone.in_(list(phone_candidates))
-
-    result = await session.execute(select(User).where(condition))
-    matched_users = result.scalars().all()
+    matched_users = await find_users_by_identifier(session, identifier)
 
     if not matched_users:
         logger.warning("Authentication failed: user not found")
@@ -242,7 +273,7 @@ async def authenticate_user(
 
     user = None
     for candidate_user in matched_users:
-        if verify_password(password, candidate_user.password_hash):
+        if await verify_password_async(password, candidate_user.password_hash):
             user = candidate_user
             break
 
@@ -264,3 +295,85 @@ async def authenticate_user(
     )
 
     return user
+
+
+async def enforce_login_rate_limit(
+    limiter: RateLimiter,
+    identifier: str,
+    client_ip: str,
+) -> None:
+    """
+    Count a login attempt per client IP and per identifier and client IP.
+
+    Raises:
+        RateLimitExceededError: Either limit is exhausted for the current window.
+    """
+    window_seconds = settings.rate_limit_login_window_seconds
+    await enforce_rate_limit(
+        limiter,
+        "login:ip",
+        RateLimitRule(settings.rate_limit_login_per_ip, window_seconds),
+        client_ip,
+    )
+    await enforce_rate_limit(
+        limiter,
+        "login:identifier_ip",
+        RateLimitRule(settings.rate_limit_login_per_identifier, window_seconds),
+        canonical_identifier(identifier),
+        client_ip,
+    )
+
+
+async def enforce_registration_rate_limit(
+    limiter: RateLimiter,
+    client_ip: str,
+) -> None:
+    """
+    Count an owner registration attempt per client IP.
+
+    Raises:
+        RateLimitExceededError: The limit is exhausted for the current window.
+    """
+    await enforce_rate_limit(
+        limiter,
+        "register:ip",
+        RateLimitRule(
+            settings.rate_limit_register_per_ip,
+            settings.rate_limit_register_window_seconds,
+        ),
+        client_ip,
+    )
+
+
+async def enforce_password_reset_rate_limit(
+    limiter: RateLimiter,
+    identifier: str,
+    client_ip: str,
+) -> None:
+    """
+    Count a password reset request per identifier and per client IP.
+
+    The identifier limit stops one inbox or phone from being flooded. The IP limit
+    stops one client from sending resets to many accounts, which matters once an
+    SMS provider (paid per message) is connected. Both apply whether or not an
+    account matches, so a 429 reveals nothing about which accounts exist.
+
+    Raises:
+        RateLimitExceededError: Either limit is exhausted for the current window.
+    """
+    window_seconds = settings.rate_limit_password_reset_window_seconds
+    await enforce_rate_limit(
+        limiter,
+        "password_reset:ip",
+        RateLimitRule(settings.rate_limit_password_reset_per_ip, window_seconds),
+        client_ip,
+    )
+    await enforce_rate_limit(
+        limiter,
+        "password_reset:identifier",
+        RateLimitRule(
+            settings.rate_limit_password_reset_per_identifier,
+            window_seconds,
+        ),
+        canonical_identifier(identifier),
+    )

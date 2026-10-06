@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 
 import structlog
@@ -7,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import InvalidTokenError
-from app.core.security import decode_access_token
+from app.core.security import decode_access_token, get_access_token_expiry
 from app.db.session import get_db_session
 from app.models.enums import UserStatus
 from app.models.user import User
@@ -56,3 +57,21 @@ async def get_current_user(
         raise credentials_error
 
     return user
+
+
+async def get_current_token_expiry(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials,
+        Depends(bearer_scheme),
+    ],
+) -> datetime:
+    """Return when the presented access token expires (an aware UTC datetime)."""
+    try:
+        return get_access_token_expiry(credentials.credentials)
+    except InvalidTokenError as exc:
+        logger.warning("Token expiry could not be read", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate authentication credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc

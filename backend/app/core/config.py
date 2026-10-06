@@ -10,7 +10,9 @@ from sqlalchemy.engine import URL, make_url
 class Settings(BaseSettings):
     app_name: str = "អុី មីនុយ-E Menu API"
     app_version: str = "0.1.0"
-    environment: str = "development"
+    # Defaults to production so that development-only behavior (such as returning
+    # password reset tokens in API responses) must be enabled explicitly.
+    environment: str = "production"
     debug: bool = False
 
     database_url: str = Field(...)
@@ -29,6 +31,44 @@ class Settings(BaseSettings):
 
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+    refresh_token_expire_days: int = Field(
+        default=14,
+        ge=1,
+        description="Lifetime of a login session (refresh token family) in days",
+    )
+    password_reset_token_expire_minutes: int = Field(
+        default=30,
+        ge=5,
+        le=1440,
+        description="Lifetime of a single-use password reset token in minutes",
+    )
+    password_hash_max_concurrency: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Maximum Argon2 hash or verify operations running at once per process. "
+            "Each one uses about 64 MiB of memory."
+        ),
+    )
+
+    # Rate limiting (fixed window) for the authentication endpoints
+    rate_limit_backend: Literal["memory", "redis"] = Field(
+        default="memory",
+        description=(
+            "'memory' counts per process (development and tests only); "
+            "'redis' shares counters through REDIS_URL and is required in production"
+        ),
+    )
+    rate_limit_redis_timeout_seconds: float = Field(default=1.0, gt=0)
+    rate_limit_login_per_identifier: int = Field(default=10, ge=1)
+    rate_limit_login_per_ip: int = Field(default=50, ge=1)
+    rate_limit_login_window_seconds: int = Field(default=900, ge=1)
+    rate_limit_register_per_ip: int = Field(default=10, ge=1)
+    rate_limit_register_window_seconds: int = Field(default=3600, ge=1)
+    rate_limit_password_reset_per_identifier: int = Field(default=5, ge=1)
+    rate_limit_password_reset_per_ip: int = Field(default=20, ge=1)
+    rate_limit_password_reset_window_seconds: int = Field(default=3600, ge=1)
+
     frontend_base_url: str = Field(
         default="http://localhost:3000",
         description="Base URL for customer web ordering frontend",
@@ -77,6 +117,11 @@ class Settings(BaseSettings):
                     pass
             return [x.strip() for x in v.split(",") if x.strip()]
         return v
+
+    @property
+    def is_development(self) -> bool:
+        """Return True only when ENVIRONMENT is 'development' (case-insensitive)."""
+        return self.environment.strip().lower() == "development"
 
     @property
     def sync_database_url(self) -> URL:

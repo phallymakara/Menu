@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 import structlog
@@ -108,10 +109,15 @@ async def switch_active_branch(
     user: User,
     tenant: TenantContext,
     target_branch_id: UUID,
+    token_expires_at: datetime,
 ) -> SwitchBranchResponse:
     """
     Switches active working branch context for Brand Owners and General Managers.
     Raises HTTP 403 for branch managers or branch staff attempting to switch outside their assigned branch.
+
+    The new access token keeps ``token_expires_at``, the expiry of the token used to
+    call this endpoint, so switching branches can never extend a session. Sessions
+    are renewed only through the refresh token flow.
     """
     membership = tenant.membership
     can_roam = can_user_roam_branches(membership)
@@ -146,10 +152,11 @@ async def switch_active_branch(
             detail="Target branch not found or inactive.",
         )
 
-    # 3. Issue fresh scoped JWT access token
+    # 3. Issue a branch-scoped JWT that expires with the current token
     new_token = create_access_token(
         user_id=user.id,
         active_branch_id=target_branch.id,
+        expires_at=token_expires_at,
     )
 
     # 4. Audit Log
