@@ -1309,7 +1309,12 @@ export interface paths {
         /**
          * Generate dynamic KHQR for an active table session bill
          * @description Calculates the exact dynamic table session bill and generates an official
-         *     EMVCo-compliant Bakong KHQR code with embedded payable amount.
+         *     EMVCo-compliant Bakong KHQR code with embedded payable amount and expiry.
+         *
+         *     The KHQR is recorded as a pending payment attempt. Poll
+         *     ``GET .../khqr/attempts/{attempt_id}`` and settle the bill with the
+         *     ``attempt_id`` once Bakong reports the payment. Returns 409 when the branch
+         *     and business have no Bakong account configured.
          */
         post: operations["generate_session_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_table_sessions__session_id__dynamic_post"];
         delete?: never;
@@ -1330,9 +1335,35 @@ export interface paths {
         /**
          * Generate dynamic KHQR for a takeaway/single order bill
          * @description Calculates the exact takeaway/single order bill and generates an official
-         *     EMVCo-compliant Bakong KHQR code with embedded payable amount.
+         *     EMVCo-compliant Bakong KHQR code with embedded payable amount and expiry.
+         *
+         *     The KHQR is recorded as a pending payment attempt, as for table sessions.
          */
         post: operations["generate_order_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_orders__order_id__dynamic_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/khqr/attempts/{attempt_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check and refresh the status of a KHQR payment attempt
+         * @description Returns a KHQR payment attempt. A pending attempt is first checked with
+         *     Bakong (check transaction by MD5) and updated to succeeded, failed or
+         *     expired. This endpoint never settles the bill; call the KHQR payment
+         *     endpoint with the attempt ID for that. Returns 503 when Bakong cannot be
+         *     reached.
+         */
+        get: operations["get_khqr_attempt_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_attempts__attempt_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1348,7 +1379,9 @@ export interface paths {
         };
         /**
          * Generate static merchant KHQR code
-         * @description Generates a static merchant KHQR code for acrylic table stands or counter stickers.
+         * @description Generates a static merchant KHQR code for acrylic table stands or counter
+         *     stickers. Payments to a static KHQR cannot be verified with Bakong and need a
+         *     manual confirmation by an owner or manager.
          */
         get: operations["generate_static_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_static_get"];
         put?: never;
@@ -1390,11 +1423,39 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Confirm dine-in session bill paid via KHQR (Bakong)
-         * @description Settles a dine-in table session via KHQR (Bakong), closes table session,
-         *     marks table as dirty_cleaning, and sends real-time Telegram notification to staff.
+         * Settle dine-in session bill with a Bakong-verified KHQR payment
+         * @description Settles a dine-in table session from a KHQR payment attempt once Bakong
+         *     confirms the money was received, closes the session, marks the table as
+         *     dirty_cleaning, and notifies staff on Telegram.
+         *
+         *     Returns 409 "payment not received yet" while Bakong has no payment for the
+         *     KHQR (retry later), 409 when the KHQR expired or no longer matches the bill,
+         *     and 503 when Bakong verification is not configured or not reachable.
          */
         post: operations["settle_table_session_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__table_sessions__session_id__payments_khqr_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/table-sessions/{session_id}/payments/khqr/manual-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Owner or manager confirms a dine-in KHQR payment without Bakong
+         * @description Manual override for when Bakong verification is not configured or does not
+         *     show a payment the customer made. Requires the owner or manager role and a
+         *     reason; the Payment is marked as manually confirmed and the override is
+         *     recorded in the audit log.
+         */
+        post: operations["confirm_table_session_khqr_manually_endpoint_api_v1_businesses__business_id__branches__branch_id__table_sessions__session_id__payments_khqr_manual_confirmation_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1431,10 +1492,34 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Confirm standalone / takeaway order paid via KHQR (Bakong)
-         * @description Settles a standalone or takeaway order via KHQR and dispatches Telegram notification.
+         * Settle standalone / takeaway order with a Bakong-verified KHQR payment
+         * @description Settles a standalone or takeaway order from a KHQR payment attempt once
+         *     Bakong confirms the money was received, and notifies staff on Telegram.
+         *     Errors are the same as for table sessions.
          */
         post: operations["settle_single_order_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__orders__order_id__payments_khqr_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/orders/{order_id}/payments/khqr/manual-confirmation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Owner or manager confirms a takeaway KHQR payment without Bakong
+         * @description Manual override for a standalone or takeaway order. Requires the owner or
+         *     manager role and a reason; the Payment is marked as manually confirmed and
+         *     the override is recorded in the audit log.
+         */
+        post: operations["confirm_order_khqr_manually_endpoint_api_v1_businesses__business_id__branches__branch_id__orders__order_id__payments_khqr_manual_confirmation_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6013,6 +6098,69 @@ export interface components {
             /** Discount Reason */
             discount_reason?: components["schemas"]["DiscountReason"] | string | null;
         };
+        /**
+         * DynamicKHQRResponse
+         * @description Dynamic KHQR together with the payment attempt that tracks it.
+         */
+        DynamicKHQRResponse: {
+            /**
+             * Qr String
+             * @description Standard EMVCo Tag-Length-Value payload string
+             */
+            qr_string: string;
+            /**
+             * Qr Image Data Url
+             * @description Base64 Data URI for rendering <img> in HTML/React
+             */
+            qr_image_data_url: string;
+            /**
+             * Currency
+             * @enum {string}
+             */
+            currency: "USD" | "KHR";
+            /**
+             * Amount
+             * @description Payable amount in selected currency
+             */
+            amount: string;
+            /** Amount Usd */
+            amount_usd: string;
+            /** Amount Khr */
+            amount_khr: number;
+            /** Exchange Rate */
+            exchange_rate: string;
+            /** Merchant Name */
+            merchant_name: string;
+            /** Merchant City */
+            merchant_city: string;
+            /** Bakong Account Id */
+            bakong_account_id: string;
+            /** Bill Reference */
+            bill_reference: string;
+            /**
+             * Deep Link Url
+             * @description Native app deep-link: bakong://qr?data=...
+             */
+            deep_link_url: string;
+            /**
+             * Attempt Id
+             * Format: uuid
+             * @description Payment attempt to poll and to pass when settling the bill
+             */
+            attempt_id: string;
+            /**
+             * Md5
+             * @description MD5 of qr_string, the key Bakong uses to look up the payment
+             */
+            md5: string;
+            /**
+             * Expires At
+             * Format: date-time
+             * @description After this time banking apps refuse to pay the KHQR
+             */
+            expires_at: string;
+            status: components["schemas"]["KHQRPaymentAttemptStatus"];
+        };
         /** GuestOrderPlacementRequest */
         GuestOrderPlacementRequest: {
             /** Guest Notes */
@@ -6445,8 +6593,109 @@ export interface components {
             items?: components["schemas"]["KDSTicketItemResponse"][];
         };
         /**
+         * KHQRManualConfirmationRequest
+         * @description Payload for an owner or manager to confirm a KHQR payment without Bakong.
+         *
+         *     Used when Bakong verification is not configured, or as an override after
+         *     checking the payment in the customer's or merchant's banking app.
+         */
+        KHQRManualConfirmationRequest: {
+            /**
+             * Promo Code
+             * @description Optional coupon code (e.g. WELCOME10)
+             */
+            promo_code?: string | null;
+            /** @description Optional manual discount type: 'percentage' or 'fixed_amount' */
+            manual_discount_type?: components["schemas"]["DiscountType"] | null;
+            /**
+             * Manual Discount Value
+             * @description Manual discount value (e.g. 10.00 for 10% or 5.00 for $5)
+             */
+            manual_discount_value?: number | string | null;
+            /**
+             * Discount Reason
+             * @description Reason for manual discount (e.g. 'vip_customer', 'staff_meal')
+             */
+            discount_reason?: (components["schemas"]["DiscountReason"] | string) | null;
+            /**
+             * Notes
+             * @description Optional cashier notes or external transaction reference
+             */
+            notes?: string | null;
+            /**
+             * Reason
+             * @description Why the payment is confirmed manually (audited)
+             */
+            reason: string;
+            /**
+             * Attempt Id
+             * @description KHQR payment attempt the customer paid, when there is one
+             */
+            attempt_id?: string | null;
+        };
+        /**
+         * KHQRPaymentAttemptResponse
+         * @description Current state of a KHQR payment attempt.
+         */
+        KHQRPaymentAttemptResponse: {
+            /**
+             * Attempt Id
+             * Format: uuid
+             */
+            attempt_id: string;
+            status: components["schemas"]["KHQRPaymentAttemptStatus"];
+            /** Table Session Id */
+            table_session_id?: string | null;
+            /** Order Id */
+            order_id?: string | null;
+            /** Amount */
+            amount: string;
+            /**
+             * Currency
+             * @enum {string}
+             */
+            currency: "USD" | "KHR";
+            /** Md5 */
+            md5: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Verified At */
+            verified_at?: string | null;
+            /**
+             * Bakong Reference
+             * @description Bakong transaction hash once the payment is seen
+             */
+            bakong_reference?: string | null;
+            /** Failure Reason */
+            failure_reason?: string | null;
+            /**
+             * Payment Id
+             * @description Payment created from this attempt, once settled
+             */
+            payment_id?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Verification Available
+             * @description False when the server has no Bakong API token, so the payment can only be confirmed manually by an owner or manager
+             */
+            verification_available: boolean;
+        };
+        /**
+         * KHQRPaymentAttemptStatus
+         * @description Lifecycle of one generated dynamic KHQR.
+         * @enum {string}
+         */
+        KHQRPaymentAttemptStatus: "pending" | "succeeded" | "failed" | "expired" | "cancelled";
+        /**
          * KHQRPaymentRequest
-         * @description Payload submitted by cashier to settle a bill with KHQR (Bakong).
+         * @description Payload submitted by cashier to settle a bill with a Bakong-verified KHQR.
          */
         KHQRPaymentRequest: {
             /**
@@ -6471,6 +6720,12 @@ export interface components {
              * @description Optional cashier notes or external transaction reference
              */
             notes?: string | null;
+            /**
+             * Attempt Id
+             * Format: uuid
+             * @description KHQR payment attempt returned when the dynamic KHQR was generated
+             */
+            attempt_id: string;
         };
         /**
          * KHQRResponse
@@ -7898,6 +8153,19 @@ export interface components {
             received_by_user_id?: string | null;
             /** Notes */
             notes?: string | null;
+            /**
+             * Bakong Reference
+             * @description Bakong transaction hash for a verified KHQR payment
+             */
+            bakong_reference?: string | null;
+            /**
+             * Is Manually Confirmed
+             * @description True when a manager confirmed a KHQR payment without Bakong
+             * @default false
+             */
+            is_manually_confirmed?: boolean;
+            /** Manual Confirmation Reason */
+            manual_confirmation_reason?: string | null;
             /**
              * Settled At
              * Format: date-time
@@ -11953,12 +12221,12 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            200: {
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["KHQRResponse"];
+                    "application/json": components["schemas"]["DynamicKHQRResponse"];
                 };
             };
             /** @description Validation Error */
@@ -11992,12 +12260,47 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DynamicKHQRResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_khqr_attempt_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_attempts__attempt_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                business_id: string;
+                branch_id: string;
+                attempt_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["KHQRResponse"];
+                    "application/json": components["schemas"]["KHQRPaymentAttemptResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12126,6 +12429,45 @@ export interface operations {
             };
         };
     };
+    confirm_table_session_khqr_manually_endpoint_api_v1_businesses__business_id__branches__branch_id__table_sessions__session_id__payments_khqr_manual_confirmation_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                business_id: string;
+                branch_id: string;
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KHQRManualConfirmationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     settle_single_order_cash_endpoint_api_v1_businesses__business_id__branches__branch_id__orders__order_id__payments_cash_post: {
         parameters: {
             query?: never;
@@ -12181,6 +12523,45 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["KHQRPaymentRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_order_khqr_manually_endpoint_api_v1_businesses__business_id__branches__branch_id__orders__order_id__payments_khqr_manual_confirmation_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                business_id: string;
+                branch_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["KHQRManualConfirmationRequest"];
             };
         };
         responses: {
