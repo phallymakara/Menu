@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     slow_request_threshold_ms: float = 500.0
     slow_database_threshold_ms: float = 100.0
 
+    # Largest accepted request body; larger requests get 413 before being read.
+    max_request_body_bytes: int = 10 * 1024 * 1024
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

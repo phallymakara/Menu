@@ -1,10 +1,13 @@
 import io
+import shutil
 from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
+from PIL import Image
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.security import create_access_token, hash_password
@@ -396,10 +399,9 @@ async def test_media_upload_endpoint():
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             headers = {"Authorization": f"Bearer {token}"}
 
-            dummy_png = (
-                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
-                b"\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15c4"
-            )
+            png_buffer = io.BytesIO()
+            Image.new("RGB", (2, 2), (200, 30, 30)).save(png_buffer, format="PNG")
+            dummy_png = png_buffer.getvalue()
             files = {"file": ("test_amok.png", io.BytesIO(dummy_png), "image/png")}
 
             upload_resp = await client.post(
@@ -410,7 +412,15 @@ async def test_media_upload_endpoint():
             assert upload_resp.status_code == status.HTTP_201_CREATED
             data = upload_resp.json()
             assert data["url"].startswith("/uploads/menu_items/")
-            assert "test_amok.png" in data["filename"]
+            # Stored under a generated name; the client's file name is never used.
+            assert data["filename"].endswith(".png")
+            assert "test_amok" not in data["filename"]
+            assert data["content_type"] == "image/png"
+
+            # Do not leave test uploads behind in the local uploads folder.
+            stored = Path(data["url"].lstrip("/"))
+            stored.unlink(missing_ok=True)
+            shutil.rmtree(stored.parent.parent, ignore_errors=True)
 
         app.dependency_overrides.clear()
 
