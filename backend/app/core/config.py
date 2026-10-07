@@ -1,3 +1,4 @@
+import ipaddress
 import sys
 from functools import lru_cache
 from typing import Any, Literal
@@ -7,10 +8,28 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
 
+def _parse_networks(value: str) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """Parse a comma-separated list of IP addresses and CIDR ranges."""
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for entry in value.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(entry, strict=False))
+        except ValueError as exc:
+            raise ValueError(
+                f"'{entry}' is not an IP address or CIDR range in TRUSTED_PROXIES"
+            ) from exc
+    return networks
+
+
 class Settings(BaseSettings):
     app_name: str = "អុី មីនុយ-E Menu API"
     app_version: str = "0.1.0"
-    environment: str = "development"
+    # Defaults to production so that development-only behavior (such as returning
+    # password reset tokens in API responses) must be enabled explicitly.
+    environment: str = "production"
     debug: bool = False
 
     database_url: str = Field(...)
@@ -29,6 +48,64 @@ class Settings(BaseSettings):
 
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
+    refresh_token_expire_days: int = Field(
+        default=14,
+        ge=1,
+        description="Lifetime of a login session (refresh token family) in days",
+    )
+    password_reset_token_expire_minutes: int = Field(
+        default=30,
+        ge=5,
+        le=1440,
+        description="Lifetime of a single-use password reset token in minutes",
+    )
+    password_hash_max_concurrency: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Maximum Argon2 hash or verify operations running at once per process. "
+            "Each one uses about 64 MiB of memory."
+        ),
+    )
+
+    # Rate limiting (fixed window) for the authentication endpoints
+    rate_limit_backend: Literal["memory", "redis"] = Field(
+        default="memory",
+        description=(
+            "'memory' counts per process (development and tests only); "
+            "'redis' shares counters through REDIS_URL and is required in production"
+        ),
+    )
+    rate_limit_redis_timeout_seconds: float = Field(default=1.0, gt=0)
+    rate_limit_login_per_identifier: int = Field(default=10, ge=1)
+    rate_limit_login_per_ip: int = Field(default=50, ge=1)
+    rate_limit_login_window_seconds: int = Field(default=900, ge=1)
+    # Login attempts per account from all IP addresses together. It only stops
+    # brute force spread over many addresses: one address is stopped much earlier by
+    # RATE_LIMIT_LOGIN_PER_IDENTIFIER. Keep it well above that limit with a short
+    # window, so that a flood from a few addresses can never lock the real user out,
+    # and a distributed attack can do so only until the window ends.
+    rate_limit_login_per_account: int = Field(default=50, ge=1)
+    rate_limit_login_account_window_seconds: int = Field(default=300, ge=1)
+    rate_limit_refresh_per_ip: int = Field(default=300, ge=1)
+    rate_limit_refresh_window_seconds: int = Field(default=900, ge=1)
+    rate_limit_register_per_ip: int = Field(default=10, ge=1)
+    rate_limit_register_window_seconds: int = Field(default=3600, ge=1)
+    rate_limit_password_reset_per_identifier: int = Field(default=5, ge=1)
+    rate_limit_password_reset_per_ip: int = Field(default=20, ge=1)
+    rate_limit_password_reset_window_seconds: int = Field(default=3600, ge=1)
+    rate_limit_password_reset_confirm_per_ip: int = Field(default=20, ge=1)
+
+    # Reverse proxies whose X-Forwarded-For header may be trusted for client IPs
+    trusted_proxies: str = Field(
+        default="",
+        description=(
+            "Comma-separated IP addresses or CIDR ranges of reverse proxies. "
+            "X-Forwarded-For is read only on requests from these addresses; when "
+            "empty, the socket peer address is always used."
+        ),
+    )
+
     frontend_base_url: str = Field(
         default="http://localhost:3000",
         description="Base URL for customer web ordering frontend",
@@ -108,6 +185,25 @@ class Settings(BaseSettings):
                     pass
             return [x.strip() for x in v.split(",") if x.strip()]
         return v
+
+    @field_validator("trusted_proxies")
+    @classmethod
+    def validate_trusted_proxies(cls, value: str) -> str:
+        """Reject TRUSTED_PROXIES entries that are not IP addresses or CIDR ranges."""
+        _parse_networks(value)
+        return value
+
+    @property
+    def trusted_proxy_networks(
+        self,
+    ) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+        """TRUSTED_PROXIES parsed into networks (a single address is a /32 or /128)."""
+        return _parse_networks(self.trusted_proxies)
+
+    @property
+    def is_development(self) -> bool:
+        """Return True only when ENVIRONMENT is 'development' (case-insensitive)."""
+        return self.environment.strip().lower() == "development"
 
     @property
     def sync_database_url(self) -> URL:

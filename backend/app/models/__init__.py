@@ -21,9 +21,11 @@ from app.models.modifier import MenuItemModifierGroup, ModifierGroup, ModifierOp
 from app.models.order import Order, OrderItem, OrderItemModifier
 from app.models.organization import Organization
 from app.models.organization_membership import OrganizationMembership
+from app.models.password_reset_token import PasswordResetToken
 from app.models.payment import Payment
 from app.models.plan import Plan
 from app.models.promotion import Promotion
+from app.models.refresh_token import RefreshToken
 from app.models.restaurant_table import RestaurantTable
 from app.models.service_request import ServiceRequest
 from app.models.subscription import Subscription
@@ -56,9 +58,11 @@ __all__ = [
     "OrderItemModifier",
     "Organization",
     "OrganizationMembership",
+    "PasswordResetToken",
     "Payment",
     "Plan",
     "Promotion",
+    "RefreshToken",
     "RestaurantTable",
     "ServiceRequest",
     "StockAdjustmentLog",

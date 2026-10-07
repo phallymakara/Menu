@@ -14,7 +14,7 @@ from app.core.exceptions import (
     ResourceConflictError,
     TenantNotFoundError,
 )
-from app.core.security import hash_password
+from app.core.security import hash_password_async
 from app.core.tenant import TenantContext
 from app.models.branch import Branch
 from app.models.enums import MembershipStatus, StaffRole, UserStatus
@@ -130,9 +130,9 @@ async def invite_member(
             phone=payload.phone,
             full_name=payload.full_name,
             avatar_url=payload.avatar_url,
-            password_hash=hash_password(payload.password)
-            if payload.password
-            else hash_password(secrets.token_urlsafe(24)),
+            password_hash=await hash_password_async(
+                payload.password or secrets.token_urlsafe(24)
+            ),
             status=UserStatus.ACTIVE if payload.password else UserStatus.INVITED,
             is_verified=bool(payload.password),
         )
@@ -167,7 +167,7 @@ async def invite_member(
     can_set_credentials = is_new_user or user.status == UserStatus.INVITED
     activate_directly = bool(payload.password) and can_set_credentials
     if activate_directly and not is_new_user and payload.password:
-        user.password_hash = hash_password(payload.password)
+        user.password_hash = await hash_password_async(payload.password)
         user.status = UserStatus.ACTIVE
         user.is_verified = True
         if payload.avatar_url:
@@ -272,7 +272,7 @@ async def accept_invitation(
             "Sign in to that account to accept it."
         )
 
-    user.password_hash = hash_password(payload.password)
+    user.password_hash = await hash_password_async(payload.password)
     user.status = UserStatus.ACTIVE
     user.is_verified = True
     if payload.full_name:

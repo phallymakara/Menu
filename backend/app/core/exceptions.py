@@ -14,6 +14,18 @@ class InvalidTokenError(Exception):
     """Raised when an authentication token is invalid or expired."""
 
 
+class RefreshTokenReuseError(InvalidTokenError):
+    """Raised when a revoked refresh token is presented again; its family is revoked."""
+
+
+class RateLimitExceededError(Exception):
+    """Raised when a caller exceeds a rate limit for an abuse-prone operation."""
+
+    def __init__(self, retry_after_seconds: int) -> None:
+        super().__init__("Too many requests. Please try again later.")
+        self.retry_after_seconds = retry_after_seconds
+
+
 class TenantContextError(Exception):
     """Base exception for tenant context failures."""
 

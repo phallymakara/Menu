@@ -10,6 +10,7 @@ from app.api.v1.router import api_router
 from app.core.body_limit import BodySizeLimitMiddleware
 from app.core.config import settings
 from app.core.logging import LoggingMiddleware, setup_logging
+from app.core.rate_limit import close_rate_limiter
 from app.core.static_files import UploadStaticFiles
 from app.core.ws_broadcaster import create_broadcaster
 from app.core.ws_manager import ws_manager
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI):
     finally:
         logger.info("Shutting down backend application")
         await ws_manager.stop()
+        await close_rate_limiter()
 
 
 app = FastAPI(

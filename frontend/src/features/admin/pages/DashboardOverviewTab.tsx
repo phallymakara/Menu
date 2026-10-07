@@ -12,8 +12,6 @@ import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
 import { useSalesOverview, useTopSellingItems, usePaymentBreakdown } from '../hooks/useAnalyticsQueries'
 import { useTables } from '../hooks/useTableQueries'
-import { todayRangeInPhnomPenh } from '@/lib/dates'
-import { isUuid } from '@/lib/utils'
 
 export const DashboardOverviewTab: FC = () => {
   const { language } = useLanguageStore()

@@ -7,6 +7,8 @@ import type { components } from '@/types/api'
 
 export type LoginRequest = components['schemas']['LoginRequest']
 export type OwnerRegistrationRequest = components['schemas']['OwnerRegistrationRequest']
+export type PasswordResetRequestPayload = components['schemas']['PasswordResetRequest']
+export type PasswordResetConfirmPayload = components['schemas']['PasswordResetConfirmRequest']
 type CurrentUserResponse = components['schemas']['CurrentUserResponse']
 
 function storeOrganizationId(orgId: string) {
@@ -31,13 +33,13 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: async (credentials: LoginRequest) => {
-      const { access_token: token } = unwrap(
+      const { access_token: token, refresh_token: refreshToken } = unwrap(
         await apiFetch.POST('/api/v1/auth/login', { body: credentials })
       )
       const me = await fetchCurrentUser(token)
-      return { token, me }
+      return { token, refreshToken, me }
     },
-    onSuccess: ({ token, me }, credentials) => {
+    onSuccess: ({ token, refreshToken, me }, credentials) => {
       const isEmail = credentials.identifier.includes('@')
       const user: AuthUser = me
         ? {
@@ -54,7 +56,7 @@ export function useLogin() {
             email: isEmail ? credentials.identifier : null,
           }
 
-      setAuth(token, user)
+      setAuth(token, user, refreshToken)
       const orgId = me?.memberships?.[0]?.organization_id
       if (orgId) storeOrganizationId(orgId)
       localStorage.setItem('emenu_onboarding_completed', 'true')
@@ -72,6 +74,7 @@ export function useRegisterOwner() {
       const registration = unwrap(await apiFetch.POST('/api/v1/auth/register', { body: payload }))
 
       let token = registration.access_token ?? null
+      let refreshToken = registration.refresh_token ?? null
       if (!token) {
         const login = unwrap(
           await apiFetch.POST('/api/v1/auth/login', {
@@ -82,20 +85,44 @@ export function useRegisterOwner() {
           })
         )
         token = login.access_token
+        refreshToken = login.refresh_token
       }
-      return { registration, token }
+      return { registration, token, refreshToken }
     },
-    onSuccess: ({ registration, token }, payload) => {
-      setAuth(token, {
-        id: registration.user_id,
-        full_name: payload.full_name,
-        email: payload.email ?? null,
-        phone: payload.phone ?? null,
-      })
+    onSuccess: ({ registration, token, refreshToken }, payload) => {
+      setAuth(
+        token,
+        {
+          id: registration.user_id,
+          full_name: payload.full_name,
+          email: payload.email ?? null,
+          phone: payload.phone ?? null,
+        },
+        refreshToken
+      )
       storeOrganizationId(registration.organization_id)
       localStorage.setItem('emenu_business_id', registration.business_id)
       localStorage.setItem('emenu_branch_id', registration.branch_id)
       useOnboardingStore.getState().resetOnboarding()
     },
+  })
+}
+
+/**
+ * Ask for password reset instructions. The server answers the same way whether
+ * or not an account matches, so success only means the request was accepted.
+ */
+export function useRequestPasswordReset() {
+  return useMutation({
+    mutationFn: async (payload: PasswordResetRequestPayload) =>
+      unwrap(await apiFetch.POST('/api/v1/auth/password-reset/request', { body: payload })),
+  })
+}
+
+/** Set a new password with the token from a reset link. Every session of the account ends. */
+export function useConfirmPasswordReset() {
+  return useMutation({
+    mutationFn: async (payload: PasswordResetConfirmPayload) =>
+      unwrap(await apiFetch.POST('/api/v1/auth/password-reset/confirm', { body: payload })),
   })
 }

@@ -1,7 +1,12 @@
 import { ApiError } from '@/lib/api-error'
+import { getTranslation } from '@/locales'
 
 /** Map a failed login into a bilingual, user-facing message. */
 export function getLoginErrorMessage(err: unknown, isKm: boolean): string {
+  if (err instanceof ApiError && err.status === 429) {
+    return getTranslation(isKm ? 'km' : 'en', 'auth.tooManyAttempts')
+  }
+
   const detail = err instanceof ApiError ? err.detail : undefined
 
   if (typeof detail === 'string') {

@@ -9,7 +9,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.security import hash_password
+from app.core.security import hash_password_async
 from app.models.branch import Branch
 from app.models.enums import UserStatus
 from app.models.organization_membership import OrganizationMembership
@@ -24,6 +24,7 @@ from app.schemas.admin_user import (
     AdminUserStatusUpdate,
 )
 from app.services.audit_service import record_audit_log
+from app.services.token_service import revoke_all_sessions
 
 logger = structlog.get_logger("app.services.admin_user_service")
 
@@ -349,7 +350,9 @@ async def reset_admin_user_password(
             detail="User account not found.",
         )
 
-    target_user.password_hash = hash_password(payload.new_password)
+    target_user.password_hash = await hash_password_async(payload.new_password)
+    # A password reset is account recovery: sign the account out everywhere.
+    await revoke_all_sessions(session, target_user.id)
 
     await record_audit_log(
         session=session,

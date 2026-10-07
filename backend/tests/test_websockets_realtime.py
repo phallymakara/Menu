@@ -1,6 +1,7 @@
 import json
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -284,8 +285,8 @@ async def test_live_broadcast_order_and_payment_events(ws_setup, monkeypatch):
     mock_guest_ws = MockWebSocket(test_room)
     mock_pos_ws = MockWebSocket(pos_room)
 
-    await ws_manager.connect(mock_guest_ws, test_room)
-    await ws_manager.connect(mock_pos_ws, pos_room)
+    await ws_manager.connect(cast(Any, mock_guest_ws), test_room)
+    await ws_manager.connect(cast(Any, mock_pos_ws), pos_room)
 
     # 1. Simulate order.created event
     await ws_manager.broadcast_to_rooms(
@@ -315,8 +316,8 @@ async def test_live_broadcast_order_and_payment_events(ws_setup, monkeypatch):
     events_guest = [e[1]["event"] for e in received_events if e[0] == test_room]
     assert events_guest == ["order.created", "order.item_bumped", "payment.completed"]
 
-    ws_manager.disconnect(mock_guest_ws, test_room)
-    ws_manager.disconnect(mock_pos_ws, pos_room)
+    ws_manager.disconnect(cast(Any, mock_guest_ws), test_room)
+    ws_manager.disconnect(cast(Any, mock_pos_ws), pos_room)
 
 
 @pytest.mark.anyio

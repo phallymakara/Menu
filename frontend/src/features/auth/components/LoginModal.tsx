@@ -173,6 +173,16 @@ export const LoginModal: FC<LoginModalProps> = ({ isOpen, onClose }) => {
               />
               <span>{t('rememberMe')}</span>
             </label>
+            <button
+              type="button"
+              onClick={() => {
+                onClose()
+                navigate('/login?view=forgot')
+              }}
+              className="font-semibold text-emerald-600 hover:underline"
+            >
+              {t('auth.forgotPassword')}
+            </button>
           </div>
 
           {/* Submit Button */}

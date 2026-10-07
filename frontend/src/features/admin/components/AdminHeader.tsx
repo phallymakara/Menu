@@ -15,6 +15,7 @@ import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
+import { logout } from '@/lib/auth-session'
 import { useBusinesses, useBranches, useCreateBranch } from '../hooks/useTenantQueries'
 import { useUploadMedia } from '../hooks/useMediaQueries'
 import { isUuid } from '@/lib/utils'
@@ -32,7 +33,7 @@ export interface RealBranch {
 
 export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSidebar }) => {
   const { language } = useLanguageStore()
-  const { user, logout } = useAuthStore()
+  const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
 
   const [businessId, setBusinessId] = useState<string | null>(
@@ -215,8 +216,9 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
     }
   }
 
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    // Revokes the session on the server, then clears cached data and tenant keys.
+    await logout()
     navigate('/login')
   }
 

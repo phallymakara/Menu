@@ -15,6 +15,9 @@ const LoginPage = lazy(() =>
 const RegisterPage = lazy(() =>
   import('@/features/auth/RegisterPage').then((m) => ({ default: m.RegisterPage }))
 )
+const ResetPasswordPage = lazy(() =>
+  import('@/features/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage }))
+)
 const OnboardingWizardPage = lazy(() =>
   import('@/features/onboarding/OnboardingWizardPage').then((m) => ({
     default: m.OnboardingWizardPage,
@@ -81,6 +84,10 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     element: withSuspense(<RegisterPage />),
+  },
+  {
+    path: '/reset-password',
+    element: withSuspense(<ResetPasswordPage />),
   },
   {
     path: '/onboarding',

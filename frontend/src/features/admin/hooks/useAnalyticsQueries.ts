@@ -61,7 +61,7 @@ export function useTopSellingItems(
         }
       )
       if (error) throw error
-      return data || []
+      return data?.items ?? []
     },
     enabled: !!businessId,
   })
