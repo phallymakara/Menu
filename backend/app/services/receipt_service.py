@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import PaymentAccountNotConfiguredError
 from app.core.tenant import TenantContext
 from app.models.order import Order
 from app.models.payment import Payment
@@ -24,6 +25,51 @@ from app.services.billing_service import (
 )
 
 logger = structlog.get_logger("app.services.receipt_service")
+
+
+async def _build_precheck_khqr(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+    amount_usd: Decimal,
+    bill_reference: str,
+    terminal_label: str,
+) -> tuple[str | None, str | None]:
+    """
+    Build the pay-by-KHQR string and image printed on a pre-check slip.
+
+    Returns ``(None, None)`` when neither the branch nor the business has a
+    Bakong account, so the slip prints without a QR instead of failing.
+    """
+    from app.services.khqr_service import (
+        _resolve_bakong_merchant_info,
+        build_khqr_payload,
+        generate_qr_image_data_url,
+    )
+
+    try:
+        account_id, m_name, m_city, bank = await _resolve_bakong_merchant_info(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+        )
+    except PaymentAccountNotConfiguredError:
+        return None, None
+
+    qr_str = build_khqr_payload(
+        bakong_account_id=account_id,
+        merchant_name=m_name,
+        merchant_city=m_city,
+        acquiring_bank=bank,
+        amount=amount_usd,
+        currency="USD",
+        bill_number=bill_reference,
+        terminal_label=terminal_label,
+        is_dynamic=True,
+    )
+    return qr_str, generate_qr_image_data_url(qr_str)
 
 
 def _get_localized_label(en_text: str, km_text: str, lang: str) -> str:
@@ -276,31 +322,16 @@ async def build_session_precheck_receipt_data(
     )
 
     now_utc = datetime.now(timezone.utc)
-    from app.services.khqr_service import (
-        _resolve_bakong_merchant_info,
-        build_khqr_payload,
-        generate_qr_image_data_url,
-    )
-
-    account_id, m_name, m_city, bank = await _resolve_bakong_merchant_info(
+    bill_ref = f"CHK-{table_sess.session_code}"
+    qr_str, qr_image = await _build_precheck_khqr(
         session=session,
         tenant=tenant,
         business_id=business_id,
         branch_id=branch_id,
-    )
-    bill_ref = f"CHK-{table_sess.session_code}"
-    qr_str = build_khqr_payload(
-        bakong_account_id=account_id,
-        merchant_name=m_name,
-        merchant_city=m_city,
-        acquiring_bank=bank,
-        amount=bill.financials.grand_total_usd,
-        currency="USD",
-        bill_number=bill_ref,
+        amount_usd=bill.financials.grand_total_usd,
+        bill_reference=bill_ref,
         terminal_label=f"T-{table.table_number}" if table else "POS",
-        is_dynamic=True,
     )
-    qr_image = generate_qr_image_data_url(qr_str)
 
     return ReceiptData(
         receipt_type="PRE_CHECK_BILL",
@@ -406,31 +437,16 @@ async def build_order_precheck_receipt_data(
     )
 
     now_utc = datetime.now(timezone.utc)
-    from app.services.khqr_service import (
-        _resolve_bakong_merchant_info,
-        build_khqr_payload,
-        generate_qr_image_data_url,
-    )
-
-    account_id, m_name, m_city, bank = await _resolve_bakong_merchant_info(
+    bill_ref = f"CHK-{order.order_number}"
+    qr_str, qr_image = await _build_precheck_khqr(
         session=session,
         tenant=tenant,
         business_id=business_id,
         branch_id=branch_id,
-    )
-    bill_ref = f"CHK-{order.order_number}"
-    qr_str = build_khqr_payload(
-        bakong_account_id=account_id,
-        merchant_name=m_name,
-        merchant_city=m_city,
-        acquiring_bank=bank,
-        amount=bill.financials.grand_total_usd,
-        currency="USD",
-        bill_number=bill_ref,
+        amount_usd=bill.financials.grand_total_usd,
+        bill_reference=bill_ref,
         terminal_label="POS",
-        is_dynamic=True,
     )
-    qr_image = generate_qr_image_data_url(qr_str)
 
     return ReceiptData(
         receipt_type="PRE_CHECK_BILL",

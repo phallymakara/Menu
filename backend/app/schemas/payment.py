@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.models.enums import (
     ChangeCurrencyPreference,
@@ -58,8 +59,13 @@ class CashPaymentRequest(BaseModel):
     )
 
 
-class KHQRPaymentRequest(BaseModel):
-    """Payload submitted by cashier to settle a bill with KHQR (Bakong)."""
+class KHQRBillAdjustments(BaseModel):
+    """
+    Discount inputs and notes for a KHQR settlement.
+
+    The discount must be the one used when the dynamic KHQR was generated, so
+    that the recomputed bill matches the amount the customer paid.
+    """
 
     promo_code: str | None = Field(
         default=None,
@@ -84,6 +90,32 @@ class KHQRPaymentRequest(BaseModel):
         default=None,
         max_length=500,
         description="Optional cashier notes or external transaction reference",
+    )
+
+
+class KHQRPaymentRequest(KHQRBillAdjustments):
+    """Payload submitted by cashier to settle a bill with a Bakong-verified KHQR."""
+
+    attempt_id: UUID = Field(
+        description="KHQR payment attempt returned when the dynamic KHQR was generated"
+    )
+
+
+class KHQRManualConfirmationRequest(KHQRBillAdjustments):
+    """
+    Payload for an owner or manager to confirm a KHQR payment without Bakong.
+
+    Used when Bakong verification is not configured, or as an override after
+    checking the payment in the customer's or merchant's banking app.
+    """
+
+    reason: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=5, max_length=500),
+    ] = Field(description="Why the payment is confirmed manually (audited)")
+    attempt_id: UUID | None = Field(
+        default=None,
+        description="KHQR payment attempt the customer paid, when there is one",
     )
 
 
@@ -122,6 +154,14 @@ class PaymentResponse(BaseModel):
     discount_reason: str | None = None
     received_by_user_id: UUID | None = None
     notes: str | None = None
+    bakong_reference: str | None = Field(
+        default=None, description="Bakong transaction hash for a verified KHQR payment"
+    )
+    is_manually_confirmed: bool = Field(
+        default=False,
+        description="True when a manager confirmed a KHQR payment without Bakong",
+    )
+    manual_confirmation_reason: str | None = None
     settled_at: datetime
     created_at: datetime
 

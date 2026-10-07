@@ -1,12 +1,14 @@
+import hashlib
 from decimal import Decimal
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.api.dependencies.bakong import get_bakong_client
 from app.core.security import create_access_token
 from app.db.base import Base
 from app.db.session import get_db_session
@@ -17,6 +19,7 @@ from app.models.category import Category
 from app.models.dining_area import DiningArea
 from app.models.enums import (
     CourseStage,
+    KHQRPaymentAttemptStatus,
     MembershipStatus,
     OrderItemStatus,
     OrderStatus,
@@ -28,6 +31,7 @@ from app.models.enums import (
     TableStatus,
     UserStatus,
 )
+from app.models.khqr_payment_attempt import KHQRPaymentAttempt
 from app.models.menu_item import MenuItem
 from app.models.order import Order, OrderItem
 from app.models.organization import Organization
@@ -41,6 +45,7 @@ from app.services.khqr_service import (
     generate_qr_image_data_url,
 )
 from app.services.telegram_service import send_payment_telegram_notification
+from tests.bakong_fakes import FakeBakong
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -281,7 +286,7 @@ async def test_khqr_payload_generation_and_crc16():
 
 @pytest.mark.anyio
 async def test_dynamic_table_session_khqr_endpoint(khqr_setup):
-    """Tests calling the dynamic session KHQR API endpoint."""
+    """Generating a dynamic KHQR records a pending payment attempt keyed by its MD5."""
     headers = {"Authorization": f"Bearer {khqr_setup['token']}"}
 
     async def override_get_db():
@@ -297,7 +302,7 @@ async def test_dynamic_table_session_khqr_endpoint(khqr_setup):
             headers=headers,
             json={"currency": "USD"},
         )
-        assert res.status_code == status.HTTP_200_OK
+        assert res.status_code == status.HTTP_201_CREATED
         data = res.json()
         assert data["currency"] == "USD"
         assert Decimal(str(data["amount"])) == Decimal("34.65")
@@ -306,8 +311,23 @@ async def test_dynamic_table_session_khqr_endpoint(khqr_setup):
         assert data["qr_string"].startswith("000201010212")
         assert data["qr_image_data_url"].startswith("data:image/png;base64,")
         assert data["deep_link_url"].startswith("bakong://qr?data=")
+        assert data["status"] == "pending"
+        assert data["md5"] == hashlib.md5(data["qr_string"].encode()).hexdigest()
+        assert data["expires_at"]
 
     app.dependency_overrides.clear()
+
+    async with khqr_setup["sessionmaker"]() as session:
+        attempt = await session.get(KHQRPaymentAttempt, UUID(data["attempt_id"]))
+        assert attempt is not None
+        assert attempt.status == KHQRPaymentAttemptStatus.PENDING
+        assert attempt.md5 == data["md5"]
+        assert attempt.qr_payload == data["qr_string"]
+        assert attempt.amount == Decimal("34.65")
+        assert attempt.currency == "USD"
+        assert attempt.table_session_id == khqr_setup["table_session_id"]
+        assert attempt.order_id is None
+        assert attempt.created_by_user_id == khqr_setup["user_id"]
 
 
 @pytest.mark.anyio
@@ -344,19 +364,22 @@ async def test_precheck_receipt_embeds_dynamic_khqr(khqr_setup):
 @pytest.mark.anyio
 async def test_settle_table_session_via_khqr(khqr_setup):
     """
-    Tests settling a table session via KHQR:
-    - Creates Payment record with payment_method='khqr'
+    Tests settling a table session via a KHQR payment Bakong confirmed:
+    - Creates Payment record with payment_method='khqr' and the Bakong reference
     - Closes TableSession -> COMPLETED
     - Turns over RestaurantTable -> DIRTY_CLEANING
     - Dispatches Telegram notification
     """
     headers = {"Authorization": f"Bearer {khqr_setup['token']}"}
+    base = f"/api/v1/businesses/{khqr_setup['business_id']}/branches/{khqr_setup['branch_id']}"
+    bakong = FakeBakong()
 
     async def override_get_db():
         async with khqr_setup["sessionmaker"]() as s:
             yield s
 
     app.dependency_overrides[get_db_session] = override_get_db
+    app.dependency_overrides[get_bakong_client] = bakong.client
 
     with patch(
         "app.services.payment_service.send_payment_telegram_notification",
@@ -366,10 +389,24 @@ async def test_settle_table_session_via_khqr(khqr_setup):
 
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
-            res = await client.post(
-                f"/api/v1/businesses/{khqr_setup['business_id']}/branches/{khqr_setup['branch_id']}/table-sessions/{khqr_setup['table_session_id']}/payments/khqr",
+            khqr = await client.post(
+                f"{base}/khqr/table-sessions/{khqr_setup['table_session_id']}/dynamic",
                 headers=headers,
-                json={"notes": "Customer paid via ABA KHQR scan"},
+                json={"currency": "USD"},
+            )
+            assert khqr.status_code == status.HTTP_201_CREATED
+            attempt = khqr.json()
+            bakong_hash = bakong.mark_paid(
+                attempt["md5"], amount=Decimal("34.65"), currency="USD"
+            )
+
+            res = await client.post(
+                f"{base}/table-sessions/{khqr_setup['table_session_id']}/payments/khqr",
+                headers=headers,
+                json={
+                    "attempt_id": attempt["attempt_id"],
+                    "notes": "Customer paid via ABA KHQR scan",
+                },
             )
 
             assert res.status_code == status.HTTP_201_CREATED
@@ -379,6 +416,8 @@ async def test_settle_table_session_via_khqr(khqr_setup):
             assert Decimal(str(data["grand_total_usd"])) == Decimal("34.65")
             assert data["amount_tendered_usd"] == "34.65"
             assert Decimal(str(data["change_usd"])) == Decimal("0.00")
+            assert data["bakong_reference"] == bakong_hash
+            assert data["is_manually_confirmed"] is False
 
             # Verify Telegram dispatch was called
             assert mock_tg.called

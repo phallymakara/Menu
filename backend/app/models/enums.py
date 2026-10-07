@@ -159,6 +159,16 @@ class PaymentStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class KHQRPaymentAttemptStatus(StrEnum):
+    """Lifecycle of one generated dynamic KHQR."""
+
+    PENDING = "pending"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+
 class ChangeCurrencyPreference(StrEnum):
     KHR = "khr"
     USD = "usd"
