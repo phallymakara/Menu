@@ -7,7 +7,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.branch import Branch
+from app.core.exceptions import TenantNotFoundError
+from app.core.tenant import TenantContext
 from app.models.category import Category
 from app.models.kitchen_station import KitchenStation
 from app.models.menu_item import MenuItem
@@ -16,33 +17,59 @@ from app.schemas.kitchen_station import (
     KitchenStationUpdate,
     StationItemAssignRequest,
 )
+from app.services.tenancy import get_branch_for_tenant
 
 logger = structlog.get_logger("app.services.kitchen_station_service")
 
 
+async def _get_station_for_tenant(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+    station_id: UUID,
+) -> KitchenStation:
+    """
+    Load a kitchen station of the given branch within the caller's organization.
+
+    Raises:
+        TenantNotFoundError: If the station does not exist in this branch, or the
+            branch belongs to another organization.
+    """
+    res = await session.execute(
+        select(KitchenStation).where(
+            KitchenStation.id == station_id,
+            KitchenStation.business_id == business_id,
+            KitchenStation.branch_id == branch_id,
+            KitchenStation.organization_id == tenant.organization_id,
+        )
+    )
+    station = res.scalar_one_or_none()
+    if station is None:
+        raise TenantNotFoundError("Kitchen station not found.")
+    return station
+
+
 async def create_kitchen_station(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     payload: KitchenStationCreate,
 ) -> KitchenStation:
-    """Creates a new custom kitchen station for a branch."""
-    branch_res = await session.execute(
-        select(Branch).where(
-            Branch.id == branch_id,
-            Branch.business_id == business_id,
-        )
-    )
-    branch = branch_res.scalar_one_or_none()
-    if branch is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Branch not found.",
-        )
+    """
+    Creates a new custom kitchen station for a branch of the caller's organization.
+
+    Raises:
+        TenantNotFoundError: If the branch is not part of the business and tenant.
+        HTTPException (409): If the station code is already used in this branch.
+    """
+    branch = await get_branch_for_tenant(session, tenant, business_id, branch_id)
 
     # Ensure unique station code per branch
     existing_res = await session.execute(
         select(KitchenStation).where(
+            KitchenStation.organization_id == tenant.organization_id,
             KitchenStation.branch_id == branch_id,
             KitchenStation.code == payload.code.upper().strip(),
         )
@@ -74,19 +101,29 @@ async def create_kitchen_station(
         station_id=str(station.id),
         code=station.code,
         branch_id=str(branch_id),
+        organization_id=str(tenant.organization_id),
     )
     return station
 
 
 async def list_kitchen_stations(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
 ) -> list[KitchenStation]:
-    """Lists all kitchen stations configured for a branch ordered by display_order."""
+    """
+    Lists all kitchen stations configured for a branch ordered by display_order.
+
+    Raises:
+        TenantNotFoundError: If the branch is not part of the business and tenant.
+    """
+    await get_branch_for_tenant(session, tenant, business_id, branch_id)
+
     res = await session.execute(
         select(KitchenStation)
         .where(
+            KitchenStation.organization_id == tenant.organization_id,
             KitchenStation.business_id == business_id,
             KitchenStation.branch_id == branch_id,
         )
@@ -97,29 +134,27 @@ async def list_kitchen_stations(
 
 async def update_kitchen_station(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     station_id: UUID,
     payload: KitchenStationUpdate,
 ) -> KitchenStation:
-    """Updates configuration of a branch kitchen station."""
-    res = await session.execute(
-        select(KitchenStation).where(
-            KitchenStation.id == station_id,
-            KitchenStation.business_id == business_id,
-            KitchenStation.branch_id == branch_id,
-        )
+    """
+    Updates configuration of a branch kitchen station owned by the caller's organization.
+
+    Raises:
+        TenantNotFoundError: If the station is not in this branch and tenant.
+        HTTPException (409): If the new station code is already used in this branch.
+    """
+    station = await _get_station_for_tenant(
+        session, tenant, business_id, branch_id, station_id
     )
-    station = res.scalar_one_or_none()
-    if station is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Kitchen station not found.",
-        )
 
     if payload.code is not None and payload.code.upper().strip() != station.code:
         code_check = await session.execute(
             select(KitchenStation).where(
+                KitchenStation.organization_id == tenant.organization_id,
                 KitchenStation.branch_id == branch_id,
                 KitchenStation.code == payload.code.upper().strip(),
                 KitchenStation.id != station_id,
@@ -152,57 +187,55 @@ async def update_kitchen_station(
 
 async def delete_kitchen_station(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     station_id: UUID,
 ) -> None:
-    """Deletes or deactivates a kitchen station."""
-    res = await session.execute(
-        select(KitchenStation).where(
-            KitchenStation.id == station_id,
-            KitchenStation.business_id == business_id,
-            KitchenStation.branch_id == branch_id,
-        )
+    """
+    Deletes a kitchen station owned by the caller's organization.
+
+    Raises:
+        TenantNotFoundError: If the station is not in this branch and tenant.
+    """
+    station = await _get_station_for_tenant(
+        session, tenant, business_id, branch_id, station_id
     )
-    station = res.scalar_one_or_none()
-    if station is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Kitchen station not found.",
-        )
 
     await session.delete(station)
     await session.commit()
-    logger.info("Kitchen station deleted", station_id=str(station_id))
+    logger.info(
+        "Kitchen station deleted",
+        station_id=str(station_id),
+        organization_id=str(tenant.organization_id),
+    )
 
 
 async def assign_station_to_items_and_categories(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     station_id: UUID,
     payload: StationItemAssignRequest,
 ) -> None:
-    """Assigns designated categories and menu items to a kitchen station for routing."""
-    res = await session.execute(
-        select(KitchenStation).where(
-            KitchenStation.id == station_id,
-            KitchenStation.business_id == business_id,
-            KitchenStation.branch_id == branch_id,
-        )
-    )
-    station = res.scalar_one_or_none()
-    if station is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Kitchen station not found.",
-        )
+    """
+    Assigns designated categories and menu items to a kitchen station for routing.
+
+    Only categories and menu items of the caller's organization and of this
+    business are updated; IDs that do not match are ignored.
+
+    Raises:
+        TenantNotFoundError: If the station is not in this branch and tenant.
+    """
+    await _get_station_for_tenant(session, tenant, business_id, branch_id, station_id)
 
     if payload.category_ids:
         cats_res = await session.execute(
             select(Category).where(
                 Category.id.in_(payload.category_ids),
                 Category.business_id == business_id,
+                Category.organization_id == tenant.organization_id,
             )
         )
         for cat in cats_res.scalars().all():
@@ -213,6 +246,7 @@ async def assign_station_to_items_and_categories(
             select(MenuItem).where(
                 MenuItem.id.in_(payload.menu_item_ids),
                 MenuItem.business_id == business_id,
+                MenuItem.organization_id == tenant.organization_id,
             )
         )
         for item in items_res.scalars().all():

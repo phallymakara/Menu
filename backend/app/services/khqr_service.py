@@ -41,7 +41,6 @@ from app.integrations.bakong import (
     BakongTransactionStatus,
 )
 from app.models.branch import Branch
-from app.models.business import Business
 from app.models.enums import (
     DiscountType,
     KHQRPaymentAttemptStatus,
@@ -64,6 +63,7 @@ from app.services.billing_service import (
     get_table_session_bill_summary,
 )
 from app.services.promotion_service import evaluate_discount
+from app.services.tenancy import get_branch_for_tenant, get_business_for_tenant
 
 logger = structlog.get_logger("app.services.khqr_service")
 
@@ -280,6 +280,7 @@ def _clean(value: str | None) -> str | None:
 
 async def _resolve_bakong_merchant_info(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
 ) -> tuple[str, str, str, str | None]:
@@ -289,17 +290,15 @@ async def _resolve_bakong_merchant_info(
     Returns:
         (bakong_account_id, merchant_name, merchant_city, acquiring_bank)
 
+    The business and branch are resolved within the caller's organization.
+
     Raises:
+        TenantNotFoundError: If the branch or business is not part of the tenant.
         PaymentAccountNotConfiguredError: If neither the branch nor the business
             has a Bakong account ID. A KHQR is never issued to an invented account.
     """
-    branch_res = await session.execute(
-        select(Branch).where(Branch.id == branch_id, Branch.business_id == business_id)
-    )
-    branch = branch_res.scalar_one_or_none()
-
-    biz_res = await session.execute(select(Business).where(Business.id == business_id))
-    biz = biz_res.scalar_one_or_none()
+    branch = await get_branch_for_tenant(session, tenant, business_id, branch_id)
+    biz = await get_business_for_tenant(session, tenant, business_id)
 
     account_id = _clean(branch.bakong_account_id if branch else None) or _clean(
         biz.bakong_account_id if biz else None
@@ -361,7 +360,7 @@ async def _quote_bill(
     manual_discount_type: DiscountType | None,
     manual_discount_value: Decimal | None,
     discount_reason: str | None,
-    tenant: TenantContext | None,
+    tenant: TenantContext,
 ) -> KHQRBillQuote:
     """
     Apply a promotion or manual discount to a bill.
@@ -418,7 +417,7 @@ async def quote_table_session_bill(
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> KHQRBillQuote:
     """Compute what a dine-in session bill costs after the given discount."""
     bill = await get_table_session_bill_summary(
@@ -451,7 +450,7 @@ async def quote_order_bill(
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> KHQRBillQuote:
     """Compute what a standalone order costs after the given discount."""
     bill = await get_order_bill_summary(
@@ -484,7 +483,7 @@ async def _get_payable_table_session(
     business_id: UUID,
     branch_id: UUID,
     table_session_id: UUID,
-    tenant: TenantContext | None,
+    tenant: TenantContext,
 ) -> TableSession:
     """Load a table session of the tenant that can still be paid."""
     query = select(TableSession).where(
@@ -492,8 +491,7 @@ async def _get_payable_table_session(
         TableSession.business_id == business_id,
         TableSession.branch_id == branch_id,
     )
-    if tenant:
-        query = query.where(TableSession.organization_id == tenant.organization_id)
+    query = query.where(TableSession.organization_id == tenant.organization_id)
     table_sess = (await session.execute(query)).scalar_one_or_none()
     if table_sess is None:
         raise TenantNotFoundError("Table dining session not found.")
@@ -509,7 +507,7 @@ async def _get_payable_order(
     business_id: UUID,
     branch_id: UUID,
     order_id: UUID,
-    tenant: TenantContext | None,
+    tenant: TenantContext,
 ) -> Order:
     """Load an order of the tenant that can still be paid."""
     query = select(Order).where(
@@ -517,8 +515,7 @@ async def _get_payable_order(
         Order.business_id == business_id,
         Order.branch_id == branch_id,
     )
-    if tenant:
-        query = query.where(Order.organization_id == tenant.organization_id)
+    query = query.where(Order.organization_id == tenant.organization_id)
     order = (await session.execute(query)).scalar_one_or_none()
     if order is None:
         raise TenantNotFoundError("Order not found.")
@@ -629,6 +626,7 @@ async def _issue_dynamic_khqr(
 
 async def generate_dynamic_session_khqr(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     table_session_id: UUID,
@@ -637,7 +635,6 @@ async def generate_dynamic_session_khqr(
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
-    tenant: TenantContext | None = None,
     created_by_user_id: UUID | None = None,
 ) -> DynamicKHQRResponse:
     """
@@ -651,7 +648,9 @@ async def generate_dynamic_session_khqr(
     table_sess = await _get_payable_table_session(
         session, business_id, branch_id, table_session_id, tenant
     )
-    merchant = await _resolve_bakong_merchant_info(session, business_id, branch_id)
+    merchant = await _resolve_bakong_merchant_info(
+        session, tenant, business_id, branch_id
+    )
     quote = await quote_table_session_bill(
         session,
         business_id,
@@ -682,6 +681,7 @@ async def generate_dynamic_session_khqr(
 
 async def generate_dynamic_order_khqr(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     order_id: UUID,
@@ -690,7 +690,6 @@ async def generate_dynamic_order_khqr(
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
-    tenant: TenantContext | None = None,
     created_by_user_id: UUID | None = None,
 ) -> DynamicKHQRResponse:
     """
@@ -702,7 +701,9 @@ async def generate_dynamic_order_khqr(
         PaymentAccountNotConfiguredError: If no Bakong account is configured.
     """
     order = await _get_payable_order(session, business_id, branch_id, order_id, tenant)
-    merchant = await _resolve_bakong_merchant_info(session, business_id, branch_id)
+    merchant = await _resolve_bakong_merchant_info(
+        session, tenant, business_id, branch_id
+    )
     quote = await quote_order_bill(
         session,
         business_id,
@@ -732,10 +733,10 @@ async def generate_dynamic_order_khqr(
 
 async def generate_static_merchant_khqr(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     currency: KHQRCurrency = "USD",
-    tenant: TenantContext | None = None,
 ) -> KHQRResponse:
     """
     Generates a static merchant KHQR for table stands or counter stickers.
@@ -751,10 +752,7 @@ async def generate_static_merchant_khqr(
     branch_query = select(Branch).where(
         Branch.id == branch_id, Branch.business_id == business_id
     )
-    if tenant:
-        branch_query = branch_query.where(
-            Branch.organization_id == tenant.organization_id
-        )
+    branch_query = branch_query.where(Branch.organization_id == tenant.organization_id)
     if (await session.execute(branch_query)).scalar_one_or_none() is None:
         raise TenantNotFoundError("Branch not found.")
 
@@ -763,7 +761,7 @@ async def generate_static_merchant_khqr(
         merchant_name,
         merchant_city,
         acquiring_bank,
-    ) = await _resolve_bakong_merchant_info(session, business_id, branch_id)
+    ) = await _resolve_bakong_merchant_info(session, tenant, business_id, branch_id)
 
     qr_str = build_khqr_payload(
         bakong_account_id=account_id,
@@ -1107,7 +1105,7 @@ async def refresh_khqr_attempt(
     business_id: UUID,
     branch_id: UUID,
     attempt_id: UUID,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
     bakong_client: BakongClient | None = None,
 ) -> KHQRPaymentAttemptResponse:
     """
@@ -1127,7 +1125,7 @@ async def refresh_khqr_attempt(
         attempt_id=attempt_id,
         business_id=business_id,
         branch_id=branch_id,
-        organization_id=tenant.organization_id if tenant else None,
+        organization_id=tenant.organization_id,
     )
 
     if attempt.status == KHQRPaymentAttemptStatus.PENDING and bakong_client is not None:
