@@ -4,7 +4,7 @@ Creates the tables behind rotating refresh tokens (login sessions) and
 self-service password reset. Both store only SHA-256 digests of their tokens.
 
 Revision ID: fc16f8098088
-Revises: 3cfb7fbc9aad
+Revises: 4d518f52e5ce
 Create Date: 2026-10-05 23:37:30.563312
 
 """
@@ -17,7 +17,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "fc16f8098088"
-down_revision: str | Sequence[str] | None = "3cfb7fbc9aad"
+down_revision: str | Sequence[str] | None = "4d518f52e5ce"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
