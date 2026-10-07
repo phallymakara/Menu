@@ -14,7 +14,7 @@ The attempt status is stored as VARCHAR (non-native enum), so no PostgreSQL
 enum type is created or dropped.
 
 Revision ID: 4d518f52e5ce
-Revises: 3cfb7fbc9aad
+Revises: 08abac32e9a5
 Create Date: 2026-10-05 23:32:52.661869
 
 """
@@ -27,7 +27,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "4d518f52e5ce"
-down_revision: str | Sequence[str] | None = "3cfb7fbc9aad"
+down_revision: str | Sequence[str] | None = "08abac32e9a5"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
