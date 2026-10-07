@@ -1,94 +1,65 @@
 import { useState, type FC } from 'react'
-import { Droplets, Utensils, Receipt, SprayCan, Bell, Check, Send } from 'lucide-react'
+import { Check, Send } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
-import { ServiceRequestType } from '../types/serviceHub.types'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { playSuccessSound } from '@/lib/audio'
+import { getApiErrorStatus } from '@/lib/api-error'
+import type { ServiceRequestType } from '../types/serviceHub.types'
+import {
+  SERVICE_REQUEST_NOTE_MAX_LENGTH,
+  SERVICE_REQUEST_TYPES,
+  guestRequestErrorKey,
+  interpolate,
+  normalizeServiceRequestNote,
+  requiresNote,
+  serviceRequestTypeHintKey,
+  serviceRequestTypeLabelKey,
+} from '../utils/serviceRequests'
+import { SERVICE_REQUEST_TYPE_ICONS } from './serviceRequestIcons'
 
 export interface GuestServiceRequestModalProps {
   isOpen: boolean
   onClose: () => void
   tableNumber?: string
-  onSubmitRequest: (requestType: ServiceRequestType, note: string) => Promise<void>
+  /**
+   * Sends the request. Reject to show an error; an `ApiError` status picks the
+   * message (409 duplicate, 401 session ended).
+   */
+  onSubmitRequest: (requestType: ServiceRequestType, note: string | null) => Promise<void>
   isSubmitting?: boolean
 }
 
 export const GuestServiceRequestModal: FC<GuestServiceRequestModalProps> = ({
   isOpen,
   onClose,
-  tableNumber = 'T-01',
+  tableNumber = '',
   onSubmitRequest,
   isSubmitting = false,
 }) => {
-  const { language } = useLanguageStore()
+  const { t } = useLanguageStore()
 
-  const [selectedType, setSelectedType] = useState<ServiceRequestType>('WATER')
+  const [selectedType, setSelectedType] = useState<ServiceRequestType>(SERVICE_REQUEST_TYPES[0])
   const [note, setNote] = useState('')
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [errorKey, setErrorKey] = useState<string | null>(null)
+  const [isSending, setIsSending] = useState(false)
 
-  const serviceOptions: {
-    type: ServiceRequestType
-    icon: typeof Droplets
-    labelKm: string
-    labelEn: string
-    subKm: string
-    subEn: string
-  }[] = [
-    {
-      type: 'WATER',
-      icon: Droplets,
-      labelKm: 'សុំទឹក ឬទឹកកកបន្ថែម',
-      labelEn: 'Water & Ice Refill',
-      subKm: 'ទឹកផឹកត្រជាក់ ឬទឹកកក',
-      subEn: 'Cold drinking water or ice',
-    },
-    {
-      type: 'NAPKINS_UTENSILS',
-      icon: Utensils,
-      labelKm: 'ក្រដាសជូតមាត់ / ស្លាបព្រា',
-      labelEn: 'Napkins & Utensils',
-      subKm: 'ចង្កឹះ សម ឬក្រដាស',
-      subEn: 'Chopsticks, forks, extra napkins',
-    },
-    {
-      type: 'REQUEST_BILL',
-      icon: Receipt,
-      labelKm: 'សុំគិតប្រាក់ (Check Bill)',
-      labelEn: 'Request Bill & Settle',
-      subKm: 'សាច់ប្រាក់ ឬ Bakong KHQR',
-      subEn: 'Cash or Bakong KHQR checkout',
-    },
-    {
-      type: 'TABLE_CLEANING',
-      icon: SprayCan,
-      labelKm: 'សុំជួយសម្អាតតុ / កំពប់ទឹក',
-      labelEn: 'Table Cleanup / Spill',
-      subKm: 'ដកចានចាស់ ឬជូតតុ',
-      subEn: 'Clear empty dishes or wipe table',
-    },
-    {
-      type: 'CALL_WAITER',
-      icon: Bell,
-      labelKm: 'ហៅអ្នកបម្រើផ្ទាល់',
-      labelEn: 'General Server Assistance',
-      subKm: 'ត្រូវការជំនួយផ្សេងៗ',
-      subEn: 'Ask questions or order inquiry',
-    },
-  ]
+  const noteRequired = requiresNote(selectedType)
+  const busy = isSubmitting || isSending
+  const canSend = !busy && (!noteRequired || normalizeServiceRequestNote(note) !== null)
 
   const handleSubmit = async () => {
-    setErrorMsg(null)
+    if (!canSend) return
+    setErrorKey(null)
+    setIsSending(true)
     try {
-      await onSubmitRequest(selectedType, note)
+      await onSubmitRequest(selectedType, normalizeServiceRequestNote(note))
       playSuccessSound()
-      onClose()
       setNote('')
-    } catch {
-      setErrorMsg(
-        language === 'km'
-          ? 'មិនអាចបញ្ជូនសំណើបានទេ។ សូមព្យាយាមម្តងទៀត។'
-          : 'Failed to send request. Please try again.'
-      )
+      onClose()
+    } catch (err) {
+      setErrorKey(guestRequestErrorKey(getApiErrorStatus(err)))
+    } finally {
+      setIsSending(false)
     }
   }
 
@@ -96,22 +67,28 @@ export const GuestServiceRequestModal: FC<GuestServiceRequestModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={language === 'km' ? `ហៅអ្នកបម្រើ — តុ ${tableNumber}` : `Request Assistance — Table ${tableNumber}`}
-      description={language === 'km' ? 'ជ្រើសរើសសេវាកម្មដែលលោកអ្នកត្រូវការ' : 'Select the service assistance you need'}
+      title={
+        tableNumber
+          ? interpolate(t('serviceHub.guest.modalTitle'), { table: tableNumber })
+          : t('serviceHub.guest.modalTitleNoTable')
+      }
+      description={t('serviceHub.guest.modalDescription')}
       isBottomSheet={true}
     >
       <div className="space-y-4 pb-2">
-        {/* 1. Service Type Presets Grid */}
+        {/* 1. Request type picker */}
         <div className="space-y-2">
-          {serviceOptions.map((opt) => {
-            const Icon = opt.icon
-            const isSelected = selectedType === opt.type
+          {SERVICE_REQUEST_TYPES.map((type) => {
+            const Icon = SERVICE_REQUEST_TYPE_ICONS[type]
+            const isSelected = selectedType === type
             return (
               <button
-                key={opt.type}
+                key={type}
+                type="button"
+                aria-pressed={isSelected}
                 onClick={() => {
-                  setSelectedType(opt.type)
-                  setErrorMsg(null)
+                  setSelectedType(type)
+                  setErrorKey(null)
                 }}
                 className={`w-full p-3 rounded-2xl border text-left transition-colors flex items-center justify-between gap-3 ${
                   isSelected
@@ -131,10 +108,10 @@ export const GuestServiceRequestModal: FC<GuestServiceRequestModalProps> = ({
                   </div>
                   <div>
                     <h4 className="font-bold text-xs text-zinc-950 dark:text-zinc-50 leading-tight">
-                      {language === 'km' ? opt.labelKm : opt.labelEn}
+                      {t(serviceRequestTypeLabelKey(type))}
                     </h4>
                     <p className="text-[11px] text-zinc-500 mt-0.5">
-                      {language === 'km' ? opt.subKm : opt.subEn}
+                      {t(serviceRequestTypeHintKey(type))}
                     </p>
                   </div>
                 </div>
@@ -153,41 +130,46 @@ export const GuestServiceRequestModal: FC<GuestServiceRequestModalProps> = ({
           })}
         </div>
 
-        {/* 2. Optional Custom Note Input */}
+        {/* 2. Note: optional, but required for a custom request */}
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-            {language === 'km' ? 'ចំណាំបន្ថែម (បើមាន)' : 'Additional Note (Optional)'}:
+          <label
+            htmlFor="service-request-note"
+            className="text-xs font-semibold text-zinc-700 dark:text-zinc-300"
+          >
+            {t(noteRequired ? 'serviceHub.guest.noteRequiredLabel' : 'serviceHub.guest.noteLabel')}
           </label>
           <input
+            id="service-request-note"
             type="text"
             value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder={
-              language === 'km' ? 'បញ្ចូលចំណាំ ឬសំណើបន្ថែម...' : 'Enter additional request notes...'
-            }
+            maxLength={SERVICE_REQUEST_NOTE_MAX_LENGTH}
+            onChange={(e) => {
+              setNote(e.target.value)
+              setErrorKey(null)
+            }}
+            placeholder={t(
+              noteRequired ? 'serviceHub.guest.customNotePlaceholder' : 'serviceHub.guest.notePlaceholder'
+            )}
             className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs outline-none focus:ring-1 focus:ring-emerald-500 transition-colors"
           />
         </div>
 
-        {/* Inline Error (Clean Red Text, No Outer Container) */}
-        {errorMsg && (
-          <div className="text-xs text-red-500 text-center font-medium">
-            {errorMsg}
+        {/* Inline error (plain red text, no outer container) */}
+        {errorKey && (
+          <div role="alert" className="text-xs text-red-500 text-center font-medium">
+            {t(errorKey)}
           </div>
         )}
 
-        {/* 3. Send Action */}
+        {/* 3. Send */}
         <button
+          type="button"
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={!canSend}
           className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors"
         >
           <Send className="w-4 h-4" />
-          <span>
-            {isSubmitting
-              ? (language === 'km' ? 'កំពុងបញ្ជូន...' : 'Sending Request...')
-              : (language === 'km' ? 'បញ្ជូនសំណើទៅអ្នកបម្រើ (Call Server)' : 'Send Request to Server')}
-          </span>
+          <span>{t(busy ? 'serviceHub.guest.sending' : 'serviceHub.guest.send')}</span>
         </button>
       </div>
     </Modal>

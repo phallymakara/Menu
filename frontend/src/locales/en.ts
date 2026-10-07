@@ -201,6 +201,57 @@ export const en = {
     slaWarning: 'Delayed SLA',
   },
 
+  // Service Hub: guest service requests and the POS staff queue
+  serviceHub: {
+    types: {
+      call_staff: { label: 'Call Staff', hint: 'Questions or any other assistance' },
+      water: { label: 'Water & Ice Refill', hint: 'Cold drinking water or ice' },
+      cleaning: { label: 'Table Cleanup', hint: 'Clear empty dishes or wipe a spill' },
+      bill: { label: 'Bring the Bill', hint: 'Cash or Bakong KHQR checkout' },
+      custom: { label: 'Something Else', hint: 'Tell us what you need in the note' },
+    },
+    guest: {
+      modalTitle: 'Request Assistance - Table {table}',
+      modalTitleNoTable: 'Request Assistance',
+      modalDescription: 'Select the service assistance you need',
+      noteLabel: 'Additional Note (Optional)',
+      noteRequiredLabel: 'What do you need? (Required)',
+      notePlaceholder: 'Enter additional request notes...',
+      customNotePlaceholder: 'e.g. extra napkins and chopsticks',
+      send: 'Send Request to Staff',
+      sending: 'Sending Request...',
+      requestSent: 'Request sent: {type}',
+      staffOnTheWay: 'A staff member is on the way!',
+      table: 'Table {table}',
+      dismiss: 'Dismiss',
+      callStaff: 'Call Staff',
+      errorDuplicate:
+        'You already have an open request of this type. A staff member will be with you shortly.',
+      errorSessionEnded: 'Your table session has ended. Please scan the table QR code again.',
+      errorGeneric: 'Failed to send request. Please try again.',
+    },
+    staff: {
+      title: 'Waiter Service Hub',
+      bellLabel: 'Guest service requests',
+      activeCount: '{count} active requests in queue',
+      emptyTitle: 'All Caught Up!',
+      emptyBody: 'Guest service calls will appear here in real time.',
+      loading: 'Loading requests...',
+      loadError: 'Could not load service requests.',
+      retry: 'Try Again',
+      table: 'Table {table}',
+      acknowledge: 'Acknowledge',
+      markDone: 'Mark Done',
+      takenBy: 'Taken by {name}',
+      inProgress: 'In Progress',
+      alreadyHandled: 'Another staff member already updated this request.',
+      actionFailed: 'Could not update the request. Please try again.',
+      mute: 'Mute audio chime',
+      unmute: 'Unmute audio chime',
+      close: 'Close',
+    },
+  },
+
   // Marketing Landing Page
   landing: {
     heroHeadline: 'Modern QR Menu, POS & KDS for Restaurants',

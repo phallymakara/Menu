@@ -42,6 +42,7 @@ from app.api.v1.endpoints.promotions import (
 from app.api.v1.endpoints.public_tables import router as public_tables_router
 from app.api.v1.endpoints.receipts import router as receipts_router
 from app.api.v1.endpoints.restaurant_tables import router as restaurant_tables_router
+from app.api.v1.endpoints.service_requests import router as service_requests_router
 from app.api.v1.endpoints.subscriptions import router as subscriptions_router
 from app.api.v1.endpoints.table_qr import router as table_qr_router
 from app.api.v1.endpoints.table_sessions import router as table_sessions_router
@@ -63,6 +64,7 @@ api_router.include_router(dining_areas_router)
 api_router.include_router(table_qr_router)
 api_router.include_router(restaurant_tables_router)
 api_router.include_router(table_sessions_router)
+api_router.include_router(service_requests_router)
 api_router.include_router(orders_router)
 api_router.include_router(order_voids_router)
 api_router.include_router(promotions_router)

@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import PaymentAccountNotConfiguredError
 from app.core.tenant import TenantContext
 from app.models.order import Order
 from app.models.payment import Payment
@@ -24,6 +25,51 @@ from app.services.billing_service import (
 )
 
 logger = structlog.get_logger("app.services.receipt_service")
+
+
+async def _build_precheck_khqr(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+    amount_usd: Decimal,
+    bill_reference: str,
+    terminal_label: str,
+) -> tuple[str | None, str | None]:
+    """
+    Build the pay-by-KHQR string and image printed on a pre-check slip.
+
+    Returns ``(None, None)`` when neither the branch nor the business has a
+    Bakong account, so the slip prints without a QR instead of failing.
+    """
+    from app.services.khqr_service import (
+        _resolve_bakong_merchant_info,
+        build_khqr_payload,
+        generate_qr_image_data_url,
+    )
+
+    try:
+        account_id, m_name, m_city, bank = await _resolve_bakong_merchant_info(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+        )
+    except PaymentAccountNotConfiguredError:
+        return None, None
+
+    qr_str = build_khqr_payload(
+        bakong_account_id=account_id,
+        merchant_name=m_name,
+        merchant_city=m_city,
+        acquiring_bank=bank,
+        amount=amount_usd,
+        currency="USD",
+        bill_number=bill_reference,
+        terminal_label=terminal_label,
+        is_dynamic=True,
+    )
+    return qr_str, generate_qr_image_data_url(qr_str)
 
 
 def _get_localized_label(en_text: str, km_text: str, lang: str) -> str:
@@ -40,9 +86,14 @@ async def build_payment_receipt_data(
     business_id: UUID,
     branch_id: UUID,
     payment_id: UUID,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> ReceiptData:
-    """Builds normalized ReceiptData for a completed Payment record."""
+    """
+    Builds normalized ReceiptData for a completed Payment record.
+
+    The payment must belong to the branch, the business, and the caller's
+    organization.
+    """
     query = (
         select(Payment)
         .options(
@@ -56,12 +107,11 @@ async def build_payment_receipt_data(
         )
         .where(
             Payment.id == payment_id,
+            Payment.organization_id == tenant.organization_id,
             Payment.business_id == business_id,
             Payment.branch_id == branch_id,
         )
     )
-    if tenant:
-        query = query.where(Payment.organization_id == tenant.organization_id)
 
     res = await session.execute(query)
     payment = res.scalar_one_or_none()
@@ -194,10 +244,19 @@ async def build_session_precheck_receipt_data(
     business_id: UUID,
     branch_id: UUID,
     table_session_id: UUID,
+    tenant: TenantContext,
     current_user: User | None = None,
-    tenant: TenantContext | None = None,
 ) -> ReceiptData:
-    """Builds pro-forma pre-check ReceiptData for an active TableSession."""
+    """
+    Builds pro-forma pre-check ReceiptData for an active TableSession.
+
+    The session must belong to the branch, the business, and the caller's
+    organization.
+
+    Raises:
+        HTTPException (404): If the session is not found in this tenant scope.
+        TenantNotFoundError: If the branch is not part of the business and tenant.
+    """
     sess_query = (
         select(TableSession)
         .options(
@@ -207,14 +266,11 @@ async def build_session_precheck_receipt_data(
         )
         .where(
             TableSession.id == table_session_id,
+            TableSession.organization_id == tenant.organization_id,
             TableSession.business_id == business_id,
             TableSession.branch_id == branch_id,
         )
     )
-    if tenant:
-        sess_query = sess_query.where(
-            TableSession.organization_id == tenant.organization_id
-        )
 
     sess_res = await session.execute(sess_query)
     table_sess = sess_res.scalar_one_or_none()
@@ -266,30 +322,16 @@ async def build_session_precheck_receipt_data(
     )
 
     now_utc = datetime.now(timezone.utc)
-    from app.services.khqr_service import (
-        _resolve_bakong_merchant_info,
-        build_khqr_payload,
-        generate_qr_image_data_url,
-    )
-
-    account_id, m_name, m_city, bank = await _resolve_bakong_merchant_info(
+    bill_ref = f"CHK-{table_sess.session_code}"
+    qr_str, qr_image = await _build_precheck_khqr(
         session=session,
+        tenant=tenant,
         business_id=business_id,
         branch_id=branch_id,
-    )
-    bill_ref = f"CHK-{table_sess.session_code}"
-    qr_str = build_khqr_payload(
-        bakong_account_id=account_id,
-        merchant_name=m_name,
-        merchant_city=m_city,
-        acquiring_bank=bank,
-        amount=bill.financials.grand_total_usd,
-        currency="USD",
-        bill_number=bill_ref,
+        amount_usd=bill.financials.grand_total_usd,
+        bill_reference=bill_ref,
         terminal_label=f"T-{table.table_number}" if table else "POS",
-        is_dynamic=True,
     )
-    qr_image = generate_qr_image_data_url(qr_str)
 
     return ReceiptData(
         receipt_type="PRE_CHECK_BILL",
@@ -320,10 +362,19 @@ async def build_order_precheck_receipt_data(
     business_id: UUID,
     branch_id: UUID,
     order_id: UUID,
+    tenant: TenantContext,
     current_user: User | None = None,
-    tenant: TenantContext | None = None,
 ) -> ReceiptData:
-    """Builds pro-forma pre-check ReceiptData for a standalone Order."""
+    """
+    Builds pro-forma pre-check ReceiptData for a standalone Order.
+
+    The order must belong to the branch, the business, and the caller's
+    organization.
+
+    Raises:
+        HTTPException (404): If the order is not found in this tenant scope.
+        TenantNotFoundError: If the branch is not part of the business and tenant.
+    """
     order_query = (
         select(Order)
         .options(
@@ -333,12 +384,11 @@ async def build_order_precheck_receipt_data(
         )
         .where(
             Order.id == order_id,
+            Order.organization_id == tenant.organization_id,
             Order.business_id == business_id,
             Order.branch_id == branch_id,
         )
     )
-    if tenant:
-        order_query = order_query.where(Order.organization_id == tenant.organization_id)
 
     order_res = await session.execute(order_query)
     order = order_res.scalar_one_or_none()
@@ -387,30 +437,16 @@ async def build_order_precheck_receipt_data(
     )
 
     now_utc = datetime.now(timezone.utc)
-    from app.services.khqr_service import (
-        _resolve_bakong_merchant_info,
-        build_khqr_payload,
-        generate_qr_image_data_url,
-    )
-
-    account_id, m_name, m_city, bank = await _resolve_bakong_merchant_info(
+    bill_ref = f"CHK-{order.order_number}"
+    qr_str, qr_image = await _build_precheck_khqr(
         session=session,
+        tenant=tenant,
         business_id=business_id,
         branch_id=branch_id,
-    )
-    bill_ref = f"CHK-{order.order_number}"
-    qr_str = build_khqr_payload(
-        bakong_account_id=account_id,
-        merchant_name=m_name,
-        merchant_city=m_city,
-        acquiring_bank=bank,
-        amount=bill.financials.grand_total_usd,
-        currency="USD",
-        bill_number=bill_ref,
+        amount_usd=bill.financials.grand_total_usd,
+        bill_reference=bill_ref,
         terminal_label="POS",
-        is_dynamic=True,
     )
-    qr_image = generate_qr_image_data_url(qr_str)
 
     return ReceiptData(
         receipt_type="PRE_CHECK_BILL",

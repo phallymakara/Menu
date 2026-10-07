@@ -13,8 +13,22 @@ import { OrderTimelineTracker } from './components/OrderTimelineTracker'
 import { KHQRPaymentModal } from './components/KHQRPaymentModal'
 import { GuestServiceRequestModal } from '@/features/service-hub/components/GuestServiceRequestModal'
 import { GuestActiveRequestBanner } from '@/features/service-hub/components/GuestActiveRequestBanner'
-import { ServiceRequestType, ServiceRequest } from '@/features/service-hub/types/serviceHub.types'
+import type {
+  GuestServiceRequest,
+  ServiceRequestType,
+} from '@/features/service-hub/types/serviceHub.types'
 import { useServiceHubStore } from '@/features/service-hub/stores/useServiceHubStore'
+import {
+  serviceRequestKeys,
+  useCreateGuestServiceRequest,
+  useGuestServiceRequests,
+} from '@/features/service-hub/hooks/useServiceRequestQueries'
+import {
+  bannerDismissKey,
+  isServiceRequestEvent,
+  parseServiceHubEvent,
+  pickGuestBannerRequest,
+} from '@/features/service-hub/utils/serviceRequests'
 import { useCartStore } from './stores/useCartStore'
 import { useGuestSessionStore } from './stores/useGuestSessionStore'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -152,13 +166,16 @@ const SAMPLE_CATEGORIES: Category[] = [
   },
 ]
 
+// Demo route only: how long until the simulated staff member takes a service request
+const DEMO_ACKNOWLEDGE_DELAY_MS = 5000
+
 export const GuestOrderPage: FC = () => {
   const { branch_id: routeBranchId, qr_token } = useParams<{ branch_id?: string; qr_token?: string }>()
   const [searchParams] = useSearchParams()
   const tableIdParam = searchParams.get('table')
   const tokenParam = searchParams.get('token')
 
-  const { language } = useLanguageStore()
+  const { language, t } = useLanguageStore()
   const { items: cartItems, clearCart } = useCartStore()
   const {
     table,
@@ -217,6 +234,18 @@ export const GuestOrderPage: FC = () => {
     tokenVal
   )
 
+  // Service hub: live requests of this table session. The demo route keeps one local request.
+  const guestTableSession = {
+    branchId: !isDemo ? effectiveBranchId : null,
+    tableId: !isDemo ? effectiveTableId : null,
+    sessionId: !isDemo ? sessionId : null,
+    sessionToken: !isDemo ? sessionToken : null,
+  }
+  const { data: guestServiceRequests } = useGuestServiceRequests(guestTableSession)
+  const createServiceRequestMutation = useCreateGuestServiceRequest(guestTableSession)
+  const [demoServiceRequest, setDemoServiceRequest] = useState<GuestServiceRequest | null>(null)
+  const [dismissedBannerKey, setDismissedBannerKey] = useState<string | null>(null)
+
   const isLoading = !isDemo && (isVerifyLoading || isCatalogLoading) && categories.length === 0
   const verifyError = !isDemo && verifyQueryError
     ? (language === 'km'
@@ -248,6 +277,19 @@ export const GuestOrderPage: FC = () => {
       setCategories(SAMPLE_CATEGORIES)
     }
   }, [isDemo, setTableContext])
+
+  // Demo route only: a staff member "takes" the request after a few seconds
+  useEffect(() => {
+    if (!demoServiceRequest || demoServiceRequest.status !== 'open') return
+    const timer = window.setTimeout(() => {
+      setDemoServiceRequest((current) =>
+        current && current.id === demoServiceRequest.id
+          ? { ...current, status: 'acknowledged', acknowledged_at: new Date().toISOString() }
+          : current
+      )
+    }, DEMO_ACKNOWLEDGE_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [demoServiceRequest])
 
   // Sync Live Table Context & Open Session
   useEffect(() => {
@@ -381,6 +423,10 @@ export const GuestOrderPage: FC = () => {
   useWebSocket(wsUrl, {
     autoConnect: !!wsUrl,
     onMessage: (rawMsg) => {
+      if (isServiceRequestEvent(parseServiceHubEvent(rawMsg))) {
+        queryClient.invalidateQueries({ queryKey: serviceRequestKeys.guest(sessionId) })
+        return
+      }
       try {
         const data = typeof rawMsg === 'object' && rawMsg !== null ? (rawMsg as any) : {}
         if (data.event === 'order_status_update' && data.item_id && data.status) {
@@ -536,38 +582,39 @@ export const GuestOrderPage: FC = () => {
     setIsPayModalOpen(true)
   }
 
-  // Service Hub Store
-  const {
-    isRequestModalOpen,
-    openRequestModal,
-    closeRequestModal,
-    activeCustomerRequest,
-    setCustomerRequest,
-    addRequest,
-  } = useServiceHubStore()
+  // Service Hub Store (UI state only; requests come from the API)
+  const { isRequestModalOpen, openRequestModal, closeRequestModal } = useServiceHubStore()
 
   // 5. Handle Call Waiter / Service Request Trigger
   const handleCallWaiter = () => {
     openRequestModal()
   }
 
-  const handleSendServiceRequest = async (requestType: ServiceRequestType, note: string) => {
-    const newReq: ServiceRequest = {
-      id: `req-${Date.now()}`,
-      table_id: table?.table_id || 'tbl-demo',
-      table_number: table?.table_number || '08',
-      dining_area_name: table?.dining_area_name || 'Main Hall',
-      request_type: requestType,
-      note: note || null,
-      status: 'PENDING',
-      requested_at: new Date().toISOString(),
+  // Rejections reach the request modal, which shows the matching message.
+  const handleSendServiceRequest = async (requestType: ServiceRequestType, note: string | null) => {
+    if (isDemo) {
+      setDemoServiceRequest({
+        id: `demo-request-${Date.now()}`,
+        table_id: table?.table_id || 'demo-table',
+        table_number: table?.table_number || '08',
+        request_type: requestType,
+        note,
+        status: 'open',
+        created_at: new Date().toISOString(),
+        acknowledged_at: null,
+        resolved_at: null,
+      })
+      return
     }
-
-    setCustomerRequest(newReq)
-    addRequest(newReq)
-    playChime(659.25, 880, 0.3)
-    // Service requests are client-side only until the backend endpoint exists (issue #9).
+    await createServiceRequestMutation.mutateAsync({ request_type: requestType, note })
   }
+
+  // The banner follows the newest request still waiting on staff until the guest dismisses it.
+  const bannerRequest = pickGuestBannerRequest(
+    isDemo ? (demoServiceRequest ? [demoServiceRequest] : []) : guestServiceRequests
+  )
+  const visibleBannerRequest =
+    bannerRequest && bannerDismissKey(bannerRequest) !== dismissedBannerKey ? bannerRequest : null
 
   const totalSessionUSD = orderRounds.reduce((sum, r) => sum + r.round_subtotal_usd, 0)
   const totalItemsCount = categories.reduce((sum, c) => sum + c.items.length, 0)
@@ -674,9 +721,10 @@ export const GuestOrderPage: FC = () => {
             </div>
             <button
               onClick={handleCallWaiter}
-              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors"
+              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors inline-flex items-center gap-1.5"
             >
-              {language === 'km' ? '🔔 ហៅបុគ្គលិកបម្រើ' : '🔔 Call Staff'}
+              <Bell className="w-3.5 h-3.5" />
+              {t('serviceHub.guest.callStaff')}
             </button>
           </div>
         ) : (
@@ -739,16 +787,19 @@ export const GuestOrderPage: FC = () => {
 
       {/* Guest Active Service Request Status Banner */}
       <GuestActiveRequestBanner
-        request={activeCustomerRequest}
-        onDismiss={() => setCustomerRequest(null)}
+        request={visibleBannerRequest}
+        onDismiss={() => {
+          if (bannerRequest) setDismissedBannerKey(bannerDismissKey(bannerRequest))
+        }}
       />
 
       {/* Guest Service Request Modal */}
       <GuestServiceRequestModal
         isOpen={isRequestModalOpen}
         onClose={closeRequestModal}
-        tableNumber={table?.table_number || '08'}
+        tableNumber={table?.table_number}
         onSubmitRequest={handleSendServiceRequest}
+        isSubmitting={createServiceRequestMutation.isPending}
       />
     </div>
   )

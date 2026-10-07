@@ -1865,7 +1865,7 @@
           "Public Table QR Verification"
         ],
         "summary": "Guest places multi-round order from table QR",
-        "description": "Guest places order directly from mobile phone at table.",
+        "description": "Guest places order directly from mobile phone at table.\n\nThe token must be the table's QR token or its active session token, and is\nchecked before a dining session is opened. Inactive tables, branches,\nbusinesses, and organizations do not accept orders.",
         "operationId": "place_public_guest_order_endpoint_api_v1_public_tables_orders_post",
         "parameters": [
           {
@@ -2033,6 +2033,144 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BillSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/tables/service-requests": {
+      "post": {
+        "tags": [
+          "Public Table QR Verification"
+        ],
+        "summary": "Guest asks staff for help from the table (call staff, water, bill, ...)",
+        "description": "Raises a service request from the guest's live table session.\n\nOnly an active or bill-requested session of this table can be used. Returns 409\nwhen the session already has an open request of the same type.",
+        "operationId": "create_public_service_request_endpoint_api_v1_public_tables_service_requests_post",
+        "security": [
+          {
+            "TableSessionToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Branch ID from scanned QR",
+              "title": "Branch Id"
+            },
+            "description": "Branch ID from scanned QR"
+          },
+          {
+            "name": "table_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Table ID from scanned QR",
+              "title": "Table Id"
+            },
+            "description": "Table ID from scanned QR"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestServiceRequestCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestServiceRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Public Table QR Verification"
+        ],
+        "summary": "Guest views the service requests of their own table session",
+        "description": "Lists the requests raised during the guest's own table session, newest first.",
+        "operationId": "list_public_service_requests_endpoint_api_v1_public_tables_service_requests_get",
+        "security": [
+          {
+            "TableSessionToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Branch ID from scanned QR",
+              "title": "Branch Id"
+            },
+            "description": "Branch ID from scanned QR"
+          },
+          {
+            "name": "table_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Table ID from scanned QR",
+              "title": "Table Id"
+            },
+            "description": "Table ID from scanned QR"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GuestServiceRequestResponse"
+                  },
+                  "title": "Response List Public Service Requests Endpoint Api V1 Public Tables Service Requests Get"
                 }
               }
             }
@@ -5009,6 +5147,288 @@
         }
       }
     },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/service-requests": {
+      "get": {
+        "tags": [
+          "Service Hub (Guest Service Requests)"
+        ],
+        "summary": "List the branch's guest service requests",
+        "description": "Lists the branch's service requests, newest first.",
+        "operationId": "list_service_requests_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServiceRequestStatus"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Statuses to include; repeat the parameter for several. Defaults to the open and acknowledged requests.",
+              "title": "Status"
+            },
+            "description": "Statuses to include; repeat the parameter for several. Defaults to the open and acknowledged requests."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServiceRequestResponse"
+                  },
+                  "title": "Response List Service Requests Endpoint Api V1 Businesses  Business Id  Branches  Branch Id  Service Requests Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/service-requests/{request_id}/acknowledge": {
+      "post": {
+        "tags": [
+          "Service Hub (Guest Service Requests)"
+        ],
+        "summary": "Take an open guest service request",
+        "description": "Marks an open request as acknowledged by the caller; 409 if it is not open.",
+        "operationId": "acknowledge_service_request_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests__request_id__acknowledge_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/service-requests/{request_id}/resolve": {
+      "post": {
+        "tags": [
+          "Service Hub (Guest Service Requests)"
+        ],
+        "summary": "Mark a guest service request as handled",
+        "description": "Marks an open or acknowledged request as resolved; 409 if it is already closed.",
+        "operationId": "resolve_service_request_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests__request_id__resolve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/businesses/{business_id}/branches/{branch_id}/orders": {
       "post": {
         "tags": [
@@ -5041,6 +5461,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Branch Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
             }
           }
         ],
@@ -5142,6 +5578,22 @@
               ],
               "title": "Table Id"
             }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
           }
         ],
         "responses": {
@@ -5215,6 +5667,22 @@
               "format": "uuid",
               "title": "Order Id"
             }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
           }
         ],
         "responses": {
@@ -5283,6 +5751,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Order Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
             }
           }
         ],
@@ -6004,7 +6488,7 @@
           "KHQR Digital Payments (Bakong)"
         ],
         "summary": "Generate dynamic KHQR for an active table session bill",
-        "description": "Calculates the exact dynamic table session bill and generates an official\nEMVCo-compliant Bakong KHQR code with embedded payable amount.",
+        "description": "Calculates the exact dynamic table session bill and generates an official\nEMVCo-compliant Bakong KHQR code with embedded payable amount and expiry.\n\nThe KHQR is recorded as a pending payment attempt. Poll\n``GET .../khqr/attempts/{attempt_id}`` and settle the bill with the\n``attempt_id`` once Bakong reports the payment. Returns 409 when the branch\nand business have no Bakong account configured.",
         "operationId": "generate_session_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_table_sessions__session_id__dynamic_post",
         "security": [
           {
@@ -6070,12 +6554,12 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KHQRResponse"
+                  "$ref": "#/components/schemas/DynamicKHQRResponse"
                 }
               }
             }
@@ -6099,7 +6583,7 @@
           "KHQR Digital Payments (Bakong)"
         ],
         "summary": "Generate dynamic KHQR for a takeaway/single order bill",
-        "description": "Calculates the exact takeaway/single order bill and generates an official\nEMVCo-compliant Bakong KHQR code with embedded payable amount.",
+        "description": "Calculates the exact takeaway/single order bill and generates an official\nEMVCo-compliant Bakong KHQR code with embedded payable amount and expiry.\n\nThe KHQR is recorded as a pending payment attempt, as for table sessions.",
         "operationId": "generate_order_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_orders__order_id__dynamic_post",
         "security": [
           {
@@ -6165,12 +6649,97 @@
           }
         },
         "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DynamicKHQRResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/khqr/attempts/{attempt_id}": {
+      "get": {
+        "tags": [
+          "KHQR Digital Payments (Bakong)"
+        ],
+        "summary": "Check and refresh the status of a KHQR payment attempt",
+        "description": "Returns a KHQR payment attempt. A pending attempt is first checked with\nBakong (check transaction by MD5) and updated to succeeded, failed or\nexpired. This endpoint never settles the bill; call the KHQR payment\nendpoint with the attempt ID for that. Returns 503 when Bakong cannot be\nreached.",
+        "operationId": "get_khqr_attempt_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_attempts__attempt_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "attempt_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Attempt Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KHQRResponse"
+                  "$ref": "#/components/schemas/KHQRPaymentAttemptResponse"
                 }
               }
             }
@@ -6194,7 +6763,7 @@
           "KHQR Digital Payments (Bakong)"
         ],
         "summary": "Generate static merchant KHQR code",
-        "description": "Generates a static merchant KHQR code for acrylic table stands or counter stickers.",
+        "description": "Generates a static merchant KHQR code for acrylic table stands or counter\nstickers. Payments to a static KHQR cannot be verified with Bakong and need a\nmanual confirmation by an owner or manager.",
         "operationId": "generate_static_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_static_get",
         "security": [
           {
@@ -6379,8 +6948,8 @@
         "tags": [
           "Payments & POS Settlement"
         ],
-        "summary": "Confirm dine-in session bill paid via KHQR (Bakong)",
-        "description": "Settles a dine-in table session via KHQR (Bakong), closes table session,\nmarks table as dirty_cleaning, and sends real-time Telegram notification to staff.",
+        "summary": "Settle dine-in session bill with a Bakong-verified KHQR payment",
+        "description": "Settles a dine-in table session from a KHQR payment attempt once Bakong\nconfirms the money was received, closes the session, marks the table as\ndirty_cleaning, and notifies staff on Telegram.\n\nReturns 409 \"payment not received yet\" while Bakong has no payment for the\nKHQR (retry later), 409 when the KHQR expired or no longer matches the bill,\nand 503 when Bakong verification is not configured or not reachable.",
         "operationId": "settle_table_session_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__table_sessions__session_id__payments_khqr_post",
         "security": [
           {
@@ -6441,6 +7010,101 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/KHQRPaymentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/table-sessions/{session_id}/payments/khqr/manual-confirmation": {
+      "post": {
+        "tags": [
+          "Payments & POS Settlement"
+        ],
+        "summary": "Owner or manager confirms a dine-in KHQR payment without Bakong",
+        "description": "Manual override for when Bakong verification is not configured or does not\nshow a payment the customer made. Requires the owner or manager role and a\nreason; the Payment is marked as manually confirmed and the override is\nrecorded in the audit log.",
+        "operationId": "confirm_table_session_khqr_manually_endpoint_api_v1_businesses__business_id__branches__branch_id__table_sessions__session_id__payments_khqr_manual_confirmation_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KHQRManualConfirmationRequest"
               }
             }
           }
@@ -6569,8 +7233,8 @@
         "tags": [
           "Payments & POS Settlement"
         ],
-        "summary": "Confirm standalone / takeaway order paid via KHQR (Bakong)",
-        "description": "Settles a standalone or takeaway order via KHQR and dispatches Telegram notification.",
+        "summary": "Settle standalone / takeaway order with a Bakong-verified KHQR payment",
+        "description": "Settles a standalone or takeaway order from a KHQR payment attempt once\nBakong confirms the money was received, and notifies staff on Telegram.\nErrors are the same as for table sessions.",
         "operationId": "settle_single_order_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__orders__order_id__payments_khqr_post",
         "security": [
           {
@@ -6631,6 +7295,101 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/KHQRPaymentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/orders/{order_id}/payments/khqr/manual-confirmation": {
+      "post": {
+        "tags": [
+          "Payments & POS Settlement"
+        ],
+        "summary": "Owner or manager confirms a takeaway KHQR payment without Bakong",
+        "description": "Manual override for a standalone or takeaway order. Requires the owner or\nmanager role and a reason; the Payment is marked as manually confirmed and\nthe override is recorded in the audit log.",
+        "operationId": "confirm_order_khqr_manually_endpoint_api_v1_businesses__business_id__branches__branch_id__orders__order_id__payments_khqr_manual_confirmation_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Order Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KHQRManualConfirmationRequest"
               }
             }
           }
@@ -8571,6 +9330,22 @@
               "format": "uuid",
               "title": "Branch Id"
             }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
           }
         ],
         "requestBody": {
@@ -8637,6 +9412,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Branch Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
             }
           }
         ],
@@ -8710,6 +9501,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Station Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
             }
           }
         ],
@@ -8788,6 +9595,22 @@
               "format": "uuid",
               "title": "Station Id"
             }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
           }
         ],
         "responses": {
@@ -8849,6 +9672,22 @@
               "type": "string",
               "format": "uuid",
               "title": "Station Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
             }
           }
         ],
@@ -21784,6 +22623,110 @@
         "title": "DynamicKHQRRequest",
         "description": "Payload to request dynamic KHQR code for bill payment."
       },
+      "DynamicKHQRResponse": {
+        "properties": {
+          "qr_string": {
+            "type": "string",
+            "title": "Qr String",
+            "description": "Standard EMVCo Tag-Length-Value payload string"
+          },
+          "qr_image_data_url": {
+            "type": "string",
+            "title": "Qr Image Data Url",
+            "description": "Base64 Data URI for rendering <img> in HTML/React"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "KHR"
+            ],
+            "title": "Currency"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "description": "Payable amount in selected currency"
+          },
+          "amount_usd": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount Usd"
+          },
+          "amount_khr": {
+            "type": "integer",
+            "title": "Amount Khr"
+          },
+          "exchange_rate": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Exchange Rate"
+          },
+          "merchant_name": {
+            "type": "string",
+            "title": "Merchant Name"
+          },
+          "merchant_city": {
+            "type": "string",
+            "title": "Merchant City"
+          },
+          "bakong_account_id": {
+            "type": "string",
+            "title": "Bakong Account Id"
+          },
+          "bill_reference": {
+            "type": "string",
+            "title": "Bill Reference"
+          },
+          "deep_link_url": {
+            "type": "string",
+            "title": "Deep Link Url",
+            "description": "Native app deep-link: bakong://qr?data=..."
+          },
+          "attempt_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Attempt Id",
+            "description": "Payment attempt to poll and to pass when settling the bill"
+          },
+          "md5": {
+            "type": "string",
+            "title": "Md5",
+            "description": "MD5 of qr_string, the key Bakong uses to look up the payment"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At",
+            "description": "After this time banking apps refuse to pay the KHQR"
+          },
+          "status": {
+            "$ref": "#/components/schemas/KHQRPaymentAttemptStatus"
+          }
+        },
+        "type": "object",
+        "required": [
+          "qr_string",
+          "qr_image_data_url",
+          "currency",
+          "amount",
+          "amount_usd",
+          "amount_khr",
+          "exchange_rate",
+          "merchant_name",
+          "merchant_city",
+          "bakong_account_id",
+          "bill_reference",
+          "deep_link_url",
+          "attempt_id",
+          "md5",
+          "expires_at",
+          "status"
+        ],
+        "title": "DynamicKHQRResponse",
+        "description": "Dynamic KHQR together with the payment attempt that tracks it."
+      },
       "GuestOrderPlacementRequest": {
         "properties": {
           "guest_notes": {
@@ -21812,6 +22755,108 @@
           "items"
         ],
         "title": "GuestOrderPlacementRequest"
+      },
+      "GuestServiceRequestCreate": {
+        "properties": {
+          "request_type": {
+            "$ref": "#/components/schemas/ServiceRequestType",
+            "description": "What the guest needs from staff"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Optional short note for staff; required for custom requests"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_type"
+        ],
+        "title": "GuestServiceRequestCreate",
+        "description": "Payload a guest submits to ask staff for help from their table."
+      },
+      "GuestServiceRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "table_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Table Id"
+          },
+          "table_number": {
+            "type": "string",
+            "title": "Table Number"
+          },
+          "request_type": {
+            "$ref": "#/components/schemas/ServiceRequestType"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ServiceRequestStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "table_id",
+          "table_number",
+          "request_type",
+          "status",
+          "created_at"
+        ],
+        "title": "GuestServiceRequestResponse",
+        "description": "A service request as the guest who raised it sees it, without staff identities."
       },
       "HTTPValidationError": {
         "properties": {
@@ -22863,6 +23908,251 @@
         ],
         "title": "KDSTicketResponse"
       },
+      "KHQRManualConfirmationRequest": {
+        "properties": {
+          "promo_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Promo Code",
+            "description": "Optional coupon code (e.g. WELCOME10)"
+          },
+          "manual_discount_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiscountType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional manual discount type: 'percentage' or 'fixed_amount'"
+          },
+          "manual_discount_value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual Discount Value",
+            "description": "Manual discount value (e.g. 10.00 for 10% or 5.00 for $5)"
+          },
+          "discount_reason": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DiscountReason"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discount Reason",
+            "description": "Reason for manual discount (e.g. 'vip_customer', 'staff_meal')"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes",
+            "description": "Optional cashier notes or external transaction reference"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 5,
+            "title": "Reason",
+            "description": "Why the payment is confirmed manually (audited)"
+          },
+          "attempt_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attempt Id",
+            "description": "KHQR payment attempt the customer paid, when there is one"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "KHQRManualConfirmationRequest",
+        "description": "Payload for an owner or manager to confirm a KHQR payment without Bakong.\n\nUsed when Bakong verification is not configured, or as an override after\nchecking the payment in the customer's or merchant's banking app."
+      },
+      "KHQRPaymentAttemptResponse": {
+        "properties": {
+          "attempt_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Attempt Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/KHQRPaymentAttemptStatus"
+          },
+          "table_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Session Id"
+          },
+          "order_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Order Id"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "KHR"
+            ],
+            "title": "Currency"
+          },
+          "md5": {
+            "type": "string",
+            "title": "Md5"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          },
+          "bakong_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Reference",
+            "description": "Bakong transaction hash once the payment is seen"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "payment_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Id",
+            "description": "Payment created from this attempt, once settled"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "verification_available": {
+            "type": "boolean",
+            "title": "Verification Available",
+            "description": "False when the server has no Bakong API token, so the payment can only be confirmed manually by an owner or manager"
+          }
+        },
+        "type": "object",
+        "required": [
+          "attempt_id",
+          "status",
+          "amount",
+          "currency",
+          "md5",
+          "expires_at",
+          "created_at",
+          "verification_available"
+        ],
+        "title": "KHQRPaymentAttemptResponse",
+        "description": "Current state of a KHQR payment attempt."
+      },
+      "KHQRPaymentAttemptStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "succeeded",
+          "failed",
+          "expired",
+          "cancelled"
+        ],
+        "title": "KHQRPaymentAttemptStatus",
+        "description": "Lifecycle of one generated dynamic KHQR."
+      },
       "KHQRPaymentRequest": {
         "properties": {
           "promo_code": {
@@ -22938,11 +24228,20 @@
             ],
             "title": "Notes",
             "description": "Optional cashier notes or external transaction reference"
+          },
+          "attempt_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Attempt Id",
+            "description": "KHQR payment attempt returned when the dynamic KHQR was generated"
           }
         },
         "type": "object",
+        "required": [
+          "attempt_id"
+        ],
         "title": "KHQRPaymentRequest",
-        "description": "Payload submitted by cashier to settle a bill with KHQR (Bakong)."
+        "description": "Payload submitted by cashier to settle a bill with a Bakong-verified KHQR."
       },
       "KHQRResponse": {
         "properties": {
@@ -26354,6 +27653,35 @@
             ],
             "title": "Notes"
           },
+          "bakong_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bakong Reference",
+            "description": "Bakong transaction hash for a verified KHQR payment"
+          },
+          "is_manually_confirmed": {
+            "type": "boolean",
+            "title": "Is Manually Confirmed",
+            "description": "True when a manager confirmed a KHQR payment without Bakong",
+            "default": false
+          },
+          "manual_confirmation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual Confirmation Reason"
+          },
           "settled_at": {
             "type": "string",
             "format": "date-time",
@@ -27808,6 +29136,190 @@
         ],
         "title": "SalesOverviewMetrics",
         "description": "High-level sales and operational summary."
+      },
+      "ServiceRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Business Id"
+          },
+          "branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Branch Id"
+          },
+          "table_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Table Id"
+          },
+          "table_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Table Session Id"
+          },
+          "table_number": {
+            "type": "string",
+            "title": "Table Number"
+          },
+          "dining_area_name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dining Area Name En"
+          },
+          "dining_area_name_km": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dining Area Name Km"
+          },
+          "request_type": {
+            "$ref": "#/components/schemas/ServiceRequestType"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ServiceRequestStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "acknowledged_by_user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged By User Id"
+          },
+          "acknowledged_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged By Name"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by_user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By User Id"
+          },
+          "resolved_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "business_id",
+          "branch_id",
+          "table_id",
+          "table_session_id",
+          "table_number",
+          "request_type",
+          "status",
+          "created_at"
+        ],
+        "title": "ServiceRequestResponse",
+        "description": "A service request as staff see it in the POS service hub."
+      },
+      "ServiceRequestStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "acknowledged",
+          "resolved",
+          "cancelled"
+        ],
+        "title": "ServiceRequestStatus",
+        "description": "Lifecycle of a guest service request: open, then acknowledged, then resolved."
+      },
+      "ServiceRequestType": {
+        "type": "string",
+        "enum": [
+          "call_staff",
+          "water",
+          "cleaning",
+          "bill",
+          "custom"
+        ],
+        "title": "ServiceRequestType",
+        "description": "What a guest is asking staff for from their table."
       },
       "StaffOrderPlacementRequest": {
         "properties": {
@@ -29463,6 +30975,12 @@
       "HTTPBearer": {
         "type": "http",
         "scheme": "bearer"
+      },
+      "TableSessionToken": {
+        "type": "apiKey",
+        "description": "Session token returned when the guest's table session was opened (``session_token`` in the open-session response).",
+        "in": "header",
+        "name": "X-Table-Session-Token"
       }
     }
   }

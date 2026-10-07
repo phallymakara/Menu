@@ -5,7 +5,14 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import TenantNotFoundError
+from app.api.dependencies.guest_session import TableSessionToken
+from app.core.exceptions import (
+    InvalidTokenError,
+    PermissionDeniedError,
+    ResourceConflictError,
+    TenantInactiveError,
+    TenantNotFoundError,
+)
 from app.db.session import get_db_session
 from app.schemas.billing import BillSummaryResponse
 from app.schemas.order import (
@@ -14,14 +21,23 @@ from app.schemas.order import (
     TableSessionOrdersSummaryResponse,
 )
 from app.schemas.restaurant_table import TablePublicVerifyResponse
+from app.schemas.service_request import (
+    GuestServiceRequestCreate,
+    GuestServiceRequestResponse,
+)
 from app.schemas.table_session import (
     TableSessionOpenRequest,
     TableSessionResponse,
 )
+from app.services.order_placement_service import place_guest_order
+from app.services.service_request_service import (
+    create_guest_service_request,
+    list_guest_service_requests,
+)
 from app.services.table_qr_service import verify_public_table
 from app.services.table_session_service import (
-    open_table_session,
-    request_session_bill,
+    open_guest_table_session,
+    request_guest_session_bill,
 )
 
 logger = structlog.get_logger("app.api.v1.endpoints.public_tables")
@@ -76,21 +92,13 @@ async def open_public_table_session_endpoint(
     """
     Guest self-opens or connects to the table session upon scanning the QR code.
     """
-    # Verify QR token first
-    verified = await verify_public_table_endpoint(
-        branch_id=branch_id,
-        table_id=table_id,
-        token=token,
-        session=session,
-    )
     try:
-        return await open_table_session(
+        return await open_guest_table_session(
             session=session,
-            business_id=verified.business_id,
             branch_id=branch_id,
             table_id=table_id,
+            qr_token=token,
             payload=payload,
-            opened_by_type="guest",
         )
     except TenantNotFoundError as exc:
         raise HTTPException(
@@ -113,18 +121,12 @@ async def request_public_table_bill_endpoint(
     """
     Guest requests bill directly from their phone.
     """
-    verified = await verify_public_table_endpoint(
-        branch_id=branch_id,
-        table_id=table_id,
-        token=token,
-        session=session,
-    )
     try:
-        return await request_session_bill(
+        return await request_guest_session_bill(
             session=session,
-            business_id=verified.business_id,
             branch_id=branch_id,
             table_id=table_id,
+            qr_token=token,
         )
     except TenantNotFoundError as exc:
         raise HTTPException(
@@ -146,16 +148,31 @@ async def place_public_guest_order_endpoint(
     payload: GuestOrderPlacementRequest,
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> OrderResponse:
-    """Guest places order directly from mobile phone at table."""
-    from app.services.order_placement_service import place_guest_order
+    """
+    Guest places order directly from mobile phone at table.
 
-    order = await place_guest_order(
-        session=session,
-        branch_id=branch_id,
-        table_id=table_id,
-        token=token,
-        payload=payload,
-    )
+    The token must be the table's QR token or its active session token, and is
+    checked before a dining session is opened. Inactive tables, branches,
+    businesses, and organizations do not accept orders.
+    """
+    try:
+        order = await place_guest_order(
+            session=session,
+            branch_id=branch_id,
+            table_id=table_id,
+            token=token,
+            payload=payload,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (PermissionDeniedError, TenantInactiveError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        ) from exc
     return OrderResponse.model_validate(order)
 
 
@@ -201,3 +218,72 @@ async def get_public_table_session_bill_endpoint(
         session=session,
         session_token=session_token,
     )
+
+
+def _invalid_guest_session(exc: InvalidTokenError) -> HTTPException:
+    """Maps a rejected table session token to 401, matching the missing-header error."""
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=str(exc),
+        headers={"WWW-Authenticate": "APIKey"},
+    )
+
+
+@router.post(
+    "/service-requests",
+    response_model=GuestServiceRequestResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Guest asks staff for help from the table (call staff, water, bill, ...)",
+)
+async def create_public_service_request_endpoint(
+    branch_id: Annotated[UUID, Query(description="Branch ID from scanned QR")],
+    table_id: Annotated[UUID, Query(description="Table ID from scanned QR")],
+    session_token: TableSessionToken,
+    payload: GuestServiceRequestCreate,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> GuestServiceRequestResponse:
+    """
+    Raises a service request from the guest's live table session.
+
+    Only an active or bill-requested session of this table can be used. Returns 409
+    when the session already has an open request of the same type.
+    """
+    try:
+        return await create_guest_service_request(
+            session=session,
+            branch_id=branch_id,
+            table_id=table_id,
+            session_token=session_token,
+            payload=payload,
+        )
+    except InvalidTokenError as exc:
+        raise _invalid_guest_session(exc) from exc
+    except ResourceConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/service-requests",
+    response_model=list[GuestServiceRequestResponse],
+    status_code=status.HTTP_200_OK,
+    summary="Guest views the service requests of their own table session",
+)
+async def list_public_service_requests_endpoint(
+    branch_id: Annotated[UUID, Query(description="Branch ID from scanned QR")],
+    table_id: Annotated[UUID, Query(description="Table ID from scanned QR")],
+    session_token: TableSessionToken,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> list[GuestServiceRequestResponse]:
+    """Lists the requests raised during the guest's own table session, newest first."""
+    try:
+        return await list_guest_service_requests(
+            session=session,
+            branch_id=branch_id,
+            table_id=table_id,
+            session_token=session_token,
+        )
+    except InvalidTokenError as exc:
+        raise _invalid_guest_session(exc) from exc

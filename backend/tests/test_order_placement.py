@@ -1,9 +1,10 @@
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.security import create_access_token
@@ -19,6 +20,7 @@ from app.models.enums import (
     ItemAvailabilityStatus,
     MembershipStatus,
     OrganizationStatus,
+    TableSessionStatus,
     TableShape,
     TableStatus,
     UserStatus,
@@ -29,7 +31,9 @@ from app.models.modifier import MenuItemModifierGroup, ModifierGroup, ModifierOp
 from app.models.organization import Organization
 from app.models.organization_membership import OrganizationMembership
 from app.models.restaurant_table import RestaurantTable
+from app.models.table_session import TableSession
 from app.models.user import User
+from tests.test_staff_management import setup_test_tenant
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -449,5 +453,222 @@ async def test_staff_pos_order_placement_and_filtering(order_setup):
             orders = list_res.json()
             assert len(orders) >= 1
             assert orders[0]["order_source"] == "staff_pos"
+
+        app.dependency_overrides.clear()
+
+
+def _guest_order_url(data: dict, token: str) -> str:
+    """Builds the public guest order URL for the fixture table."""
+    return (
+        f"/api/v1/public/tables/orders?branch_id={data['branch_id']}"
+        f"&table_id={data['table_id']}&token={token}"
+    )
+
+
+def _one_item(menu_item_id) -> dict:
+    """Builds a guest order payload with a single dish."""
+    return {"items": [{"menu_item_id": str(menu_item_id), "quantity": 1}]}
+
+
+@pytest.mark.anyio
+async def test_guest_order_with_wrong_token_on_idle_table_is_rejected(order_setup):
+    """A wrong token on a table with no open session gets 403 and opens nothing."""
+    data = order_setup
+    sessionmaker = data["sessionmaker"]
+
+    async with sessionmaker() as session:
+
+        async def _override_get_db():
+            yield session
+
+        app.dependency_overrides[get_db_session] = _override_get_db
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.post(
+                _guest_order_url(data, "not-the-table-token"),
+                json=_one_item(data["item2_id"]),
+            )
+            assert res.status_code == status.HTTP_403_FORBIDDEN
+
+        sessions = await session.execute(
+            select(TableSession).where(TableSession.table_id == data["table_id"])
+        )
+        assert sessions.scalars().all() == []
+        table = await session.get(RestaurantTable, data["table_id"])
+        assert table is not None
+        assert table.status == TableStatus.AVAILABLE
+
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+async def test_guest_order_accepts_only_the_active_session_token(order_setup):
+    """The active session token works; it stops working once the session closes."""
+    data = order_setup
+    sessionmaker = data["sessionmaker"]
+
+    async with sessionmaker() as session:
+
+        async def _override_get_db():
+            yield session
+
+        app.dependency_overrides[get_db_session] = _override_get_db
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            first = await client.post(
+                _guest_order_url(data, data["qr_token"]),
+                json=_one_item(data["item2_id"]),
+            )
+            assert first.status_code == status.HTTP_201_CREATED
+            table_session = await session.get(
+                TableSession, UUID(first.json()["table_session_id"])
+            )
+            assert table_session is not None
+            session_token = table_session.session_token
+            assert session_token
+
+            second = await client.post(
+                _guest_order_url(data, session_token),
+                json=_one_item(data["item2_id"]),
+            )
+            assert second.status_code == status.HTTP_201_CREATED
+            assert second.json()["round_number"] == 2
+
+            table_session.status = TableSessionStatus.COMPLETED
+            await session.commit()
+
+            stale = await client.post(
+                _guest_order_url(data, session_token),
+                json=_one_item(data["item2_id"]),
+            )
+            assert stale.status_code == status.HTTP_403_FORBIDDEN
+
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+async def test_guest_order_rejects_another_tenants_menu_item(order_setup):
+    """A guest at this table cannot order a dish that belongs to another tenant."""
+    data = order_setup
+    sessionmaker = data["sessionmaker"]
+
+    async with sessionmaker() as session:
+        _, other_org, other_biz, _ = await setup_test_tenant(
+            session, org_name="Other Org", email="other@example.com"
+        )
+        foreign_item = MenuItem(
+            organization_id=other_org.id,
+            business_id=other_biz.id,
+            name_en="Foreign Dish",
+            sku="FRN-01",
+            base_price=Decimal("1.00"),
+            is_active=True,
+        )
+        session.add(foreign_item)
+        await session.commit()
+
+        async def _override_get_db():
+            yield session
+
+        app.dependency_overrides[get_db_session] = _override_get_db
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.post(
+                _guest_order_url(data, data["qr_token"]),
+                json=_one_item(foreign_item.id),
+            )
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+            assert str(foreign_item.id) in res.json()["detail"]
+
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+async def test_guest_order_rejects_item_local_to_another_branch(order_setup):
+    """A branch-local dish of a sibling branch is not orderable at this table."""
+    data = order_setup
+    sessionmaker = data["sessionmaker"]
+
+    async with sessionmaker() as session:
+        sibling = Branch(
+            organization_id=data["org_id"],
+            business_id=data["business_id"],
+            name_en="Sibling Branch",
+            code="BR02",
+            is_active=True,
+        )
+        session.add(sibling)
+        await session.flush()
+        sibling_item = MenuItem(
+            organization_id=data["org_id"],
+            business_id=data["business_id"],
+            branch_id=sibling.id,
+            name_en="Sibling Special",
+            sku="SIB-01",
+            base_price=Decimal("2.00"),
+            is_active=True,
+        )
+        session.add(sibling_item)
+        await session.commit()
+
+        async def _override_get_db():
+            yield session
+
+        app.dependency_overrides[get_db_session] = _override_get_db
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.post(
+                _guest_order_url(data, data["qr_token"]),
+                json=_one_item(sibling_item.id),
+            )
+            assert res.status_code == status.HTTP_404_NOT_FOUND
+
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("inactive", ["table", "branch", "business", "organization"])
+async def test_guest_order_on_inactive_table_or_tenant_is_rejected(
+    order_setup, inactive
+):
+    """Guests cannot order at an inactive table, branch, business, or organization."""
+    data = order_setup
+    sessionmaker = data["sessionmaker"]
+
+    async with sessionmaker() as session:
+        if inactive == "table":
+            table = await session.get(RestaurantTable, data["table_id"])
+            assert table is not None
+            table.is_active = False
+        elif inactive == "branch":
+            branch = await session.get(Branch, data["branch_id"])
+            assert branch is not None
+            branch.is_active = False
+        elif inactive == "business":
+            business = await session.get(Business, data["business_id"])
+            assert business is not None
+            business.is_active = False
+        else:
+            org = await session.get(Organization, data["org_id"])
+            assert org is not None
+            org.status = OrganizationStatus.SUSPENDED
+        await session.commit()
+
+        async def _override_get_db():
+            yield session
+
+        app.dependency_overrides[get_db_session] = _override_get_db
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            res = await client.post(
+                _guest_order_url(data, data["qr_token"]),
+                json=_one_item(data["item2_id"]),
+            )
+            assert res.status_code == status.HTTP_403_FORBIDDEN
+
+        sessions = await session.execute(
+            select(TableSession).where(TableSession.table_id == data["table_id"])
+        )
+        assert sessions.scalars().all() == []
 
         app.dependency_overrides.clear()

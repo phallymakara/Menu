@@ -52,3 +52,23 @@ class PermissionDeniedError(Exception):
 
 class EntitlementLimitExceededError(Exception):
     """Raised when an organization attempts an action exceeding its plan limits."""
+
+
+class PaymentAccountNotConfiguredError(Exception):
+    """Raised when no account is configured to receive a payment method."""
+
+
+class PaymentProviderNotConfiguredError(Exception):
+    """Raised when a payment provider integration is not configured on the server."""
+
+
+class PaymentProviderUnavailableError(Exception):
+    """Raised when a payment provider cannot be reached or returns an unusable response."""
+
+
+class PaymentNotReceivedError(Exception):
+    """Raised when the payment provider has not received a payment yet."""
+
+
+class PaymentAttemptExpiredError(Exception):
+    """Raised when a payment attempt expired before the payment was received."""

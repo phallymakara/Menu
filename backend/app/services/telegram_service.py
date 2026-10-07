@@ -71,6 +71,8 @@ async def send_payment_telegram_notification(
         method_display = (
             "💵 CASH" if payment.payment_method == "cash" else "🇰🇭 KHQR (Bakong)"
         )
+        if payment.is_manually_confirmed:
+            method_display += " - manually confirmed, not verified by Bakong"
         table_text = table_identifier if table_identifier else "Takeaway / Direct POS"
         discount_text = f"${payment.discount_usd:.2f}"
         if payment.discount_reason:

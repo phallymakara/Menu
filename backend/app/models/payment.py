@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     DateTime,
     Enum,
     ForeignKey,
@@ -14,6 +15,7 @@ from sqlalchemy import (
     String,
     Text,
     Uuid,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -181,6 +183,27 @@ class Payment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     notes: Mapped[str | None] = mapped_column(
         Text,
+        nullable=True,
+    )
+
+    # KHQR (Bakong) verification evidence
+    bakong_reference: Mapped[str | None] = mapped_column(
+        String(128),
+        unique=True,
+        nullable=True,
+        comment="Bakong transaction hash that confirmed this KHQR payment",
+    )
+
+    is_manually_confirmed: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=false(),
+        nullable=False,
+        comment="True when a manager confirmed a KHQR payment without Bakong",
+    )
+
+    manual_confirmation_reason: Mapped[str | None] = mapped_column(
+        String(500),
         nullable=True,
     )
 

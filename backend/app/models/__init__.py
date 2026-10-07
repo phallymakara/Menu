@@ -13,6 +13,7 @@ from app.models.inventory import (
     StockTransferItem,
 )
 from app.models.item_variant import ItemVariant
+from app.models.khqr_payment_attempt import KHQRPaymentAttempt
 from app.models.kitchen_station import KitchenStation
 from app.models.menu_item import MenuItem
 from app.models.menu_item_recipe import MenuItemRecipe
@@ -26,6 +27,7 @@ from app.models.plan import Plan
 from app.models.promotion import Promotion
 from app.models.refresh_token import RefreshToken
 from app.models.restaurant_table import RestaurantTable
+from app.models.service_request import ServiceRequest
 from app.models.subscription import Subscription
 from app.models.table_session import TableSession
 from app.models.user import User
@@ -44,6 +46,7 @@ __all__ = [
     "DiningArea",
     "InventoryItem",
     "ItemVariant",
+    "KHQRPaymentAttempt",
     "KitchenStation",
     "MenuItem",
     "MenuItemModifierGroup",
@@ -61,6 +64,7 @@ __all__ = [
     "Promotion",
     "RefreshToken",
     "RestaurantTable",
+    "ServiceRequest",
     "StockAdjustmentLog",
     "StockTransfer",
     "StockTransferItem",

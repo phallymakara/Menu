@@ -201,6 +201,57 @@ export const km = {
     slaWarning: 'ហួសពេលកំណត់ (SLA)',
   },
 
+  // Service Hub: guest service requests and the POS staff queue
+  serviceHub: {
+    types: {
+      call_staff: { label: 'ហៅបុគ្គលិក', hint: 'សួរសំណួរ ឬត្រូវការជំនួយផ្សេងៗ' },
+      water: { label: 'សុំទឹក ឬទឹកកកបន្ថែម', hint: 'ទឹកផឹកត្រជាក់ ឬទឹកកក' },
+      cleaning: { label: 'សុំជួយសម្អាតតុ', hint: 'ដកចានចាស់ ឬជូតតុ' },
+      bill: { label: 'សុំគិតប្រាក់', hint: 'ទូទាត់ជាសាច់ប្រាក់ ឬ Bakong KHQR' },
+      custom: { label: 'សំណើផ្សេងទៀត', hint: 'សរសេរប្រាប់យើងនូវអ្វីដែលលោកអ្នកត្រូវការ' },
+    },
+    guest: {
+      modalTitle: 'ហៅអ្នកបម្រើ - តុ {table}',
+      modalTitleNoTable: 'ហៅអ្នកបម្រើ',
+      modalDescription: 'ជ្រើសរើសសេវាកម្មដែលលោកអ្នកត្រូវការ',
+      noteLabel: 'ចំណាំបន្ថែម (បើមាន)',
+      noteRequiredLabel: 'តើលោកអ្នកត្រូវការអ្វី? (ត្រូវតែបំពេញ)',
+      notePlaceholder: 'បញ្ចូលចំណាំ ឬសំណើបន្ថែម...',
+      customNotePlaceholder: 'ឧ. ក្រដាសជូតមាត់ និងចង្កឹះបន្ថែម',
+      send: 'បញ្ជូនសំណើទៅបុគ្គលិក',
+      sending: 'កំពុងបញ្ជូន...',
+      requestSent: 'បានបញ្ជូនសំណើ៖ {type}',
+      staffOnTheWay: 'បុគ្គលិកកំពុងធ្វើដំណើរមកកាន់លោកអ្នក!',
+      table: 'តុ {table}',
+      dismiss: 'បិទ',
+      callStaff: 'ហៅបុគ្គលិកបម្រើ',
+      errorDuplicate:
+        'លោកអ្នកមានសំណើប្រភេទនេះកំពុងរង់ចាំរួចហើយ។ បុគ្គលិកនឹងមកជួយលោកអ្នកក្នុងពេលឆាប់ៗនេះ។',
+      errorSessionEnded: 'ការបម្រើនៅតុនេះបានបញ្ចប់ហើយ។ សូមស្កេន QR កូដនៅលើតុម្តងទៀត។',
+      errorGeneric: 'មិនអាចបញ្ជូនសំណើបានទេ។ សូមព្យាយាមម្តងទៀត។',
+    },
+    staff: {
+      title: 'មជ្ឈមណ្ឌលហៅអ្នកបម្រើ',
+      bellLabel: 'សំណើសេវាកម្មពីភ្ញៀវ',
+      activeCount: 'សំណើ {count} កំពុងរង់ចាំ',
+      emptyTitle: 'គ្មានសំណើកំពុងរង់ចាំទេ!',
+      emptyBody: 'សំណើថ្មីពីភ្ញៀវនឹងបង្ហាញនៅទីនេះភ្លាមៗ។',
+      loading: 'កំពុងផ្ទុកសំណើ...',
+      loadError: 'មិនអាចផ្ទុកសំណើបានទេ។',
+      retry: 'ព្យាយាមម្តងទៀត',
+      table: 'តុ {table}',
+      acknowledge: 'ទទួលស្គាល់',
+      markDone: 'រួចរាល់',
+      takenBy: 'ទទួលដោយ {name}',
+      inProgress: 'កំពុងបម្រើ',
+      alreadyHandled: 'បុគ្គលិកផ្សេងបានធ្វើបច្ចុប្បន្នភាពសំណើនេះរួចហើយ។',
+      actionFailed: 'មិនអាចធ្វើបច្ចុប្បន្នភាពសំណើបានទេ។ សូមព្យាយាមម្តងទៀត។',
+      mute: 'បិទសំឡេងរោទ៍',
+      unmute: 'បើកសំឡេងរោទ៍',
+      close: 'បិទ',
+    },
+  },
+
   // Marketing Landing Page
   landing: {
     heroHeadline: 'ប្រព័ន្ធគ្រប់គ្រងភោជនីយដ្ឋាន និងមីនុយ QR ទំនើប',

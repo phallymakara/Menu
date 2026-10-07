@@ -19,28 +19,42 @@ from app.schemas.promotion import (
     PromotionResponse,
     PromotionUpdate,
 )
+from app.services.tenancy import get_branch_for_tenant
 
 logger = structlog.get_logger("app.services.promotion_service")
 
 
 async def create_promotion(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     payload: PromotionCreate,
-    tenant: TenantContext | None = None,
 ) -> PromotionResponse:
-    """Creates a new promotion or coupon code for a business."""
+    """
+    Creates a new promotion or coupon code for a business of the caller's organization.
+
+    Raises:
+        HTTPException (404): If the business is not in the caller's organization.
+        TenantNotFoundError: If the promotion is limited to a branch that is not
+            part of this business and tenant.
+        HTTPException (409): If an active promotion already uses the code.
+    """
     # 1. Verify business
-    biz_query = select(Business).where(Business.id == business_id)
-    if tenant:
-        biz_query = biz_query.where(Business.organization_id == tenant.organization_id)
-    biz_res = await session.execute(biz_query)
+    biz_res = await session.execute(
+        select(Business).where(
+            Business.id == business_id,
+            Business.organization_id == tenant.organization_id,
+        )
+    )
     business = biz_res.scalar_one_or_none()
     if business is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Business not found.",
         )
+
+    if payload.branch_id is not None:
+        await get_branch_for_tenant(session, tenant, business_id, payload.branch_id)
 
     # 2. If promo code supplied, ensure unique within business
     if payload.code:
@@ -84,15 +98,16 @@ async def create_promotion(
 
 async def list_promotions(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     is_active: bool | None = None,
     branch_id: UUID | None = None,
-    tenant: TenantContext | None = None,
 ) -> list[PromotionResponse]:
-    """Lists promotions for a business with optional active/branch filters."""
-    query = select(Promotion).where(Promotion.business_id == business_id)
-    if tenant:
-        query = query.where(Promotion.organization_id == tenant.organization_id)
+    """Lists promotions of a business in the caller's organization with optional filters."""
+    query = select(Promotion).where(
+        Promotion.business_id == business_id,
+        Promotion.organization_id == tenant.organization_id,
+    )
     if is_active is not None:
         query = query.where(Promotion.is_active == is_active)
     if branch_id is not None:
@@ -108,17 +123,16 @@ async def list_promotions(
 
 async def get_promotion_by_id(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     promo_id: UUID,
-    tenant: TenantContext | None = None,
 ) -> PromotionResponse:
-    """Retrieves a single promotion by ID."""
+    """Retrieves a single promotion by ID within the caller's organization."""
     query = select(Promotion).where(
         Promotion.id == promo_id,
         Promotion.business_id == business_id,
+        Promotion.organization_id == tenant.organization_id,
     )
-    if tenant:
-        query = query.where(Promotion.organization_id == tenant.organization_id)
 
     res = await session.execute(query)
     promo = res.scalar_one_or_none()
@@ -132,18 +146,24 @@ async def get_promotion_by_id(
 
 async def update_promotion(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     promo_id: UUID,
     payload: PromotionUpdate,
-    tenant: TenantContext | None = None,
 ) -> PromotionResponse:
-    """Updates an existing promotion."""
+    """
+    Updates an existing promotion of the caller's organization.
+
+    Raises:
+        HTTPException (404): If the promotion is not in this business and tenant.
+        TenantNotFoundError: If the new branch is not part of this business and
+            tenant.
+    """
     query = select(Promotion).where(
         Promotion.id == promo_id,
         Promotion.business_id == business_id,
+        Promotion.organization_id == tenant.organization_id,
     )
-    if tenant:
-        query = query.where(Promotion.organization_id == tenant.organization_id)
 
     res = await session.execute(query)
     promo = res.scalar_one_or_none()
@@ -152,6 +172,9 @@ async def update_promotion(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Promotion not found.",
         )
+
+    if payload.branch_id is not None:
+        await get_branch_for_tenant(session, tenant, business_id, payload.branch_id)
 
     update_data = payload.model_dump(exclude_unset=True)
     if "code" in update_data and update_data["code"]:
@@ -167,17 +190,16 @@ async def update_promotion(
 
 async def delete_promotion(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     promo_id: UUID,
-    tenant: TenantContext | None = None,
 ) -> None:
-    """Deactivates/removes a promotion."""
+    """Deactivates/removes a promotion of the caller's organization."""
     query = select(Promotion).where(
         Promotion.id == promo_id,
         Promotion.business_id == business_id,
+        Promotion.organization_id == tenant.organization_id,
     )
-    if tenant:
-        query = query.where(Promotion.organization_id == tenant.organization_id)
 
     res = await session.execute(query)
     promo = res.scalar_one_or_none()
@@ -193,6 +215,7 @@ async def delete_promotion(
 
 async def evaluate_discount(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     subtotal_usd: Decimal,
@@ -200,21 +223,21 @@ async def evaluate_discount(
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
-    tenant: TenantContext | None = None,
 ) -> DiscountEvaluationResult:
     """
     Evaluates promo code or manual cashier discount against an active subtotal.
     Returns calculated discount amount in USD, percentage (if applicable), and promotion metadata.
+
+    Promo codes are looked up only within the caller's organization.
     """
     if promo_code:
         clean_code = promo_code.strip().upper()
         query = select(Promotion).where(
             Promotion.business_id == business_id,
+            Promotion.organization_id == tenant.organization_id,
             Promotion.code == clean_code,
             Promotion.is_active.is_(True),
         )
-        if tenant:
-            query = query.where(Promotion.organization_id == tenant.organization_id)
 
         res = await session.execute(query)
         promo = res.scalar_one_or_none()
