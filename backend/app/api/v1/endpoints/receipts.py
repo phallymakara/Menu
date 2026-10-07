@@ -1,12 +1,13 @@
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.tenant import get_current_tenant_context
+from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
 from app.models.user import User
@@ -100,14 +101,20 @@ async def get_session_precheck_endpoint(
     """
     Renders a pro-forma pre-check guest check slip before payment for customer review.
     """
-    receipt_data = await build_session_precheck_receipt_data(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        table_session_id=session_id,
-        current_user=current_user,
-        tenant=tenant,
-    )
+    try:
+        receipt_data = await build_session_precheck_receipt_data(
+            session=session,
+            business_id=business_id,
+            branch_id=branch_id,
+            table_session_id=session_id,
+            current_user=current_user,
+            tenant=tenant,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
     if format == "json":
         return Response(
@@ -150,14 +157,20 @@ async def get_order_precheck_endpoint(
     """
     Renders a pro-forma pre-check guest slip for standalone takeaway orders.
     """
-    receipt_data = await build_order_precheck_receipt_data(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        order_id=order_id,
-        current_user=current_user,
-        tenant=tenant,
-    )
+    try:
+        receipt_data = await build_order_precheck_receipt_data(
+            session=session,
+            business_id=business_id,
+            branch_id=branch_id,
+            order_id=order_id,
+            current_user=current_user,
+            tenant=tenant,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
     if format == "json":
         return Response(

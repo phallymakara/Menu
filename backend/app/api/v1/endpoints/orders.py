@@ -1,26 +1,35 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from app.api.dependencies.auth import get_current_user
+from app.api.dependencies.permissions import (
+    Permission,
+    require_permission_for_writes,
+)
+from app.api.dependencies.tenant import get_current_tenant_context
+from app.core.exceptions import TenantNotFoundError
+from app.core.tenant import TenantContext
 from app.db.session import get_db_session
 from app.models.enums import OrderStatus
-from app.models.order import Order, OrderItem
-from app.models.user import User
 from app.schemas.billing import BillSummaryResponse
 from app.schemas.order import (
     OrderResponse,
     StaffOrderPlacementRequest,
 )
 from app.services.billing_service import get_order_bill_summary
-from app.services.order_placement_service import place_staff_order
+from app.services.order_placement_service import (
+    get_branch_order,
+    place_staff_order,
+)
+from app.services.order_placement_service import (
+    list_branch_orders as list_branch_orders_service,
+)
 
 router = APIRouter(
     tags=["Orders & POS"],
+    dependencies=[Depends(require_permission_for_writes(Permission.TAKE_ORDERS))],
 )
 
 
@@ -34,16 +43,23 @@ async def create_staff_order(
     business_id: UUID,
     branch_id: UUID,
     payload: StaffOrderPlacementRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> OrderResponse:
     """Creates a new order ticket placed by a staff member on POS."""
-    order = await place_staff_order(
-        session=session,
-        branch_id=branch_id,
-        current_user=current_user,
-        payload=payload,
-    )
+    try:
+        order = await place_staff_order(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            payload=payload,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
     return OrderResponse.model_validate(order)
 
 
@@ -55,31 +71,26 @@ async def create_staff_order(
 async def list_branch_orders(
     business_id: UUID,
     branch_id: UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     status_filter: Annotated[OrderStatus | None, Query(alias="status")] = None,
     table_id: Annotated[UUID | None, Query()] = None,
 ) -> list[OrderResponse]:
     """Lists order tickets for a specific branch."""
-    stmt = (
-        select(Order)
-        .options(
-            selectinload(Order.items).selectinload(OrderItem.modifiers),
+    try:
+        orders = await list_branch_orders_service(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            status_filter=status_filter,
+            table_id=table_id,
         )
-        .where(
-            Order.business_id == business_id,
-            Order.branch_id == branch_id,
-        )
-        .order_by(Order.created_at.desc())
-    )
-
-    if status_filter is not None:
-        stmt = stmt.where(Order.status == status_filter)
-    if table_id is not None:
-        stmt = stmt.where(Order.table_id == table_id)
-
-    res = await session.execute(stmt)
-    orders = list(res.scalars().all())
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
     return [OrderResponse.model_validate(o) for o in orders]
 
 
@@ -92,30 +103,23 @@ async def get_order_details(
     business_id: UUID,
     branch_id: UUID,
     order_id: UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> OrderResponse:
     """Retrieves full details for a single order ticket."""
-    stmt = (
-        select(Order)
-        .options(
-            selectinload(Order.items).selectinload(OrderItem.modifiers),
+    try:
+        order = await get_branch_order(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            order_id=order_id,
         )
-        .where(
-            Order.id == order_id,
-            Order.business_id == business_id,
-            Order.branch_id == branch_id,
-        )
-    )
-    res = await session.execute(stmt)
-    order = res.scalar_one_or_none()
-    if order is None:
-        from fastapi import HTTPException
-
+    except TenantNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order ticket not found.",
-        )
+            detail=str(exc),
+        ) from exc
     return OrderResponse.model_validate(order)
 
 
@@ -128,12 +132,13 @@ async def get_single_order_bill(
     business_id: UUID,
     branch_id: UUID,
     order_id: UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> BillSummaryResponse:
     """Retrieves full bill calculation (USD and KHR) for a single order ticket."""
     return await get_order_bill_summary(
         session=session,
+        tenant=tenant,
         business_id=business_id,
         branch_id=branch_id,
         order_id=order_id,

@@ -8,12 +8,9 @@ from uuid import UUID
 
 import qrcode
 import structlog
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.tenant import TenantContext
-from app.models.branch import Branch
-from app.models.business import Business
 from app.models.enums import DiscountType
 from app.schemas.khqr import KHQRResponse
 from app.services.billing_service import (
@@ -23,6 +20,7 @@ from app.services.billing_service import (
     get_table_session_bill_summary,
 )
 from app.services.promotion_service import evaluate_discount
+from app.services.tenancy import get_branch_for_tenant, get_business_for_tenant
 
 logger = structlog.get_logger("app.services.khqr_service")
 
@@ -124,7 +122,7 @@ def generate_qr_image_data_url(qr_string: str) -> str:
     """Generates a high-contrast Base64 PNG Data URI for the given QR string."""
     qr = qrcode.QRCode(
         version=None,
-        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        error_correction=qrcode.ERROR_CORRECT_M,
         box_size=8,
         border=2,
     )
@@ -133,13 +131,14 @@ def generate_qr_image_data_url(qr_string: str) -> str:
     img = qr.make_image(fill_color="black", back_color="white")
 
     buffer = io.BytesIO()
-    img.save(buffer, format="PNG")
+    img.save(buffer, kind="PNG")
     b64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return f"data:image/png;base64,{b64_str}"
 
 
 async def _resolve_bakong_merchant_info(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
 ) -> tuple[str, str, str, str | None]:
@@ -147,12 +146,14 @@ async def _resolve_bakong_merchant_info(
     Resolves Bakong merchant settings using proper field-by-field cascading fallback:
     Branch override -> Business configuration -> Clean default fallback.
     Returns: (bakong_account_id, merchant_name, merchant_city, acquiring_bank)
-    """
-    branch_res = await session.execute(select(Branch).where(Branch.id == branch_id))
-    branch = branch_res.scalar_one_or_none()
 
-    biz_res = await session.execute(select(Business).where(Business.id == business_id))
-    biz = biz_res.scalar_one_or_none()
+    The business and branch are resolved within the caller's organization.
+
+    Raises:
+        TenantNotFoundError: If the branch or business is not part of the tenant.
+    """
+    branch = await get_branch_for_tenant(session, tenant, business_id, branch_id)
+    biz = await get_business_for_tenant(session, tenant, business_id)
 
     # 1. Bakong Account ID
     account_id = (
@@ -197,6 +198,7 @@ async def _resolve_bakong_merchant_info(
 
 async def generate_dynamic_session_khqr(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     table_session_id: UUID,
@@ -205,7 +207,6 @@ async def generate_dynamic_session_khqr(
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
-    tenant: TenantContext | None = None,
 ) -> KHQRResponse:
     """
     Calculates dynamic table session bill and generates an official Bakong KHQR payload.
@@ -261,6 +262,7 @@ async def generate_dynamic_session_khqr(
         acquiring_bank,
     ) = await _resolve_bakong_merchant_info(
         session=session,
+        tenant=tenant,
         business_id=business_id,
         branch_id=branch_id,
     )
@@ -305,6 +307,7 @@ async def generate_dynamic_session_khqr(
 
 async def generate_dynamic_order_khqr(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     order_id: UUID,
@@ -313,7 +316,6 @@ async def generate_dynamic_order_khqr(
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
-    tenant: TenantContext | None = None,
 ) -> KHQRResponse:
     """
     Calculates dynamic takeaway/single order bill and generates an official Bakong KHQR payload.
@@ -369,6 +371,7 @@ async def generate_dynamic_order_khqr(
         acquiring_bank,
     ) = await _resolve_bakong_merchant_info(
         session=session,
+        tenant=tenant,
         business_id=business_id,
         branch_id=branch_id,
     )

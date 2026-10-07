@@ -8,9 +8,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
-from app.models.business import Business
 from app.models.category import Category
 from app.models.combo import Combo, ComboGroup, ComboGroupItem
+from app.models.menu_item import MenuItem
 from app.schemas.combo import (
     ComboCreate,
     ComboDetailResponse,
@@ -21,25 +21,62 @@ from app.schemas.combo import (
     ComboUpdate,
 )
 from app.services.audit_service import record_audit_log
+from app.services.tenancy import get_business_for_tenant
 
 logger = structlog.get_logger("app.services.combo_service")
 
 
-async def _verify_business_access(
+async def _ensure_category_in_business(
     session: AsyncSession,
     tenant: TenantContext,
     business_id: UUID,
-) -> Business:
-    result = await session.execute(
-        select(Business).where(
-            Business.id == business_id,
-            Business.organization_id == tenant.organization_id,
+    category_id: UUID,
+) -> None:
+    """
+    Verifies that a category belongs to the business and the caller's organization.
+
+    Raises:
+        TenantNotFoundError: If the category is not in this business and tenant.
+    """
+    cat_result = await session.execute(
+        select(Category.id).where(
+            Category.id == category_id,
+            Category.business_id == business_id,
+            Category.organization_id == tenant.organization_id,
         )
     )
-    business = result.scalar_one_or_none()
-    if business is None:
-        raise TenantNotFoundError("Business not found.")
-    return business
+    if cat_result.scalar_one_or_none() is None:
+        raise TenantNotFoundError("Category not found in this business.")
+
+
+async def _ensure_menu_items_in_business(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    menu_item_ids: set[UUID],
+) -> None:
+    """
+    Verifies that every menu item belongs to the business and the caller's organization.
+
+    Raises:
+        TenantNotFoundError: If any menu item is not in this business and tenant.
+    """
+    if not menu_item_ids:
+        return
+    items_result = await session.execute(
+        select(MenuItem.id).where(
+            MenuItem.id.in_(menu_item_ids),
+            MenuItem.business_id == business_id,
+            MenuItem.organization_id == tenant.organization_id,
+        )
+    )
+    if set(items_result.scalars().all()) != menu_item_ids:
+        logger.warning(
+            "Combo rejected: menu item outside tenant business",
+            organization_id=str(tenant.organization_id),
+            business_id=str(business_id),
+        )
+        raise TenantNotFoundError("Menu item not found in this business.")
 
 
 def _map_combo_to_detail_response(combo: Combo) -> ComboDetailResponse:
@@ -104,19 +141,28 @@ async def create_combo(
 ) -> ComboDetailResponse:
     """
     Creates a new combo bundle with nested choice groups and eligible items.
+
+    Raises:
+        TenantNotFoundError: If the business, category, or any menu item is not
+            part of the caller's organization and business.
     """
-    await _verify_business_access(session, tenant, business_id)
+    await get_business_for_tenant(session, tenant, business_id)
 
     if payload.category_id is not None:
-        cat_result = await session.execute(
-            select(Category).where(
-                Category.id == payload.category_id,
-                Category.business_id == business_id,
-                Category.organization_id == tenant.organization_id,
-            )
+        await _ensure_category_in_business(
+            session, tenant, business_id, payload.category_id
         )
-        if cat_result.scalar_one_or_none() is None:
-            raise TenantNotFoundError("Category not found in this business.")
+
+    await _ensure_menu_items_in_business(
+        session,
+        tenant,
+        business_id,
+        {
+            item_in.menu_item_id
+            for group_in in payload.groups
+            for item_in in group_in.items
+        },
+    )
 
     combo_data = payload.model_dump(exclude={"groups"})
     combo = Combo(
@@ -184,7 +230,7 @@ async def list_combos(
     """
     Lists combo bundles with pagination and keyword filtering.
     """
-    await _verify_business_access(session, tenant, business_id)
+    await get_business_for_tenant(session, tenant, business_id)
 
     query = select(Combo).where(
         Combo.business_id == business_id,
@@ -269,6 +315,10 @@ async def update_combo(
 ) -> ComboDetailResponse:
     """
     Partially updates a combo bundle.
+
+    Raises:
+        TenantNotFoundError: If the combo, or a new category, is not part of the
+            caller's organization and business.
     """
     result = await session.execute(
         select(Combo).where(
@@ -280,6 +330,11 @@ async def update_combo(
     combo = result.scalar_one_or_none()
     if combo is None:
         raise TenantNotFoundError("Combo not found.")
+
+    if payload.category_id is not None:
+        await _ensure_category_in_business(
+            session, tenant, business_id, payload.category_id
+        )
 
     update_data = payload.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -348,9 +403,20 @@ async def create_combo_group(
 ) -> ComboDetailResponse:
     """
     Adds a new choice group to an existing combo bundle.
+
+    Raises:
+        TenantNotFoundError: If the combo, or any menu item, is not part of the
+            caller's organization and business.
     """
     # Verify combo exists
     await get_combo(session, tenant, business_id, combo_id)
+
+    await _ensure_menu_items_in_business(
+        session,
+        tenant,
+        business_id,
+        {item_in.menu_item_id for item_in in payload.items},
+    )
 
     grp = ComboGroup(
         organization_id=tenant.organization_id,

@@ -1,11 +1,13 @@
+from decimal import Decimal
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies.auth import get_current_user
 from app.api.dependencies.tenant import get_current_tenant_context
+from app.core.exceptions import TenantNotFoundError
 from app.core.tenant import TenantContext
 from app.db.session import get_db_session
 from app.models.user import User
@@ -43,18 +45,24 @@ async def generate_session_khqr_endpoint(
     Calculates the exact dynamic table session bill and generates an official
     EMVCo-compliant Bakong KHQR code with embedded payable amount.
     """
-    return await generate_dynamic_session_khqr(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        table_session_id=session_id,
-        currency=payload.currency,
-        promo_code=payload.promo_code,
-        manual_discount_type=payload.manual_discount_type,
-        manual_discount_value=payload.manual_discount_value,
-        discount_reason=payload.discount_reason,
-        tenant=tenant,
-    )
+    try:
+        return await generate_dynamic_session_khqr(
+            session=session,
+            business_id=business_id,
+            branch_id=branch_id,
+            table_session_id=session_id,
+            currency=payload.currency,
+            promo_code=payload.promo_code,
+            manual_discount_type=payload.manual_discount_type,
+            manual_discount_value=payload.manual_discount_value,
+            discount_reason=payload.discount_reason,
+            tenant=tenant,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post(
@@ -76,18 +84,24 @@ async def generate_order_khqr_endpoint(
     Calculates the exact takeaway/single order bill and generates an official
     EMVCo-compliant Bakong KHQR code with embedded payable amount.
     """
-    return await generate_dynamic_order_khqr(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        order_id=order_id,
-        currency=payload.currency,
-        promo_code=payload.promo_code,
-        manual_discount_type=payload.manual_discount_type,
-        manual_discount_value=payload.manual_discount_value,
-        discount_reason=payload.discount_reason,
-        tenant=tenant,
-    )
+    try:
+        return await generate_dynamic_order_khqr(
+            session=session,
+            business_id=business_id,
+            branch_id=branch_id,
+            order_id=order_id,
+            currency=payload.currency,
+            promo_code=payload.promo_code,
+            manual_discount_type=payload.manual_discount_type,
+            manual_discount_value=payload.manual_discount_value,
+            discount_reason=payload.discount_reason,
+            tenant=tenant,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(
@@ -108,17 +122,26 @@ async def generate_static_khqr_endpoint(
 ) -> KHQRResponse:
     """
     Generates a static merchant KHQR code for acrylic table stands or counter stickers.
+
+    The business and branch must belong to the caller's organization.
     """
-    (
-        account_id,
-        merchant_name,
-        merchant_city,
-        acquiring_bank,
-    ) = await _resolve_bakong_merchant_info(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-    )
+    try:
+        (
+            account_id,
+            merchant_name,
+            merchant_city,
+            acquiring_bank,
+        ) = await _resolve_bakong_merchant_info(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
     qr_str = build_khqr_payload(
         bakong_account_id=account_id,
@@ -139,10 +162,10 @@ async def generate_static_khqr_endpoint(
         qr_string=qr_str,
         qr_image_data_url=qr_image,
         currency=currency,
-        amount=0,
-        amount_usd=0,
+        amount=Decimal("0"),
+        amount_usd=Decimal("0"),
         amount_khr=0,
-        exchange_rate=4100,
+        exchange_rate=Decimal("4100"),
         merchant_name=merchant_name,
         merchant_city=merchant_city,
         bakong_account_id=account_id,

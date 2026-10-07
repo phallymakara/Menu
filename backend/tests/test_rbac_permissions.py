@@ -178,3 +178,51 @@ async def test_waiters_serve_tables_but_cannot_change_the_floor_plan(rbac_setup)
 
     remove = await client.delete(f"{url}/{table_id}", headers=h["waiter"])
     assert remove.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.anyio
+async def test_orders_require_take_orders_permission(rbac_setup):
+    """Waiters can place orders; the kitchen role can read them but not place them."""
+    client, h = rbac_setup["client"], rbac_setup["headers"]
+    biz, branch = rbac_setup["biz"], rbac_setup["branch"]
+    item = await client.post(
+        f"/api/v1/businesses/{biz.id}/items",
+        headers=h["owner"],
+        json={"name_en": "Iced Coffee", "base_price": "2.50"},
+    )
+    assert item.status_code == status.HTTP_201_CREATED
+    url = f"/api/v1/businesses/{biz.id}/branches/{branch.id}/orders"
+    order = {
+        "order_type": "takeaway",
+        "items": [{"menu_item_id": item.json()["id"], "quantity": 1}],
+    }
+
+    denied = await client.post(url, headers=h["kitchen"], json=order)
+    assert denied.status_code == status.HTTP_403_FORBIDDEN
+
+    allowed = await client.post(url, headers=h["waiter"], json=order)
+    assert allowed.status_code == status.HTTP_201_CREATED
+
+    read = await client.get(url, headers=h["kitchen"])
+    assert read.status_code == status.HTTP_200_OK
+    assert [o["id"] for o in read.json()] == [allowed.json()["id"]]
+
+
+@pytest.mark.anyio
+async def test_kitchen_station_setup_requires_menu_permission(rbac_setup):
+    """Station setup is menu configuration: waiters and the kitchen role get 403."""
+    client, h = rbac_setup["client"], rbac_setup["headers"]
+    biz, branch = rbac_setup["biz"], rbac_setup["branch"]
+    url = f"/api/v1/businesses/{biz.id}/branches/{branch.id}/kitchen-stations"
+    station = {"name_en": "Grill", "code": "GRILL"}
+
+    for role in ("waiter", "kitchen"):
+        denied = await client.post(url, headers=h[role], json=station)
+        assert denied.status_code == status.HTTP_403_FORBIDDEN, role
+
+    allowed = await client.post(url, headers=h["menu_editor"], json=station)
+    assert allowed.status_code == status.HTTP_201_CREATED
+
+    read = await client.get(url, headers=h["waiter"])
+    assert read.status_code == status.HTTP_200_OK
+    assert [s["code"] for s in read.json()] == ["GRILL"]
