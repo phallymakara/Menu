@@ -61,6 +61,11 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem('emenu_organization_id')
     localStorage.removeItem('emenu_business_id')
     localStorage.removeItem('emenu_branch_id')
+    localStorage.removeItem('emenu_branch_name_en')
+    localStorage.removeItem('emenu_branch_name_km')
+    localStorage.removeItem('emenu_business_name_en')
+    localStorage.removeItem('emenu_business_name_km')
+    localStorage.removeItem('emenu_business_logo')
     localStorage.removeItem('emenu_onboarding_completed')
     useOnboardingStore.getState().resetOnboarding()
     set({

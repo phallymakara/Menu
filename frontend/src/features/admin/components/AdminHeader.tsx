@@ -220,7 +220,24 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
     navigate('/login')
   }
 
-  const displayBranchName =
+  const userCustomBranchName =
+    language === 'km'
+      ? localStorage.getItem('emenu_branch_name_km') || localStorage.getItem('emenu_branch_name_en')
+      : localStorage.getItem('emenu_branch_name_en') || localStorage.getItem('emenu_branch_name_km')
+
+  const getCleanBranchName = (name?: string | null) => {
+    if (!name) return ''
+    const trimmed = name.trim()
+    if (/^main(\s+branch)?$/i.test(trimmed)) {
+      if (userCustomBranchName && !/^main(\s+branch)?$/i.test(userCustomBranchName.trim())) {
+        return userCustomBranchName
+      }
+      return language === 'km' ? 'សាខា' : 'Branch'
+    }
+    return trimmed
+  }
+
+  const rawBranchName =
     activeBranchId === 'all'
       ? language === 'km'
         ? 'សាខាទាំងអស់'
@@ -229,14 +246,27 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
       ? language === 'km' && currentBranch.name_km
         ? currentBranch.name_km
         : currentBranch.name_en
-      : language === 'km'
-      ? 'ជ្រើសរើសសាខា'
-      : 'Select Branch'
+      : userCustomBranchName || (language === 'km' ? 'ជ្រើសរើសសាខា' : 'Select Branch')
 
-  const displayStoreName =
+  const displayBranchName =
+    activeBranchId === 'all'
+      ? rawBranchName
+      : getCleanBranchName(rawBranchName) || (language === 'km' ? 'សាខា' : 'Branch')
+
+  const cleanStoreName = (name?: string | null) => {
+    if (!name) return ''
+    return name
+      .replace(/'s\s+restaurant$/i, '')
+      .replace(/\s+restaurant$/i, '')
+      .trim()
+  }
+
+  const rawStoreName =
     language === 'km'
       ? businessName.km || businessName.en || 'ហាងរបស់ខ្ញុំ'
       : businessName.en || businessName.km || 'My Store'
+
+  const displayStoreName = cleanStoreName(rawStoreName) || rawStoreName
 
   return (
     <header className="bg-white dark:bg-zinc-950 sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800">
@@ -336,11 +366,13 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                               >
                                 <div>
                                   <div className="leading-tight">
-                                    {language === 'km' && b.name_km ? b.name_km : b.name_en}
+                                    {getCleanBranchName(language === 'km' && b.name_km ? b.name_km : b.name_en)}
                                   </div>
-                                  <div className="text-xs text-zinc-400 font-normal font-mono mt-0.5">
-                                    {b.code}
-                                  </div>
+                                  {b.code && !/^main$/i.test(b.code.trim()) && (
+                                    <div className="text-xs text-zinc-400 font-normal font-mono mt-0.5">
+                                      {b.code}
+                                    </div>
+                                  )}
                                 </div>
                                 {isCurrent && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
                               </button>

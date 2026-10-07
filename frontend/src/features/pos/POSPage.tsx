@@ -283,10 +283,16 @@ export const POSPage: FC = () => {
   const totalUSD = subtotalUSD + taxUSD
   const totalKHR = Math.round(totalUSD * exchangeRate)
 
-  const resolvedStoreName =
+  const rawStoreName =
     language === 'km'
-      ? storeInfo.nameKm || storeInfo.nameEn || 'ភោជនីយដ្ឋាន'
-      : storeInfo.nameEn || storeInfo.nameKm || 'Restaurant'
+      ? storeInfo.nameKm || storeInfo.nameEn || 'ហាងរបស់ខ្ញុំ'
+      : storeInfo.nameEn || storeInfo.nameKm || 'Store'
+
+  const resolvedStoreName =
+    rawStoreName
+      .replace(/'s\s+restaurant$/i, '')
+      .replace(/\s+restaurant$/i, '')
+      .trim() || rawStoreName
 
   if (isLoading) {
     return (

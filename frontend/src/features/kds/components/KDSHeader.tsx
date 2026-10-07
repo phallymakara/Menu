@@ -27,11 +27,17 @@ export const KDSHeader: FC<KDSHeaderProps> = ({
     metrics,
   } = useKDSStore()
 
-  const resolvedStoreName =
+  const rawStoreName =
     storeName ||
     (language === 'km'
-      ? localStorage.getItem('emenu_business_name_km') || localStorage.getItem('emenu_business_name_en') || 'ភោជនីយដ្ឋាន'
-      : localStorage.getItem('emenu_business_name_en') || localStorage.getItem('emenu_business_name_km') || 'Restaurant')
+      ? localStorage.getItem('emenu_business_name_km') || localStorage.getItem('emenu_business_name_en') || 'ហាងរបស់ខ្ញុំ'
+      : localStorage.getItem('emenu_business_name_en') || localStorage.getItem('emenu_business_name_km') || 'Store')
+
+  const resolvedStoreName =
+    rawStoreName
+      .replace(/'s\s+restaurant$/i, '')
+      .replace(/\s+restaurant$/i, '')
+      .trim() || rawStoreName
 
   const resolvedLogo = storeLogo !== undefined ? storeLogo : localStorage.getItem('emenu_business_logo') || null
 

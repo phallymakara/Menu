@@ -39,7 +39,7 @@ async def register_owner(
     """
     Registers a new business owner and sets up their tenant organization workspace.
     """
-    org_name = payload.organization_name or f"{payload.full_name}'s Restaurant"
+    org_name = payload.organization_name or payload.full_name
     org_slug = payload.organization_slug or _generate_slug(org_name)
     biz_name_en = payload.business_name_en or org_name
     biz_name_km = payload.business_name_km

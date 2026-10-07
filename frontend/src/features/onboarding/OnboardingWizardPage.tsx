@@ -197,6 +197,12 @@ export const OnboardingWizardPage: FC = () => {
         queryClient.invalidateQueries({ queryKey: ['branches'] })
       }
 
+      if (branch.name_en) {
+        localStorage.setItem('emenu_branch_name_en', branch.name_en)
+      }
+      if (branch.name_km) {
+        localStorage.setItem('emenu_branch_name_km', branch.name_km)
+      }
       if (businessProfile.name_en) {
         localStorage.setItem('emenu_business_name_en', businessProfile.name_en)
       }

@@ -5,6 +5,7 @@ import type { components } from '@/types/api'
 export type SalesOverviewMetrics = components['schemas']['SalesOverviewMetrics']
 export type TopSellingItemsResponse = components['schemas']['TopSellingItemsResponse']
 export type PaymentBreakdownResponse = components['schemas']['PaymentBreakdownResponse']
+export type BranchComparisonResponse = components['schemas']['BranchComparisonResponse']
 
 export function useSalesOverview(
   businessId: string | null,
@@ -30,7 +31,7 @@ export function useSalesOverview(
         }
       )
       if (error) throw error
-      return data
+      return data ?? null
     },
     enabled: !!businessId,
   })
@@ -45,7 +46,7 @@ export function useTopSellingItems(
   return useQuery({
     queryKey: ['analytics', 'top-items', businessId, branchId, startDate, endDate],
     queryFn: async () => {
-      if (!businessId) return []
+      if (!businessId) return null
       const { data, error } = await apiFetch.GET(
         '/api/v1/businesses/{business_id}/analytics/top-items',
         {
@@ -60,8 +61,7 @@ export function useTopSellingItems(
         }
       )
       if (error) throw error
-      // The endpoint returns an envelope ({ business_id, ..., items }), not a bare list.
-      return data?.items ?? []
+      return data || []
     },
     enabled: !!businessId,
   })
@@ -71,7 +71,7 @@ export function usePaymentBreakdown(businessId: string | null, branchId?: string
   return useQuery({
     queryKey: ['analytics', 'payment-breakdown', businessId, branchId],
     queryFn: async () => {
-      if (!businessId) return []
+      if (!businessId) return null
       const { data, error } = await apiFetch.GET(
         '/api/v1/businesses/{business_id}/analytics/payment-breakdown',
         {
@@ -82,7 +82,7 @@ export function usePaymentBreakdown(businessId: string | null, branchId?: string
         }
       )
       if (error) throw error
-      return data || []
+      return data ?? null
     },
     enabled: !!businessId,
   })
@@ -92,7 +92,7 @@ export function useBranchComparison(businessId: string | null) {
   return useQuery({
     queryKey: ['analytics', 'branch-comparison', businessId],
     queryFn: async () => {
-      if (!businessId) return []
+      if (!businessId) return null
       const { data, error } = await apiFetch.GET(
         '/api/v1/businesses/{business_id}/analytics/branch-comparison',
         {
@@ -100,7 +100,7 @@ export function useBranchComparison(businessId: string | null) {
         }
       )
       if (error) throw error
-      return data || []
+      return data ?? null
     },
     enabled: !!businessId,
   })
