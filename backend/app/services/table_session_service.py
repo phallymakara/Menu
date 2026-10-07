@@ -78,38 +78,85 @@ def _map_session_to_response(
     )
 
 
-async def open_table_session(
+async def _get_tenant_table(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     table_id: UUID,
-    payload: TableSessionOpenRequest,
-    tenant: TenantContext | None = None,
-    opened_by_type: str = "staff",
-    user_id: UUID | None = None,
-) -> TableSessionResponse:
+) -> RestaurantTable:
     """
-    Opens or joins an active dining session for a table.
-    """
-    tbl_query = select(RestaurantTable).where(
-        RestaurantTable.id == table_id,
-        RestaurantTable.branch_id == branch_id,
-        RestaurantTable.business_id == business_id,
-    )
-    if tenant:
-        tbl_query = tbl_query.where(
-            RestaurantTable.organization_id == tenant.organization_id
-        )
+    Loads a table of the branch, the business, and the caller's organization.
 
-    res = await session.execute(tbl_query)
+    Raises:
+        TenantNotFoundError: If the table is not found in this tenant scope.
+    """
+    res = await session.execute(
+        select(RestaurantTable).where(
+            RestaurantTable.id == table_id,
+            RestaurantTable.organization_id == tenant.organization_id,
+            RestaurantTable.branch_id == branch_id,
+            RestaurantTable.business_id == business_id,
+        )
+    )
+    table = res.scalar_one_or_none()
+    if table is None:
+        raise TenantNotFoundError("Table not found.")
+    return table
+
+
+async def _get_guest_table(
+    session: AsyncSession,
+    branch_id: UUID,
+    table_id: UUID,
+    qr_token: str,
+) -> RestaurantTable:
+    """
+    Loads the table a guest scanned, scoped by the table's current QR token.
+
+    Raises:
+        TenantNotFoundError: If the table does not exist at this branch, or the
+            token is not the table's current QR token.
+    """
+    res = await session.execute(
+        select(RestaurantTable).where(
+            RestaurantTable.id == table_id,
+            RestaurantTable.branch_id == branch_id,
+        )
+    )
     table = res.scalar_one_or_none()
     if table is None:
         raise TenantNotFoundError("Table not found.")
 
+    if not table.qr_code_token or not secrets.compare_digest(
+        table.qr_code_token.encode(), qr_token.encode()
+    ):
+        logger.warning(
+            "Guest table access rejected: invalid QR token",
+            table_id=str(table_id),
+            branch_id=str(branch_id),
+        )
+        raise TenantNotFoundError("Invalid or expired table QR verification token.")
+    return table
+
+
+async def _open_or_join_session(
+    session: AsyncSession,
+    table: RestaurantTable,
+    payload: TableSessionOpenRequest,
+    opened_by_type: str,
+    opened_by_user_id: UUID | None,
+) -> tuple[TableSession, bool]:
+    """
+    Returns the table's open dining session, or opens a new one.
+
+    The caller must already have authorized access to the table. The returned
+    flag is True when a new session was created.
+    """
     # Check for existing active or bill_requested session
     existing_sess = await session.execute(
         select(TableSession).where(
-            TableSession.table_id == table_id,
+            TableSession.table_id == table.id,
             TableSession.status.in_(
                 [TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]
             ),
@@ -117,18 +164,18 @@ async def open_table_session(
     )
     active_session = existing_sess.scalar_one_or_none()
     if active_session is not None:
-        return _map_session_to_response(active_session, table.table_number)
+        return active_session, False
 
     # Create new session
     sess_obj = TableSession(
         organization_id=table.organization_id,
-        business_id=business_id,
-        branch_id=branch_id,
-        table_id=table_id,
+        business_id=table.business_id,
+        branch_id=table.branch_id,
+        table_id=table.id,
         session_code=_generate_session_code(),
         guest_count=payload.guest_count,
         status=TableSessionStatus.ACTIVE,
-        opened_by_user_id=user_id or (tenant.user_id if tenant else None),
+        opened_by_user_id=opened_by_user_id,
         opened_by_type=opened_by_type,
         notes=payload.notes,
     )
@@ -137,7 +184,41 @@ async def open_table_session(
     await session.commit()
     await session.refresh(sess_obj)
 
-    if tenant:
+    logger.info(
+        "Table session opened",
+        session_id=str(sess_obj.id),
+        code=sess_obj.session_code,
+        table=table.table_number,
+        opened_by_type=opened_by_type,
+    )
+    return sess_obj, True
+
+
+async def open_table_session(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    table_id: UUID,
+    payload: TableSessionOpenRequest,
+    tenant: TenantContext,
+    opened_by_type: str = "staff",
+) -> TableSessionResponse:
+    """
+    Opens or joins an active dining session for a table of the caller's organization.
+
+    Raises:
+        TenantNotFoundError: If the table is not found in this tenant scope.
+    """
+    table = await _get_tenant_table(session, tenant, business_id, branch_id, table_id)
+
+    sess_obj, created = await _open_or_join_session(
+        session,
+        table,
+        payload,
+        opened_by_type=opened_by_type,
+        opened_by_user_id=tenant.user_id,
+    )
+    if created:
         await record_audit_log(
             session=session,
             action="TABLE_SESSION_OPENED",
@@ -153,11 +234,34 @@ async def open_table_session(
         )
         await session.commit()
 
-    logger.info(
-        "Table session opened",
-        session_id=str(sess_obj.id),
-        code=sess_obj.session_code,
-        table=table.table_number,
+    return _map_session_to_response(sess_obj, table.table_number)
+
+
+async def open_guest_table_session(
+    session: AsyncSession,
+    branch_id: UUID,
+    table_id: UUID,
+    qr_token: str,
+    payload: TableSessionOpenRequest,
+) -> TableSessionResponse:
+    """
+    Opens or joins a table's dining session for an unauthenticated guest.
+
+    This public path has no tenant context. Access is scoped to the one table
+    whose current QR token the guest presents.
+
+    Raises:
+        TenantNotFoundError: If the table does not exist at this branch, or the
+            QR token is not valid for it.
+    """
+    table = await _get_guest_table(session, branch_id, table_id, qr_token)
+
+    sess_obj, _ = await _open_or_join_session(
+        session,
+        table,
+        payload,
+        opened_by_type="guest",
+        opened_by_user_id=None,
     )
     return _map_session_to_response(sess_obj, table.table_number)
 
@@ -167,25 +271,16 @@ async def get_active_table_session(
     business_id: UUID,
     branch_id: UUID,
     table_id: UUID,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> TableSessionResponse:
     """
-    Retrieves the current active session for a table.
-    """
-    tbl_query = select(RestaurantTable).where(
-        RestaurantTable.id == table_id,
-        RestaurantTable.branch_id == branch_id,
-        RestaurantTable.business_id == business_id,
-    )
-    if tenant:
-        tbl_query = tbl_query.where(
-            RestaurantTable.organization_id == tenant.organization_id
-        )
+    Retrieves the current active session for a table of the caller's organization.
 
-    res = await session.execute(tbl_query)
-    table = res.scalar_one_or_none()
-    if table is None:
-        raise TenantNotFoundError("Table not found.")
+    Raises:
+        TenantNotFoundError: If the table is not found in this tenant scope, or it
+            has no open session.
+    """
+    table = await _get_tenant_table(session, tenant, business_id, branch_id, table_id)
 
     sess_res = await session.execute(
         select(TableSession).where(
@@ -202,34 +297,23 @@ async def get_active_table_session(
     return _map_session_to_response(sess_obj, table.table_number)
 
 
-async def request_session_bill(
+async def _request_bill_for_table(
     session: AsyncSession,
-    business_id: UUID,
-    branch_id: UUID,
-    table_id: UUID,
-    tenant: TenantContext | None = None,
-) -> TableSessionResponse:
+    table: RestaurantTable,
+) -> tuple[TableSession, bool]:
     """
-    Transitions the active table session to bill_requested.
+    Moves the table's active session to bill_requested.
+
+    The caller must already have authorized access to the table. The returned
+    flag is True when the status changed, and False when the bill had already
+    been requested.
+
+    Raises:
+        TenantNotFoundError: If the table has no active or bill_requested session.
     """
-    tbl_query = select(RestaurantTable).where(
-        RestaurantTable.id == table_id,
-        RestaurantTable.branch_id == branch_id,
-        RestaurantTable.business_id == business_id,
-    )
-    if tenant:
-        tbl_query = tbl_query.where(
-            RestaurantTable.organization_id == tenant.organization_id
-        )
-
-    res = await session.execute(tbl_query)
-    table = res.scalar_one_or_none()
-    if table is None:
-        raise TenantNotFoundError("Table not found.")
-
     sess_res = await session.execute(
         select(TableSession).where(
-            TableSession.table_id == table_id,
+            TableSession.table_id == table.id,
             TableSession.status == TableSessionStatus.ACTIVE,
         )
     )
@@ -238,21 +322,59 @@ async def request_session_bill(
         # Check if already in bill_requested
         bill_res = await session.execute(
             select(TableSession).where(
-                TableSession.table_id == table_id,
+                TableSession.table_id == table.id,
                 TableSession.status == TableSessionStatus.BILL_REQUESTED,
             )
         )
         sess_obj = bill_res.scalar_one_or_none()
         if sess_obj is None:
             raise TenantNotFoundError("No active session found to request bill.")
-        return _map_session_to_response(sess_obj, table.table_number)
+        return sess_obj, False
 
     sess_obj.status = TableSessionStatus.BILL_REQUESTED
     sess_obj.bill_requested_at = datetime.now(timezone.utc)
     await session.commit()
     await session.refresh(sess_obj)
 
-    if tenant:
+    logger.info("Bill requested for session", session_code=sess_obj.session_code)
+
+    # Staff learn about the request live, whether a guest or staff asked for it. A
+    # repeat request (already bill_requested) returned earlier and does not notify.
+    await ws_manager.broadcast_to_rooms(
+        rooms=[f"branch:{table.branch_id}:pos"],
+        event="table_session.bill_requested",
+        data={
+            "table_session_id": str(sess_obj.id),
+            "session_code": sess_obj.session_code,
+            "table_id": str(table.id),
+            "table_number": table.table_number,
+            "bill_requested_at": sess_obj.bill_requested_at,
+        },
+        business_id=table.business_id,
+        branch_id=table.branch_id,
+    )
+    return sess_obj, True
+
+
+async def request_session_bill(
+    session: AsyncSession,
+    business_id: UUID,
+    branch_id: UUID,
+    table_id: UUID,
+    tenant: TenantContext,
+) -> TableSessionResponse:
+    """
+    Transitions the active session of a table of the caller's organization to
+    bill_requested.
+
+    Raises:
+        TenantNotFoundError: If the table is not found in this tenant scope, or it
+            has no open session.
+    """
+    table = await _get_tenant_table(session, tenant, business_id, branch_id, table_id)
+
+    sess_obj, changed = await _request_bill_for_table(session, table)
+    if changed:
         await record_audit_log(
             session=session,
             action="TABLE_BILL_REQUESTED",
@@ -264,23 +386,28 @@ async def request_session_bill(
         )
         await session.commit()
 
-    logger.info("Bill requested for session", session_code=sess_obj.session_code)
+    return _map_session_to_response(sess_obj, table.table_number)
 
-    # Staff learn about the request live; a repeat request (already bill_requested)
-    # returned earlier and does not notify again.
-    await ws_manager.broadcast_to_rooms(
-        rooms=[f"branch:{branch_id}:pos"],
-        event="table_session.bill_requested",
-        data={
-            "table_session_id": str(sess_obj.id),
-            "session_code": sess_obj.session_code,
-            "table_id": str(table.id),
-            "table_number": table.table_number,
-            "bill_requested_at": sess_obj.bill_requested_at,
-        },
-        business_id=business_id,
-        branch_id=branch_id,
-    )
+
+async def request_guest_session_bill(
+    session: AsyncSession,
+    branch_id: UUID,
+    table_id: UUID,
+    qr_token: str,
+) -> TableSessionResponse:
+    """
+    Lets an unauthenticated guest ask for the bill of their table's session.
+
+    This public path has no tenant context. Access is scoped to the one table
+    whose current QR token the guest presents.
+
+    Raises:
+        TenantNotFoundError: If the table does not exist at this branch, the QR
+            token is not valid for it, or it has no open session.
+    """
+    table = await _get_guest_table(session, branch_id, table_id, qr_token)
+
+    sess_obj, _ = await _request_bill_for_table(session, table)
     return _map_session_to_response(sess_obj, table.table_number)
 
 
@@ -290,25 +417,16 @@ async def close_table_session(
     branch_id: UUID,
     table_id: UUID,
     payload: TableSessionCloseRequest,
-    tenant: TenantContext | None = None,
+    tenant: TenantContext,
 ) -> TableSessionResponse:
     """
     Closes active table session, updates table status, and rotates QR token.
-    """
-    tbl_query = select(RestaurantTable).where(
-        RestaurantTable.id == table_id,
-        RestaurantTable.branch_id == branch_id,
-        RestaurantTable.business_id == business_id,
-    )
-    if tenant:
-        tbl_query = tbl_query.where(
-            RestaurantTable.organization_id == tenant.organization_id
-        )
 
-    res = await session.execute(tbl_query)
-    table = res.scalar_one_or_none()
-    if table is None:
-        raise TenantNotFoundError("Table not found.")
+    Raises:
+        TenantNotFoundError: If the table is not found in the caller's
+            organization, or it has no open session.
+    """
+    table = await _get_tenant_table(session, tenant, business_id, branch_id, table_id)
 
     sess_res = await session.execute(
         select(TableSession).where(
@@ -333,21 +451,20 @@ async def close_table_session(
     await session.refresh(sess_obj)
     await session.refresh(table)
 
-    if tenant:
-        await record_audit_log(
-            session=session,
-            action="TABLE_SESSION_CLOSED",
-            organization_id=table.organization_id,
-            user_id=tenant.user_id,
-            resource_type="table_session",
-            resource_id=str(sess_obj.id),
-            details={
-                "table_number": table.table_number,
-                "session_code": sess_obj.session_code,
-                "next_status": table.status,
-            },
-        )
-        await session.commit()
+    await record_audit_log(
+        session=session,
+        action="TABLE_SESSION_CLOSED",
+        organization_id=table.organization_id,
+        user_id=tenant.user_id,
+        resource_type="table_session",
+        resource_id=str(sess_obj.id),
+        details={
+            "table_number": table.table_number,
+            "session_code": sess_obj.session_code,
+            "next_status": table.status,
+        },
+    )
+    await session.commit()
 
     logger.info("Table session closed", session_code=sess_obj.session_code)
     return _map_session_to_response(sess_obj, table.table_number)

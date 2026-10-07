@@ -562,6 +562,10 @@ export interface paths {
         /**
          * Guest places multi-round order from table QR
          * @description Guest places order directly from mobile phone at table.
+         *
+         *     The token must be the table's QR token or its active session token, and is
+         *     checked before a dining session is opened. Inactive tables, branches,
+         *     businesses, and organizations do not accept orders.
          */
         post: operations["place_public_guest_order_endpoint_api_v1_public_tables_orders_post"];
         delete?: never;
@@ -1436,6 +1440,8 @@ export interface paths {
         /**
          * Generate static merchant KHQR code
          * @description Generates a static merchant KHQR code for acrylic table stands or counter stickers.
+         *
+         *     The business and branch must belong to the caller's organization.
          */
         get: operations["generate_static_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_static_get"];
         put?: never;
@@ -11887,7 +11893,9 @@ export interface operations {
                 status?: components["schemas"]["OrderStatus"] | null;
                 table_id?: string | null;
             };
-            header?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
             path: {
                 business_id: string;
                 branch_id: string;
@@ -11919,7 +11927,9 @@ export interface operations {
     create_staff_order_api_v1_businesses__business_id__branches__branch_id__orders_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
             path: {
                 business_id: string;
                 branch_id: string;
@@ -11955,7 +11965,9 @@ export interface operations {
     get_order_details_api_v1_businesses__business_id__branches__branch_id__orders__order_id__get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
             path: {
                 business_id: string;
                 branch_id: string;
@@ -11988,7 +12000,9 @@ export interface operations {
     get_single_order_bill_api_v1_businesses__business_id__branches__branch_id__orders__order_id__bill_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
             path: {
                 business_id: string;
                 branch_id: string;
@@ -13330,7 +13344,9 @@ export interface operations {
     list_kitchen_stations_endpoint_api_v1_businesses__business_id__branches__branch_id__kitchen_stations_get: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
             path: {
                 business_id: string;
                 branch_id: string;
@@ -13362,7 +13378,9 @@ export interface operations {
     create_kitchen_station_endpoint_api_v1_businesses__business_id__branches__branch_id__kitchen_stations_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
             path: {
                 business_id: string;
                 branch_id: string;
@@ -13398,7 +13416,9 @@ export interface operations {
     update_kitchen_station_endpoint_api_v1_businesses__business_id__branches__branch_id__kitchen_stations__station_id__put: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
             path: {
                 business_id: string;
                 branch_id: string;
@@ -13435,7 +13455,9 @@ export interface operations {
     delete_kitchen_station_endpoint_api_v1_businesses__business_id__branches__branch_id__kitchen_stations__station_id__delete: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
             path: {
                 business_id: string;
                 branch_id: string;
@@ -13466,7 +13488,9 @@ export interface operations {
     assign_station_items_endpoint_api_v1_businesses__business_id__branches__branch_id__kitchen_stations__station_id__assignments_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
             path: {
                 business_id: string;
                 branch_id: string;

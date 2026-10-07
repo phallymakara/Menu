@@ -291,33 +291,33 @@ def _build_round_and_consolidated_summaries(
 
 async def get_table_session_bill_summary(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     table_session_id: UUID,
-    tenant: TenantContext | None = None,
 ) -> BillSummaryResponse:
     """
     Aggregates all order rounds for an active or completed table session
     and produces the consolidated bill summary in USD & KHR.
+
+    The session must belong to the branch, the business, and the caller's
+    organization.
+
+    Raises:
+        HTTPException (404): If the session is not found in this tenant scope.
     """
-    # 1. Fetch Table Session
-    sess_query = (
+    sess_res = await session.execute(
         select(TableSession)
         .options(
             selectinload(TableSession.table).selectinload(RestaurantTable.dining_area)
         )
         .where(
             TableSession.id == table_session_id,
+            TableSession.organization_id == tenant.organization_id,
             TableSession.business_id == business_id,
             TableSession.branch_id == branch_id,
         )
     )
-    if tenant:
-        sess_query = sess_query.where(
-            TableSession.organization_id == tenant.organization_id
-        )
-
-    sess_res = await session.execute(sess_query)
     table_sess = sess_res.scalar_one_or_none()
     if table_sess is None:
         raise HTTPException(
@@ -325,26 +325,39 @@ async def get_table_session_bill_summary(
             detail="Table dining session not found.",
         )
 
-    # 2. Fetch all orders for this session (excluding CANCELLED / REJECTED)
+    return await _build_table_session_bill_summary(session, table_sess)
+
+
+async def _build_table_session_bill_summary(
+    session: AsyncSession,
+    table_sess: TableSession,
+) -> BillSummaryResponse:
+    """
+    Builds the consolidated bill of a table session that the caller has already
+    resolved and authorized (by tenant scope or by guest session token).
+    """
+    branch_id = table_sess.branch_id
+
+    # 1. Fetch all orders for this session (excluding CANCELLED / REJECTED)
     orders_res = await session.execute(
         select(Order)
         .options(
             selectinload(Order.items).selectinload(OrderItem.modifiers),
         )
         .where(
-            Order.table_session_id == table_session_id,
+            Order.table_session_id == table_sess.id,
             Order.status != OrderStatus.CANCELLED,
         )
         .order_by(Order.round_number.asc(), Order.created_at.asc())
     )
     orders = list(orders_res.scalars().all())
 
-    # 3. Calculate Item Breakdown & Consolidations
+    # 2. Calculate Item Breakdown & Consolidations
     rounds, consolidated, subtotal_usd, total_items = (
         _build_round_and_consolidated_summaries(orders)
     )
 
-    # 4. Resolve Financial Settings & Calculate Totals
+    # 3. Resolve Financial Settings & Calculate Totals
     table = table_sess.table
     (
         tax_pct,
@@ -367,7 +380,7 @@ async def get_table_session_bill_summary(
         is_sc_inclusive=is_sc_inc,
     )
 
-    # 5. Calculate Elapsed Duration
+    # 4. Calculate Elapsed Duration
     now_utc = datetime.now(timezone.utc)
     opened = (
         table_sess.opened_at
@@ -409,15 +422,21 @@ async def get_table_session_bill_summary(
 
 async def get_order_bill_summary(
     session: AsyncSession,
+    tenant: TenantContext,
     business_id: UUID,
     branch_id: UUID,
     order_id: UUID,
-    tenant: TenantContext | None = None,
 ) -> BillSummaryResponse:
     """
     Produces the bill summary for a single standalone order (e.g. takeaway or direct POS order).
+
+    The order must belong to the branch, the business, and the caller's
+    organization.
+
+    Raises:
+        HTTPException (404): If the order is not found in this tenant scope.
     """
-    order_query = (
+    order_res = await session.execute(
         select(Order)
         .options(
             selectinload(Order.items).selectinload(OrderItem.modifiers),
@@ -425,14 +444,11 @@ async def get_order_bill_summary(
         )
         .where(
             Order.id == order_id,
+            Order.organization_id == tenant.organization_id,
             Order.business_id == business_id,
             Order.branch_id == branch_id,
         )
     )
-    if tenant:
-        order_query = order_query.where(Order.organization_id == tenant.organization_id)
-
-    order_res = await session.execute(order_query)
     order = order_res.scalar_one_or_none()
     if order is None:
         raise HTTPException(
@@ -495,6 +511,12 @@ async def get_public_session_bill_summary(
 ) -> BillSummaryResponse:
     """
     Public guest endpoint: retrieves the live running bill summary using the guest's session token.
+
+    There is no tenant here: the session token itself scopes access to exactly
+    one table session.
+
+    Raises:
+        HTTPException (404): If no table session has this token.
     """
     sess_res = await session.execute(
         select(TableSession)
@@ -510,9 +532,4 @@ async def get_public_session_bill_summary(
             detail="Invalid or expired table session token.",
         )
 
-    return await get_table_session_bill_summary(
-        session=session,
-        business_id=table_sess.business_id,
-        branch_id=table_sess.branch_id,
-        table_session_id=table_sess.id,
-    )
+    return await _build_table_session_bill_summary(session, table_sess)

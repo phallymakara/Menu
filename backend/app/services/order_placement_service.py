@@ -5,10 +5,16 @@ from uuid import UUID
 
 import structlog
 from fastapi import HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import (
+    PermissionDeniedError,
+    TenantInactiveError,
+    TenantNotFoundError,
+)
+from app.core.tenant import TenantContext
 from app.core.ws_manager import ws_manager
 from app.models.branch import Branch
 from app.models.branch_menu import BranchItemOverride
@@ -20,6 +26,7 @@ from app.models.enums import (
     OrderSource,
     OrderStatus,
     OrderType,
+    OrganizationStatus,
     TableSessionStatus,
     TableStatus,
 )
@@ -28,7 +35,6 @@ from app.models.modifier import MenuItemModifierGroup, ModifierGroup
 from app.models.order import Order, OrderItem, OrderItemModifier
 from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession, generate_session_token
-from app.models.user import User
 from app.schemas.order import (
     GuestOrderPlacementRequest,
     OrderItemCreate,
@@ -36,6 +42,7 @@ from app.schemas.order import (
     StaffOrderPlacementRequest,
     TableSessionOrdersSummaryResponse,
 )
+from app.services.tenancy import get_branch_for_tenant
 
 logger = structlog.get_logger("app.services.order_placement_service")
 
@@ -94,12 +101,17 @@ async def _resolve_financial_settings(
 
 async def _validate_and_build_order_items(
     session: AsyncSession,
-    branch_id: UUID,
+    branch: Branch,
     items_payload: list[OrderItemCreate],
 ) -> tuple[list[OrderItem], Decimal]:
     """
     Validates dish availability, stock overrides, size variants, and modifier groups.
     Computes exact line-item math and builds OrderItem + OrderItemModifier models.
+
+    Menu items are scoped to the branch's organization and business, and must be
+    either master items (no branch) or local items of this branch. An unknown
+    item, or one owned by another tenant or another branch, is rejected as not
+    found.
     """
     built_items: list[OrderItem] = []
     order_subtotal_usd = Decimal("0.00")
@@ -118,14 +130,20 @@ async def _validate_and_build_order_items(
             .selectinload(MenuItemModifierGroup.group)
             .selectinload(ModifierGroup.options),
         )
-        .where(MenuItem.id.in_(item_ids))
+        .where(
+            MenuItem.id.in_(item_ids),
+            MenuItem.organization_id == branch.organization_id,
+            MenuItem.business_id == branch.business_id,
+            or_(MenuItem.branch_id.is_(None), MenuItem.branch_id == branch.id),
+        )
     )
     menu_items_map = {m.id: m for m in menu_items_res.scalars().all()}
 
     # Check branch stock overrides
     overrides_res = await session.execute(
         select(BranchItemOverride).where(
-            BranchItemOverride.branch_id == branch_id,
+            BranchItemOverride.organization_id == branch.organization_id,
+            BranchItemOverride.branch_id == branch.id,
             BranchItemOverride.menu_item_id.in_(item_ids),
         )
     )
@@ -134,6 +152,12 @@ async def _validate_and_build_order_items(
     for item_input in items_payload:
         menu_item = menu_items_map.get(item_input.menu_item_id)
         if menu_item is None:
+            logger.warning(
+                "Order rejected: menu item not available to this branch",
+                menu_item_id=str(item_input.menu_item_id),
+                branch_id=str(branch.id),
+                organization_id=str(branch.organization_id),
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Menu item '{item_input.menu_item_id}' not found.",
@@ -295,6 +319,94 @@ async def _validate_and_build_order_items(
     return built_items, order_subtotal_usd
 
 
+def _guest_token_matches(provided: str, expected: str | None) -> bool:
+    """Compares a guest-supplied token with a stored token in constant time."""
+    if not expected:
+        return False
+    return secrets.compare_digest(provided.encode(), expected.encode())
+
+
+async def _resolve_guest_ordering_context(
+    session: AsyncSession,
+    branch_id: UUID,
+    table_id: UUID,
+    token: str,
+) -> tuple[RestaurantTable, Branch, TableSession | None]:
+    """
+    Resolves and authorizes the table a guest is ordering from.
+
+    A guest has no tenant context, so access is scoped to one table: the token
+    must be the table's QR token or the token of the table's active dining
+    session. The token is checked before anything is created. The table and its
+    branch, business, and organization must all be active.
+
+    Returns:
+        The table, its branch, and the active dining session (None if idle).
+
+    Raises:
+        TenantNotFoundError: If the table does not exist at this branch.
+        PermissionDeniedError: If the token matches neither the table QR token nor
+            the active session token.
+        TenantInactiveError: If the table, branch, business, or organization is
+            inactive.
+    """
+    table_res = await session.execute(
+        select(RestaurantTable)
+        .options(
+            selectinload(RestaurantTable.branch),
+            selectinload(RestaurantTable.business),
+            selectinload(RestaurantTable.organization),
+        )
+        .where(
+            RestaurantTable.id == table_id,
+            RestaurantTable.branch_id == branch_id,
+        )
+    )
+    table = table_res.scalar_one_or_none()
+    if table is None:
+        raise TenantNotFoundError("Restaurant table not found at this branch.")
+
+    active_session_res = await session.execute(
+        select(TableSession).where(
+            TableSession.table_id == table_id,
+            TableSession.status == TableSessionStatus.ACTIVE,
+        )
+    )
+    table_session = active_session_res.scalar_one_or_none()
+
+    token_is_valid = _guest_token_matches(token, table.qr_code_token) or (
+        table_session is not None
+        and _guest_token_matches(token, table_session.session_token)
+    )
+    if not token_is_valid:
+        logger.warning(
+            "Guest order rejected: invalid table token",
+            table_id=str(table_id),
+            branch_id=str(branch_id),
+            has_active_session=table_session is not None,
+        )
+        raise PermissionDeniedError("Invalid or expired table QR token.")
+
+    branch = table.branch
+    organization = table.organization
+    if (
+        not table.is_active
+        or not branch.is_active
+        or not table.business.is_active
+        or not organization.is_active
+        or organization.status != OrganizationStatus.ACTIVE
+    ):
+        logger.warning(
+            "Guest order rejected: table or tenant is inactive",
+            table_id=str(table_id),
+            branch_id=str(branch_id),
+            organization_id=str(table.organization_id),
+        )
+        raise TenantInactiveError("This table is not accepting orders right now.")
+
+    return table, branch, table_session
+
+
 async def place_guest_order(
     session: AsyncSession,
     branch_id: UUID,
@@ -304,31 +416,22 @@ async def place_guest_order(
 ) -> Order:
     """
     Places a multi-round guest order from a mobile device using a verified QR session.
+
+    This is a public path with no tenant context. It is scoped to the table whose
+    QR token (or active session token) the guest presents, and only accepts menu
+    items of that table's business and branch.
+
+    Raises:
+        TenantNotFoundError: If the table does not exist at this branch.
+        PermissionDeniedError: If the token is not valid for this table.
+        TenantInactiveError: If the table or its tenant is inactive.
     """
-    # 1. Verify Table and Branch
-    table_res = await session.execute(
-        select(RestaurantTable).where(
-            RestaurantTable.id == table_id,
-            RestaurantTable.branch_id == branch_id,
-        )
+    # 1. Verify the table and the guest token before anything is created
+    table, branch, table_session = await _resolve_guest_ordering_context(
+        session, branch_id, table_id, token
     )
-    table = table_res.scalar_one_or_none()
-    if table is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Restaurant table not found at this branch.",
-        )
 
-    # 2. Check and Link Active Table Session
-    active_session_res = await session.execute(
-        select(TableSession).where(
-            TableSession.table_id == table_id,
-            TableSession.status == TableSessionStatus.ACTIVE,
-        )
-    )
-    table_session = active_session_res.scalar_one_or_none()
-
-    # If no active session, auto-open one
+    # 2. Link the active table session, or auto-open one for an idle table
     if table_session is None:
         table_session = TableSession(
             organization_id=table.organization_id,
@@ -343,22 +446,13 @@ async def place_guest_order(
         session.add(table_session)
         table.status = TableStatus.OCCUPIED
         await session.flush()
-    else:
-        # Verify token matches either permanent table QR or active session token
-        if token != table.qr_code_token and token != table_session.session_token:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid or expired table QR token.",
-            )
 
     # 3. Resolve Branch Financial Settings
-    branch_res = await session.execute(select(Branch).where(Branch.id == branch_id))
-    branch = branch_res.scalar_one()
     tax_pct, sc_pct, usd_to_khr = await _resolve_financial_settings(session, branch)
 
     # 4. Validate Items and Calculate Subtotal
     order_items, subtotal_usd = await _validate_and_build_order_items(
-        session, branch_id, payload.items
+        session, branch, payload.items
     )
 
     # 5. Multi-round sequencing
@@ -457,20 +551,21 @@ async def place_guest_order(
 
 async def place_staff_order(
     session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
     branch_id: UUID,
-    current_user: User,
     payload: StaffOrderPlacementRequest,
 ) -> Order:
     """
     Places an order from a staff POS terminal at a table or for takeaway.
+
+    The branch must belong to the business in the path and to the caller's
+    organization, and every ordered item must belong to that business.
+
+    Raises:
+        TenantNotFoundError: If the branch is not part of the business and tenant.
     """
-    branch_res = await session.execute(select(Branch).where(Branch.id == branch_id))
-    branch = branch_res.scalar_one_or_none()
-    if branch is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Branch not found.",
-        )
+    branch = await get_branch_for_tenant(session, tenant, business_id, branch_id)
 
     table_session_id: UUID | None = None
     table_id = payload.table_id
@@ -481,6 +576,7 @@ async def place_staff_order(
             select(RestaurantTable).where(
                 RestaurantTable.id == table_id,
                 RestaurantTable.branch_id == branch_id,
+                RestaurantTable.organization_id == tenant.organization_id,
             )
         )
         table = table_res.scalar_one_or_none()
@@ -517,7 +613,7 @@ async def place_staff_order(
     # Financial settings & Item calculations
     tax_pct, sc_pct, usd_to_khr = await _resolve_financial_settings(session, branch)
     order_items, subtotal_usd = await _validate_and_build_order_items(
-        session, branch_id, payload.items
+        session, branch, payload.items
     )
 
     current_round = 1
@@ -559,7 +655,7 @@ async def place_staff_order(
         total_amount_usd=total_amount_usd,
         total_amount_khr=total_amount_khr,
         guest_notes=payload.guest_notes,
-        placed_by_user_id=current_user.id,
+        placed_by_user_id=tenant.user_id,
         items=order_items,
     )
     session.add(order)
@@ -578,7 +674,8 @@ async def place_staff_order(
         "Staff POS order placed",
         order_id=str(reloaded_order.id),
         order_number=reloaded_order.order_number,
-        staff_id=str(current_user.id),
+        staff_id=str(tenant.user_id),
+        organization_id=str(tenant.organization_id),
     )
 
     # Real-time WebSocket Broadcast
@@ -697,3 +794,72 @@ async def get_table_session_orders_summary(
         grand_total_khr=grand_total_khr,
         orders=[OrderResponse.model_validate(o) for o in orders],
     )
+
+
+async def list_branch_orders(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+    status_filter: OrderStatus | None = None,
+    table_id: UUID | None = None,
+) -> list[Order]:
+    """
+    Lists the order tickets of a branch, newest first, with optional filters.
+
+    Raises:
+        TenantNotFoundError: If the branch is not part of the business and tenant.
+    """
+    await get_branch_for_tenant(session, tenant, business_id, branch_id)
+
+    stmt = (
+        select(Order)
+        .options(
+            selectinload(Order.items).selectinload(OrderItem.modifiers),
+        )
+        .where(
+            Order.organization_id == tenant.organization_id,
+            Order.business_id == business_id,
+            Order.branch_id == branch_id,
+        )
+        .order_by(Order.created_at.desc())
+    )
+    if status_filter is not None:
+        stmt = stmt.where(Order.status == status_filter)
+    if table_id is not None:
+        stmt = stmt.where(Order.table_id == table_id)
+
+    res = await session.execute(stmt)
+    return list(res.scalars().all())
+
+
+async def get_branch_order(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+) -> Order:
+    """
+    Retrieves one order ticket of a branch with its items and modifiers.
+
+    Raises:
+        TenantNotFoundError: If the order does not exist in this branch, business,
+            and tenant.
+    """
+    res = await session.execute(
+        select(Order)
+        .options(
+            selectinload(Order.items).selectinload(OrderItem.modifiers),
+        )
+        .where(
+            Order.id == order_id,
+            Order.organization_id == tenant.organization_id,
+            Order.business_id == business_id,
+            Order.branch_id == branch_id,
+        )
+    )
+    order = res.scalar_one_or_none()
+    if order is None:
+        raise TenantNotFoundError("Order ticket not found.")
+    return order

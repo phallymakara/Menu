@@ -1,12 +1,17 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies.auth import get_current_user
+from app.api.dependencies.permissions import (
+    Permission,
+    require_permission_for_writes,
+)
+from app.api.dependencies.tenant import get_current_tenant_context
+from app.core.exceptions import TenantNotFoundError
+from app.core.tenant import TenantContext
 from app.db.session import get_db_session
-from app.models.user import User
 from app.schemas.kitchen_station import (
     KitchenStationCreate,
     KitchenStationResponse,
@@ -24,6 +29,9 @@ from app.services.kitchen_station_service import (
 router = APIRouter(
     prefix="/businesses/{business_id}/branches/{branch_id}/kitchen-stations",
     tags=["Kitchen Stations"],
+    # Station setup and item routing are menu configuration; the KDS actions
+    # themselves stay under OPERATE_KITCHEN in the kds router.
+    dependencies=[Depends(require_permission_for_writes(Permission.MANAGE_MENU))],
 )
 
 
@@ -37,16 +45,23 @@ async def create_kitchen_station_endpoint(
     business_id: UUID,
     branch_id: UUID,
     payload: KitchenStationCreate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> KitchenStationResponse:
     """Creates a new kitchen station (e.g. Bar, Grill, Hot Wok, Pastry, Expo)."""
-    station = await create_kitchen_station(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        payload=payload,
-    )
+    try:
+        station = await create_kitchen_station(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            payload=payload,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
     return KitchenStationResponse.model_validate(station)
 
 
@@ -58,15 +73,22 @@ async def create_kitchen_station_endpoint(
 async def list_kitchen_stations_endpoint(
     business_id: UUID,
     branch_id: UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> list[KitchenStationResponse]:
     """Lists all configured kitchen stations for a branch."""
-    stations = await list_kitchen_stations(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-    )
+    try:
+        stations = await list_kitchen_stations(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
     return [KitchenStationResponse.model_validate(s) for s in stations]
 
 
@@ -80,17 +102,24 @@ async def update_kitchen_station_endpoint(
     branch_id: UUID,
     station_id: UUID,
     payload: KitchenStationUpdate,
-    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> KitchenStationResponse:
     """Updates configuration of a branch kitchen station."""
-    station = await update_kitchen_station(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        station_id=station_id,
-        payload=payload,
-    )
+    try:
+        station = await update_kitchen_station(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            station_id=station_id,
+            payload=payload,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
     return KitchenStationResponse.model_validate(station)
 
 
@@ -103,16 +132,23 @@ async def delete_kitchen_station_endpoint(
     business_id: UUID,
     branch_id: UUID,
     station_id: UUID,
-    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> None:
     """Deletes a kitchen station."""
-    await delete_kitchen_station(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        station_id=station_id,
-    )
+    try:
+        await delete_kitchen_station(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            station_id=station_id,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post(
@@ -125,17 +161,24 @@ async def assign_station_items_endpoint(
     branch_id: UUID,
     station_id: UUID,
     payload: StationItemAssignRequest,
-    current_user: Annotated[User, Depends(get_current_user)],
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> dict[str, str]:
     """Bulk-assigns categories and dishes to this preparation station."""
-    await assign_station_to_items_and_categories(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
-        station_id=station_id,
-        payload=payload,
-    )
+    try:
+        await assign_station_to_items_and_categories(
+            session=session,
+            tenant=tenant,
+            business_id=business_id,
+            branch_id=branch_id,
+            station_id=station_id,
+            payload=payload,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
     return {
         "message": "Categories and menu items assigned to kitchen station successfully."
     }
