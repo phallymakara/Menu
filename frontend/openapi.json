@@ -1871,6 +1871,144 @@
         }
       }
     },
+    "/api/v1/public/tables/service-requests": {
+      "post": {
+        "tags": [
+          "Public Table QR Verification"
+        ],
+        "summary": "Guest asks staff for help from the table (call staff, water, bill, ...)",
+        "description": "Raises a service request from the guest's live table session.\n\nOnly an active or bill-requested session of this table can be used. Returns 409\nwhen the session already has an open request of the same type.",
+        "operationId": "create_public_service_request_endpoint_api_v1_public_tables_service_requests_post",
+        "security": [
+          {
+            "TableSessionToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Branch ID from scanned QR",
+              "title": "Branch Id"
+            },
+            "description": "Branch ID from scanned QR"
+          },
+          {
+            "name": "table_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Table ID from scanned QR",
+              "title": "Table Id"
+            },
+            "description": "Table ID from scanned QR"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestServiceRequestCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GuestServiceRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Public Table QR Verification"
+        ],
+        "summary": "Guest views the service requests of their own table session",
+        "description": "Lists the requests raised during the guest's own table session, newest first.",
+        "operationId": "list_public_service_requests_endpoint_api_v1_public_tables_service_requests_get",
+        "security": [
+          {
+            "TableSessionToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Branch ID from scanned QR",
+              "title": "Branch Id"
+            },
+            "description": "Branch ID from scanned QR"
+          },
+          {
+            "name": "table_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Table ID from scanned QR",
+              "title": "Table Id"
+            },
+            "description": "Table ID from scanned QR"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GuestServiceRequestResponse"
+                  },
+                  "title": "Response List Public Service Requests Endpoint Api V1 Public Tables Service Requests Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/businesses": {
       "get": {
         "tags": [
@@ -4813,6 +4951,288 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BillSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/service-requests": {
+      "get": {
+        "tags": [
+          "Service Hub (Guest Service Requests)"
+        ],
+        "summary": "List the branch's guest service requests",
+        "description": "Lists the branch's service requests, newest first.",
+        "operationId": "list_service_requests_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServiceRequestStatus"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Statuses to include; repeat the parameter for several. Defaults to the open and acknowledged requests.",
+              "title": "Status"
+            },
+            "description": "Statuses to include; repeat the parameter for several. Defaults to the open and acknowledged requests."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ServiceRequestResponse"
+                  },
+                  "title": "Response List Service Requests Endpoint Api V1 Businesses  Business Id  Branches  Branch Id  Service Requests Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/service-requests/{request_id}/acknowledge": {
+      "post": {
+        "tags": [
+          "Service Hub (Guest Service Requests)"
+        ],
+        "summary": "Take an open guest service request",
+        "description": "Marks an open request as acknowledged by the caller; 409 if it is not open.",
+        "operationId": "acknowledge_service_request_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests__request_id__acknowledge_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/service-requests/{request_id}/resolve": {
+      "post": {
+        "tags": [
+          "Service Hub (Guest Service Requests)"
+        ],
+        "summary": "Mark a guest service request as handled",
+        "description": "Marks an open or acknowledged request as resolved; 409 if it is already closed.",
+        "operationId": "resolve_service_request_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests__request_id__resolve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceRequestResponse"
                 }
               }
             }
@@ -21770,6 +22190,108 @@
         ],
         "title": "GuestOrderPlacementRequest"
       },
+      "GuestServiceRequestCreate": {
+        "properties": {
+          "request_type": {
+            "$ref": "#/components/schemas/ServiceRequestType",
+            "description": "What the guest needs from staff"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Optional short note for staff; required for custom requests"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_type"
+        ],
+        "title": "GuestServiceRequestCreate",
+        "description": "Payload a guest submits to ask staff for help from their table."
+      },
+      "GuestServiceRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "table_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Table Id"
+          },
+          "table_number": {
+            "type": "string",
+            "title": "Table Number"
+          },
+          "request_type": {
+            "$ref": "#/components/schemas/ServiceRequestType"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ServiceRequestStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "table_id",
+          "table_number",
+          "request_type",
+          "status",
+          "created_at"
+        ],
+        "title": "GuestServiceRequestResponse",
+        "description": "A service request as the guest who raised it sees it, without staff identities."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -27658,6 +28180,190 @@
         "title": "SalesOverviewMetrics",
         "description": "High-level sales and operational summary."
       },
+      "ServiceRequestResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Business Id"
+          },
+          "branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Branch Id"
+          },
+          "table_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Table Id"
+          },
+          "table_session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Table Session Id"
+          },
+          "table_number": {
+            "type": "string",
+            "title": "Table Number"
+          },
+          "dining_area_name_en": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dining Area Name En"
+          },
+          "dining_area_name_km": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dining Area Name Km"
+          },
+          "request_type": {
+            "$ref": "#/components/schemas/ServiceRequestType"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ServiceRequestStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "acknowledged_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged At"
+          },
+          "acknowledged_by_user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged By User Id"
+          },
+          "acknowledged_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acknowledged By Name"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by_user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By User Id"
+          },
+          "resolved_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "business_id",
+          "branch_id",
+          "table_id",
+          "table_session_id",
+          "table_number",
+          "request_type",
+          "status",
+          "created_at"
+        ],
+        "title": "ServiceRequestResponse",
+        "description": "A service request as staff see it in the POS service hub."
+      },
+      "ServiceRequestStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "acknowledged",
+          "resolved",
+          "cancelled"
+        ],
+        "title": "ServiceRequestStatus",
+        "description": "Lifecycle of a guest service request: open, then acknowledged, then resolved."
+      },
+      "ServiceRequestType": {
+        "type": "string",
+        "enum": [
+          "call_staff",
+          "water",
+          "cleaning",
+          "bill",
+          "custom"
+        ],
+        "title": "ServiceRequestType",
+        "description": "What a guest is asking staff for from their table."
+      },
       "StaffOrderPlacementRequest": {
         "properties": {
           "table_id": {
@@ -29312,6 +30018,12 @@
       "HTTPBearer": {
         "type": "http",
         "scheme": "bearer"
+      },
+      "TableSessionToken": {
+        "type": "apiKey",
+        "description": "Session token returned when the guest's table session was opened (``session_token`` in the open-session response).",
+        "in": "header",
+        "name": "X-Table-Session-Token"
       }
     }
   }

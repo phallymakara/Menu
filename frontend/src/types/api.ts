@@ -614,6 +614,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/tables/service-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guest views the service requests of their own table session
+         * @description Lists the requests raised during the guest's own table session, newest first.
+         */
+        get: operations["list_public_service_requests_endpoint_api_v1_public_tables_service_requests_get"];
+        put?: never;
+        /**
+         * Guest asks staff for help from the table (call staff, water, bill, ...)
+         * @description Raises a service request from the guest's live table session.
+         *
+         *     Only an active or bill-requested session of this table can be used. Returns 409
+         *     when the session already has an open request of the same type.
+         */
+        post: operations["create_public_service_request_endpoint_api_v1_public_tables_service_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/businesses": {
         parameters: {
             query?: never;
@@ -1117,6 +1144,66 @@ export interface paths {
         get: operations["get_session_bill_endpoint_api_v1_businesses__business_id__branches__branch_id__table_sessions__session_id__bill_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/service-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the branch's guest service requests
+         * @description Lists the branch's service requests, newest first.
+         */
+        get: operations["list_service_requests_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/service-requests/{request_id}/acknowledge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take an open guest service request
+         * @description Marks an open request as acknowledged by the caller; 409 if it is not open.
+         */
+        post: operations["acknowledge_service_request_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests__request_id__acknowledge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/service-requests/{request_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a guest service request as handled
+         * @description Marks an open or acknowledged request as resolved; 409 if it is already closed.
+         */
+        post: operations["resolve_service_request_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests__request_id__resolve_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6026,6 +6113,50 @@ export interface components {
             /** Items */
             items: components["schemas"]["OrderItemCreate"][];
         };
+        /**
+         * GuestServiceRequestCreate
+         * @description Payload a guest submits to ask staff for help from their table.
+         */
+        GuestServiceRequestCreate: {
+            /** @description What the guest needs from staff */
+            request_type: components["schemas"]["ServiceRequestType"];
+            /**
+             * Note
+             * @description Optional short note for staff; required for custom requests
+             */
+            note?: string | null;
+        };
+        /**
+         * GuestServiceRequestResponse
+         * @description A service request as the guest who raised it sees it, without staff identities.
+         */
+        GuestServiceRequestResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Table Id
+             * Format: uuid
+             */
+            table_id: string;
+            /** Table Number */
+            table_number: string;
+            request_type: components["schemas"]["ServiceRequestType"];
+            /** Note */
+            note?: string | null;
+            status: components["schemas"]["ServiceRequestStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Acknowledged At */
+            acknowledged_at?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -8554,6 +8685,76 @@ export interface components {
              */
             gross_margin_percent: string;
         };
+        /**
+         * ServiceRequestResponse
+         * @description A service request as staff see it in the POS service hub.
+         */
+        ServiceRequestResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Business Id
+             * Format: uuid
+             */
+            business_id: string;
+            /**
+             * Branch Id
+             * Format: uuid
+             */
+            branch_id: string;
+            /**
+             * Table Id
+             * Format: uuid
+             */
+            table_id: string;
+            /**
+             * Table Session Id
+             * Format: uuid
+             */
+            table_session_id: string;
+            /** Table Number */
+            table_number: string;
+            /** Dining Area Name En */
+            dining_area_name_en?: string | null;
+            /** Dining Area Name Km */
+            dining_area_name_km?: string | null;
+            request_type: components["schemas"]["ServiceRequestType"];
+            /** Note */
+            note?: string | null;
+            status: components["schemas"]["ServiceRequestStatus"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Acknowledged At */
+            acknowledged_at?: string | null;
+            /** Acknowledged By User Id */
+            acknowledged_by_user_id?: string | null;
+            /** Acknowledged By Name */
+            acknowledged_by_name?: string | null;
+            /** Resolved At */
+            resolved_at?: string | null;
+            /** Resolved By User Id */
+            resolved_by_user_id?: string | null;
+            /** Resolved By Name */
+            resolved_by_name?: string | null;
+        };
+        /**
+         * ServiceRequestStatus
+         * @description Lifecycle of a guest service request: open, then acknowledged, then resolved.
+         * @enum {string}
+         */
+        ServiceRequestStatus: "open" | "acknowledged" | "resolved" | "cancelled";
+        /**
+         * ServiceRequestType
+         * @description What a guest is asking staff for from their table.
+         * @enum {string}
+         */
+        ServiceRequestType: "call_staff" | "water" | "cleaning" | "bill" | "custom";
         /** StaffOrderPlacementRequest */
         StaffOrderPlacementRequest: {
             /** Table Id */
@@ -10283,6 +10484,78 @@ export interface operations {
             };
         };
     };
+    list_public_service_requests_endpoint_api_v1_public_tables_service_requests_get: {
+        parameters: {
+            query: {
+                /** @description Branch ID from scanned QR */
+                branch_id: string;
+                /** @description Table ID from scanned QR */
+                table_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestServiceRequestResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_public_service_request_endpoint_api_v1_public_tables_service_requests_post: {
+        parameters: {
+            query: {
+                /** @description Branch ID from scanned QR */
+                branch_id: string;
+                /** @description Table ID from scanned QR */
+                table_id: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GuestServiceRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestServiceRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_tenant_businesses_api_v1_businesses_get: {
         parameters: {
             query?: never;
@@ -11493,6 +11766,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BillSummaryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_service_requests_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests_get: {
+        parameters: {
+            query?: {
+                /** @description Statuses to include; repeat the parameter for several. Defaults to the open and acknowledged requests. */
+                status?: components["schemas"]["ServiceRequestStatus"][] | null;
+                limit?: number;
+            };
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                business_id: string;
+                branch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceRequestResponse"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    acknowledge_service_request_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests__request_id__acknowledge_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                business_id: string;
+                branch_id: string;
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_service_request_endpoint_api_v1_businesses__business_id__branches__branch_id__service_requests__request_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                business_id: string;
+                branch_id: string;
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceRequestResponse"];
                 };
             };
             /** @description Validation Error */
