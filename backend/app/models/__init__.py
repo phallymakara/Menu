@@ -25,6 +25,7 @@ from app.models.payment import Payment
 from app.models.plan import Plan
 from app.models.promotion import Promotion
 from app.models.restaurant_table import RestaurantTable
+from app.models.service_request import ServiceRequest
 from app.models.subscription import Subscription
 from app.models.table_session import TableSession
 from app.models.user import User
@@ -59,6 +60,7 @@ __all__ = [
     "Plan",
     "Promotion",
     "RestaurantTable",
+    "ServiceRequest",
     "StockAdjustmentLog",
     "StockTransfer",
     "StockTransferItem",

@@ -13,12 +13,17 @@ export interface POSHeaderProps {
   isConnected?: boolean
   onRefresh?: () => void
   isRefreshing?: boolean
+  /** Active business and branch; the service hub bell counts that branch's requests. */
+  businessId?: string | null
+  branchId?: string | null
 }
 
 export const POSHeader: FC<POSHeaderProps> = ({
   storeName,
   storeLogo,
   isConnected = true,
+  businessId = null,
+  branchId = null,
 }) => {
   const { language } = useLanguageStore()
   const { tables } = usePOSStore()
@@ -114,7 +119,7 @@ export const POSHeader: FC<POSHeaderProps> = ({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
-          <ServiceHubBellButton />
+          <ServiceHubBellButton businessId={businessId} branchId={branchId} />
           <LanguageSwitcher />
           <ThemeToggle />
         </div>
