@@ -9,6 +9,7 @@ import {
   Clock,
   Users,
   UtensilsCrossed,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { POSTable, POSPlacedRound, POSPlacedItem } from '../types/pos.types'
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay'
@@ -23,6 +24,8 @@ export interface POSOrderDrawerProps {
   onOpenVoidModal: (item: POSPlacedItem) => void
   onPrintPrecheck: () => void
   onStartDirectOrder?: () => void
+  onOpenTableActions?: () => void
+  onCancelRound?: (orderId: string) => void
 }
 
 export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
@@ -34,6 +37,8 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
   onOpenVoidModal,
   onPrintPrecheck,
   onStartDirectOrder,
+  onOpenTableActions,
+  onCancelRound,
 }) => {
   const { language } = useLanguageStore()
 
@@ -74,12 +79,23 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
           </div>
         </div>
 
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          {onOpenTableActions && (
+            <button
+              onClick={onOpenTableActions}
+              title={language === 'km' ? 'សកម្មភាពតុ' : 'Table Actions'}
+              className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <ArrowLeftRight className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* 2. Placed Order Rounds Items List */}
@@ -92,12 +108,24 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
                 ? 'មិនទាន់មានការកុម្ម៉ង់សម្រាប់តុនេះនៅឡើយទេ'
                 : 'No orders placed yet for this table.'}
             </p>
-            <button
-              onClick={onStartDirectOrder}
-              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors"
-            >
-              {language === 'km' ? '+ កុម្ម៉ង់មុខម្ហូបថ្មី' : '+ Take New Order'}
-            </button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+              {onOpenTableActions && !table.session_id && (
+                <button
+                  onClick={onOpenTableActions}
+                  className="px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-semibold text-xs transition-colors"
+                >
+                  {language === 'km' ? 'បើកតុទទួលភ្ញៀវ' : 'Seat Guests'}
+                </button>
+              )}
+              {onStartDirectOrder && (
+                <button
+                  onClick={onStartDirectOrder}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors"
+                >
+                  {language === 'km' ? '+ កុម្ម៉ង់មុខម្ហូបថ្មី' : '+ Take New Order'}
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           rounds.map((round) => (
@@ -106,7 +134,19 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
                 <span>
                   {language === 'km' ? `ជុំទី #${round.round_number}` : `Round #${round.round_number}`}
                 </span>
-                <CurrencyDisplay amountUSD={round.subtotal_usd} className="text-zinc-700 dark:text-zinc-300" />
+                <div className="flex items-center gap-2">
+                  <CurrencyDisplay amountUSD={round.subtotal_usd} className="text-zinc-700 dark:text-zinc-300" />
+                  {onCancelRound && (
+                    <button
+                      type="button"
+                      onClick={() => onCancelRound(round.id)}
+                      className="text-zinc-400 hover:text-red-600 transition-colors"
+                      title={language === 'km' ? 'លុបចោលជុំកុម្ម៉ង់នេះ' : 'Cancel order round'}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Items */}

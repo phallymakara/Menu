@@ -3,6 +3,7 @@ from uuid import uuid4
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.core.security import create_access_token, hash_password
@@ -364,3 +365,113 @@ async def test_non_admin_permission_denied():
         app.dependency_overrides.clear()
 
     await engine.dispose()
+
+
+@pytest.mark.anyio
+async def test_pos_permissions_and_manager_pin_override():
+    """Test pos_permissions metadata defaults, updating permissions, and manager PIN override."""
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with sessionmaker() as session:
+        owner, org, biz, branch = await setup_test_tenant(session)
+        token = create_access_token(owner.id)
+
+        # Set owner PIN
+        owner_mem_result = await session.execute(
+            select(OrganizationMembership).where(
+                OrganizationMembership.organization_id == org.id,
+                OrganizationMembership.user_id == owner.id,
+            )
+        )
+        owner_mem = owner_mem_result.scalar_one()
+        owner_mem.pos_pin = "8888"
+        await session.commit()
+
+        # Add a waiter
+        waiter = User(
+            email="waiter_pos@example.com",
+            password_hash="pwd",
+            full_name="Waiter Pos",
+            status=UserStatus.ACTIVE,
+        )
+        session.add(waiter)
+        await session.flush()
+
+        waiter_mem = OrganizationMembership(
+            organization_id=org.id,
+            user_id=waiter.id,
+            role=StaffRole.WAITER,
+            status=MembershipStatus.ACTIVE,
+            pos_pin="1234",
+        )
+        session.add(waiter_mem)
+        await session.commit()
+
+        async def _override_db():
+            yield session
+
+        app.dependency_overrides[get_db_session] = _override_db
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            # 1. Fetch member list - verify owner defaults (all true) vs waiter defaults (all false)
+            list_resp = await client.get(
+                f"/api/v1/organizations/{org.id}/members",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert list_resp.status_code == status.HTTP_200_OK
+            members_data = list_resp.json()
+            owner_entry = next(m for m in members_data if m["email"] == owner.email)
+            waiter_entry = next(m for m in members_data if m["email"] == waiter.email)
+
+            assert owner_entry["pos_permissions"]["can_void_item"] is True
+            assert owner_entry["pos_permissions"]["can_cancel_order"] is True
+            assert owner_entry["pos_permissions"]["can_override_price"] is True
+
+            assert waiter_entry["pos_permissions"]["can_void_item"] is False
+            assert waiter_entry["pos_permissions"]["can_cancel_order"] is False
+            assert waiter_entry["pos_permissions"]["can_override_price"] is False
+
+            # 2. Update waiter's permissions - grant can_void_item
+            update_resp = await client.patch(
+                f"/api/v1/organizations/{org.id}/members/{waiter_mem.id}",
+                headers={"Authorization": f"Bearer {token}"},
+                json={
+                    "pos_permissions": {
+                        "can_void_item": True,
+                        "can_cancel_order": False,
+                        "can_override_price": False,
+                    }
+                },
+            )
+            assert update_resp.status_code == status.HTTP_200_OK
+            updated_data = update_resp.json()
+            assert updated_data["pos_permissions"]["can_void_item"] is True
+            assert updated_data["pos_permissions"]["can_cancel_order"] is False
+
+            # 3. Verify manager PIN override: owner's PIN (8888) is valid
+            pin_resp = await client.post(
+                f"/api/v1/organizations/{org.id}/members/verify-manager-pin",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"pin_code": "8888"},
+            )
+            assert pin_resp.status_code == status.HTTP_200_OK
+            assert pin_resp.json()["valid"] is True
+            assert pin_resp.json()["manager_name"] == owner.full_name
+
+            # 4. Invalid PIN (0000)
+            pin_invalid_resp = await client.post(
+                f"/api/v1/organizations/{org.id}/members/verify-manager-pin",
+                headers={"Authorization": f"Bearer {token}"},
+                json={"pin_code": "0000"},
+            )
+            assert pin_invalid_resp.status_code == status.HTTP_200_OK
+            assert pin_invalid_resp.json()["valid"] is False
+
+        app.dependency_overrides.clear()
+
+    await engine.dispose()
+

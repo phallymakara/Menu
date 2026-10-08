@@ -17,7 +17,6 @@ from app.api.v1.endpoints.branches import router as branches_router
 from app.api.v1.endpoints.businesses import router as businesses_router
 from app.api.v1.endpoints.catalog_sync import router as catalog_sync_router
 from app.api.v1.endpoints.categories import router as categories_router
-from app.api.v1.endpoints.combos import router as combos_router
 from app.api.v1.endpoints.dining_areas import router as dining_areas_router
 from app.api.v1.endpoints.health import router as health_router
 from app.api.v1.endpoints.inventory import router as inventory_router
@@ -27,18 +26,11 @@ from app.api.v1.endpoints.khqr import router as khqr_router
 from app.api.v1.endpoints.kitchen_stations import router as kitchen_stations_router
 from app.api.v1.endpoints.media import router as media_router
 from app.api.v1.endpoints.members import router as members_router
-from app.api.v1.endpoints.menu_item_recipes import router as menu_item_recipes_router
 from app.api.v1.endpoints.menu_items import router as menu_items_router
 from app.api.v1.endpoints.modifiers import router as modifiers_router
 from app.api.v1.endpoints.order_voids import router as order_voids_router
 from app.api.v1.endpoints.orders import router as orders_router
 from app.api.v1.endpoints.payments import router as payments_router
-from app.api.v1.endpoints.promotions import (
-    branch_promo_router,
-)
-from app.api.v1.endpoints.promotions import (
-    router as promotions_router,
-)
 from app.api.v1.endpoints.public_tables import router as public_tables_router
 from app.api.v1.endpoints.receipts import router as receipts_router
 from app.api.v1.endpoints.restaurant_tables import router as restaurant_tables_router
@@ -67,8 +59,6 @@ api_router.include_router(table_sessions_router)
 api_router.include_router(service_requests_router)
 api_router.include_router(orders_router)
 api_router.include_router(order_voids_router)
-api_router.include_router(promotions_router)
-api_router.include_router(branch_promo_router)
 api_router.include_router(khqr_router)
 api_router.include_router(payments_router)
 api_router.include_router(receipts_router)
@@ -82,9 +72,7 @@ api_router.include_router(kds_router)
 api_router.include_router(categories_router)
 api_router.include_router(menu_items_router)
 api_router.include_router(item_variants_router)
-api_router.include_router(menu_item_recipes_router)
 api_router.include_router(modifiers_router)
-api_router.include_router(combos_router)
 api_router.include_router(branch_menu_router)
 api_router.include_router(media_router)
 api_router.include_router(members_router)

@@ -25,6 +25,8 @@ from app.schemas.member import (
     MemberInvite,
     MemberResponse,
     MemberUpdate,
+    ManagerPinVerifyRequest,
+    ManagerPinVerifyResponse,
 )
 from app.services.member_service import (
     accept_invitation,
@@ -34,6 +36,7 @@ from app.services.member_service import (
     list_members,
     revoke_or_archive_member,
     update_member,
+    verify_manager_pin,
 )
 
 logger = structlog.get_logger("app.api.v1.endpoints.members")
@@ -278,3 +281,39 @@ async def revoke_staff_member(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(exc),
         ) from exc
+
+
+@router.post(
+    "/organizations/{org_id}/members/verify-manager-pin",
+    response_model=ManagerPinVerifyResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def verify_staff_manager_pin(
+    org_id: UUID,
+    payload: ManagerPinVerifyRequest,
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> ManagerPinVerifyResponse:
+    """
+    Verify a 4-digit manager or owner PIN for sensitive POS authorization overrides.
+    """
+    try:
+        valid, manager_name, manager_role = await verify_manager_pin(
+            session=session,
+            tenant=tenant,
+            org_id=org_id,
+            pin_code=payload.pin_code,
+            required_permission=payload.required_permission,
+            branch_id=payload.branch_id,
+        )
+        return ManagerPinVerifyResponse(
+            valid=valid,
+            manager_name=manager_name,
+            manager_role=manager_role,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+

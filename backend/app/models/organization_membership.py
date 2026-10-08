@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    JSON,
     String,
     UniqueConstraint,
     Uuid,
@@ -99,6 +100,12 @@ class OrganizationMembership(
     pos_pin: Mapped[str | None] = mapped_column(
         String(64),
         nullable=True,
+    )
+
+    pos_permissions: Mapped[dict | None] = mapped_column(
+        JSON,
+        nullable=True,
+        default=None,
     )
 
     is_owner: Mapped[bool] = mapped_column(

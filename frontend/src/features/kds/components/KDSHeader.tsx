@@ -1,5 +1,5 @@
 import { type FC } from 'react'
-import { Volume2, VolumeX, ArrowLeft } from 'lucide-react'
+import { Volume2, VolumeX, ArrowLeft, RotateCcw, Settings2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useKDSStore } from '../stores/useKDSStore'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -12,19 +12,27 @@ export interface KDSHeaderProps {
   isConnected: boolean
   onRefresh?: () => void
   isRefreshing?: boolean
+  onOpenRecall?: () => void
+  onOpenStations?: () => void
+  metrics?: import('../types/kds.types').StationMetrics | null
+  activeTicketsCount?: number
 }
 
 export const KDSHeader: FC<KDSHeaderProps> = ({
   storeName,
   storeLogo,
   isConnected,
+  onOpenRecall,
+  onOpenStations,
+  metrics: propMetrics,
+  activeTicketsCount,
 }) => {
   const { language } = useLanguageStore()
   const {
     isMuted,
     toggleMute,
     tickets,
-    metrics,
+    metrics: storeMetrics,
   } = useKDSStore()
 
   const rawStoreName =
@@ -40,9 +48,10 @@ export const KDSHeader: FC<KDSHeaderProps> = ({
       .trim() || rawStoreName
 
   const resolvedLogo = storeLogo !== undefined ? storeLogo : localStorage.getItem('emenu_business_logo') || null
+  const effectiveMetrics = propMetrics !== undefined ? propMetrics : storeMetrics
 
-  const activeCount = tickets.length
-  const overdueCount = metrics?.overdue_tickets ?? tickets.filter((t) => t.is_ticket_overdue).length
+  const activeCount = activeTicketsCount !== undefined ? activeTicketsCount : tickets.length
+  const overdueCount = effectiveMetrics?.overdue_tickets ?? tickets.filter((t) => t.is_ticket_overdue).length
 
   return (
     <header className="sticky top-0 z-30 bg-white dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800 px-4 py-3">
@@ -110,13 +119,13 @@ export const KDSHeader: FC<KDSHeaderProps> = ({
             </span>
           </div>
 
-          {metrics?.avg_prep_time_minutes !== undefined && metrics.avg_prep_time_minutes > 0 && (
+          {effectiveMetrics?.avg_prep_time_minutes !== undefined && effectiveMetrics.avg_prep_time_minutes > 0 && (
             <div className="hidden md:flex px-4 py-1.5 sm:py-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 items-center gap-2 text-zinc-600 dark:text-zinc-400">
               <span className="font-sans text-xs sm:text-sm font-medium">
                 {language === 'km' ? 'មធ្យម:' : 'Avg:'}
               </span>
               <span className="font-bold text-sm sm:text-base">
-                {metrics.avg_prep_time_minutes.toFixed(1)}m
+                {effectiveMetrics.avg_prep_time_minutes.toFixed(1)}m
               </span>
             </div>
           )}
@@ -124,6 +133,31 @@ export const KDSHeader: FC<KDSHeaderProps> = ({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
+
+          {/* Recalled/Completed Tickets Drawer Toggle */}
+          {onOpenRecall && (
+            <button
+              onClick={onOpenRecall}
+              className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-600 dark:text-zinc-400 transition-colors flex items-center gap-1.5 text-xs font-semibold"
+              title={language === 'km' ? 'ប្រវត្តិសំបុត្រដែលបានបញ្ចប់' : 'Completed / Recalled Tickets'}
+            >
+              <RotateCcw className="w-4 h-4 text-emerald-600" />
+              <span className="hidden sm:inline">
+                {language === 'km' ? 'សំបុត្របញ្ចប់' : 'Recall'}
+              </span>
+            </button>
+          )}
+
+          {/* Kitchen Station Configuration */}
+          {onOpenStations && (
+            <button
+              onClick={onOpenStations}
+              className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-600 dark:text-zinc-400 transition-colors"
+              title={language === 'km' ? 'កំណត់ស្ថានីយផ្ទះបាយ' : 'Configure Kitchen Stations'}
+            >
+              <Settings2 className="w-4 h-4" />
+            </button>
+          )}
 
           {/* Audio Chime Mute Toggle */}
           <button

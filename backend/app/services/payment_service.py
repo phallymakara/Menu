@@ -44,7 +44,6 @@ from app.models.enums import (
 from app.models.khqr_payment_attempt import KHQRPaymentAttempt
 from app.models.order import Order
 from app.models.payment import Payment
-from app.models.promotion import Promotion
 from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession
 from app.models.user import User
@@ -61,6 +60,7 @@ from app.services.billing_service import (
     _resolve_financial_settings,
     _round_khr_to_hundred,
     calculate_financial_breakdown,
+    evaluate_manual_discount,
     get_order_bill_summary,
     get_table_session_bill_summary,
 )
@@ -76,7 +76,6 @@ from app.services.khqr_service import (
     quote_order_bill,
     quote_table_session_bill,
 )
-from app.services.promotion_service import evaluate_discount
 from app.services.telegram_service import send_payment_telegram_notification
 
 logger = structlog.get_logger("app.services.payment_service")
@@ -272,33 +271,21 @@ async def settle_table_session_cash_payment(
         tenant=tenant,
     )
 
-    # 3. Evaluate Discount / Promotion
-    eval_result = await evaluate_discount(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
+    # 3. Evaluate Discount
+    discount_usd, _, discount_reason_str = evaluate_manual_discount(
         subtotal_usd=bill.financials.subtotal_usd,
-        promo_code=payload.promo_code,
         manual_discount_type=payload.manual_discount_type,
         manual_discount_value=payload.manual_discount_value,
         discount_reason=payload.discount_reason,
-        tenant=tenant,
     )
 
-    if eval_result.discount_usd > Decimal("0.00"):
+    if discount_usd > Decimal("0.00"):
         financials = await _discounted_financials(
             session=session,
             branch_id=branch_id,
             bill=bill,
-            discount_usd=eval_result.discount_usd,
+            discount_usd=discount_usd,
         )
-        if eval_result.promotion_id:
-            promo_res = await session.execute(
-                select(Promotion).where(Promotion.id == eval_result.promotion_id)
-            )
-            promo_obj = promo_res.scalar_one_or_none()
-            if promo_obj:
-                promo_obj.current_usage_count += 1
     else:
         financials = bill.financials
 
@@ -334,8 +321,7 @@ async def settle_table_session_cash_payment(
         total_tendered_usd=total_tendered_usd,
         change_usd=change_usd,
         change_khr=change_khr,
-        promotion_id=eval_result.promotion_id,
-        discount_reason=eval_result.discount_reason,
+        discount_reason=discount_reason_str,
         received_by_user_id=current_user.id,
         notes=payload.notes,
         settled_at=now_utc,
@@ -455,7 +441,6 @@ async def settle_table_session_cash_payment(
         total_tendered_usd=payment.total_tendered_usd,
         change_usd=payment.change_usd,
         change_khr=payment.change_khr,
-        promotion_id=payment.promotion_id,
         discount_reason=payment.discount_reason,
         received_by_user_id=payment.received_by_user_id,
         notes=payment.notes,
@@ -578,7 +563,6 @@ async def _quote_session_for_khqr(
         business_id,
         branch_id,
         table_session_id,
-        promo_code=adjustments.promo_code,
         manual_discount_type=adjustments.manual_discount_type,
         manual_discount_value=adjustments.manual_discount_value,
         discount_reason=adjustments.discount_reason,
@@ -600,7 +584,6 @@ async def _quote_order_for_khqr(
         business_id,
         branch_id,
         order_id,
-        promo_code=adjustments.promo_code,
         manual_discount_type=adjustments.manual_discount_type,
         manual_discount_value=adjustments.manual_discount_value,
         discount_reason=adjustments.discount_reason,
@@ -730,7 +713,6 @@ def _new_khqr_payment(
         total_tendered_usd=financials.grand_total_usd,
         change_usd=Decimal("0.00"),
         change_khr=0,
-        promotion_id=quote.promotion_id,
         discount_reason=quote.discount_reason,
         received_by_user_id=current_user.id,
         notes=notes or (_KHQR_MANUAL_NOTE if is_manual else _KHQR_VERIFIED_NOTE),
@@ -747,19 +729,12 @@ async def _record_khqr_payment(
     attempt: KHQRPaymentAttempt | None,
     quote: KHQRBillQuote,
 ) -> None:
-    """Persist the Payment, link the attempt to it, and count the promotion use."""
+    """Persist the Payment and link the attempt to it."""
     session.add(payment)
     await session.flush()
     if attempt is not None:
         attempt.status = KHQRPaymentAttemptStatus.SUCCEEDED
         attempt.payment_id = payment.id
-    if quote.promotion_id:
-        promo_res = await session.execute(
-            select(Promotion).where(Promotion.id == quote.promotion_id)
-        )
-        promo_obj = promo_res.scalar_one_or_none()
-        if promo_obj:
-            promo_obj.current_usage_count += 1
 
 
 def _khqr_audit_details(
@@ -830,7 +805,6 @@ def _khqr_payment_response(
         total_tendered_usd=payment.total_tendered_usd,
         change_usd=payment.change_usd,
         change_khr=payment.change_khr,
-        promotion_id=payment.promotion_id,
         discount_reason=payment.discount_reason,
         received_by_user_id=payment.received_by_user_id,
         notes=payment.notes,
@@ -1158,32 +1132,21 @@ async def settle_order_cash_payment(
         tenant=tenant,
     )
 
-    eval_result = await evaluate_discount(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
+    # 3. Evaluate Discount
+    discount_usd, _, discount_reason_str = evaluate_manual_discount(
         subtotal_usd=bill.financials.subtotal_usd,
-        promo_code=payload.promo_code,
         manual_discount_type=payload.manual_discount_type,
         manual_discount_value=payload.manual_discount_value,
         discount_reason=payload.discount_reason,
-        tenant=tenant,
     )
 
-    if eval_result.discount_usd > Decimal("0.00"):
+    if discount_usd > Decimal("0.00"):
         financials = await _discounted_financials(
             session=session,
             branch_id=branch_id,
             bill=bill,
-            discount_usd=eval_result.discount_usd,
+            discount_usd=discount_usd,
         )
-        if eval_result.promotion_id:
-            promo_res = await session.execute(
-                select(Promotion).where(Promotion.id == eval_result.promotion_id)
-            )
-            promo_obj = promo_res.scalar_one_or_none()
-            if promo_obj:
-                promo_obj.current_usage_count += 1
     else:
         financials = bill.financials
 
@@ -1217,8 +1180,7 @@ async def settle_order_cash_payment(
         total_tendered_usd=total_tendered_usd,
         change_usd=change_usd,
         change_khr=change_khr,
-        promotion_id=eval_result.promotion_id,
-        discount_reason=eval_result.discount_reason,
+        discount_reason=discount_reason_str,
         received_by_user_id=current_user.id,
         notes=payload.notes,
         settled_at=now_utc,
@@ -1308,7 +1270,6 @@ async def settle_order_cash_payment(
         total_tendered_usd=payment.total_tendered_usd,
         change_usd=payment.change_usd,
         change_khr=payment.change_khr,
-        promotion_id=payment.promotion_id,
         discount_reason=payment.discount_reason,
         received_by_user_id=payment.received_by_user_id,
         notes=payment.notes,
@@ -1611,7 +1572,6 @@ async def get_payment_by_id(
         total_tendered_usd=payment.total_tendered_usd,
         change_usd=payment.change_usd,
         change_khr=payment.change_khr,
-        promotion_id=payment.promotion_id,
         discount_reason=payment.discount_reason,
         received_by_user_id=payment.received_by_user_id,
         notes=payment.notes,

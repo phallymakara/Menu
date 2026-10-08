@@ -28,7 +28,6 @@ from app.schemas.order_void import (
     VoidOrderItemResponse,
 )
 from app.services.audit_service import record_audit_log
-from app.services.recipe_depletion_service import record_recipe_waste
 
 logger = structlog.get_logger("app.services.order_void_service")
 
@@ -202,9 +201,6 @@ async def void_order_line_item(
         },
     )
 
-    await record_recipe_waste(
-        session, order=order, items=[target_item], user_id=current_user.id
-    )
     await session.commit()
 
     logger.info(
@@ -328,10 +324,6 @@ async def cancel_entire_order_round(
             "cancel_reason": payload.cancel_reason,
             "cancelled_by_name": current_user.full_name,
         },
-    )
-
-    await record_recipe_waste(
-        session, order=order, items=order.items, user_id=current_user.id
     )
     await session.commit()
 

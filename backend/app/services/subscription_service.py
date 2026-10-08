@@ -75,7 +75,6 @@ DEFAULT_PLANS_DATA = [
             "kds": True,
             "khqr": True,
             "analytics": True,
-            "promotions": True,
             "multi_branch_reports": True,
         },
     },

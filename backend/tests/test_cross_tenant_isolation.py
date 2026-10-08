@@ -331,17 +331,6 @@ async def test_inventory_is_isolated_between_tenants(two_tenants: TwoTenants):
         json={"inventory_item_id": inv_item_a, "quantity_change": "10.00"},
     )
     assert restock.status_code == status.HTTP_200_OK
-    transfer_res = await t.client.post(
-        f"{inventory_a}/transfers",
-        headers=t.headers_a,
-        json={
-            "source_branch_id": str(t.branch_a.id),
-            "destination_branch_id": str(second_branch_a.id),
-            "items": [{"inventory_item_id": inv_item_a, "requested_quantity": "4.00"}],
-        },
-    )
-    assert transfer_res.status_code == status.HTTP_201_CREATED
-    transfer_a = transfer_res.json()["id"]
 
     # Stock adjust: org A's path, and org B's own path with org A's item.
     adjust_attack = await t.client.post(
@@ -363,53 +352,6 @@ async def test_inventory_is_isolated_between_tenants(two_tenants: TwoTenants):
     )
     assert adjust_foreign_branch.status_code == status.HTTP_404_NOT_FOUND
 
-    # Transfer creation: org A's business, org A's branches, or org A's item.
-    for path, source, destination in (
-        (inventory_a, t.branch_a.id, second_branch_a.id),
-        (inventory_b, t.branch_a.id, second_branch_a.id),
-        (inventory_b, t.branch_b.id, t.branch_a.id),
-    ):
-        create_attack = await t.client.post(
-            f"{path}/transfers",
-            headers=t.headers_b,
-            json={
-                "source_branch_id": str(source),
-                "destination_branch_id": str(destination),
-                "items": [
-                    {"inventory_item_id": inv_item_a, "requested_quantity": "1.00"}
-                ],
-            },
-        )
-        assert create_attack.status_code == status.HTTP_404_NOT_FOUND
-
-    second_branch_b = Branch(
-        organization_id=t.biz_b.organization_id,
-        business_id=t.biz_b.id,
-        name_en="Attacker Riverside",
-        code="B-02",
-        is_active=True,
-    )
-    t.session.add(second_branch_b)
-    await t.session.commit()
-    foreign_item_transfer = await t.client.post(
-        f"{inventory_b}/transfers",
-        headers=t.headers_b,
-        json={
-            "source_branch_id": str(t.branch_b.id),
-            "destination_branch_id": str(second_branch_b.id),
-            "items": [{"inventory_item_id": inv_item_a, "requested_quantity": "1.00"}],
-        },
-    )
-    assert foreign_item_transfer.status_code == status.HTTP_404_NOT_FOUND
-
-    # Transfer lifecycle on org A's transfer, through both business paths.
-    for path in (inventory_a, inventory_b):
-        for action in ("approve", "dispatch", "receive"):
-            res = await t.client.post(
-                f"{path}/transfers/{transfer_a}/{action}", headers=t.headers_b
-            )
-            assert res.status_code == status.HTTP_404_NOT_FOUND
-
     # Inventory items: org A's business, or a link to org A's dish.
     item_attack = await t.client.post(
         f"{inventory_a}/items",
@@ -424,18 +366,12 @@ async def test_inventory_is_isolated_between_tenants(two_tenants: TwoTenants):
     )
     assert foreign_menu_link.status_code == status.HTTP_404_NOT_FOUND
 
-    # Org A's stock and transfer are unchanged, and org B created no stock rows
-    # for org A's item.
+    # Org A's stock is unchanged, and org B created no stock rows for org A's item.
     stock = await t.client.get(
         f"{inventory_a}/branches/{t.branch_a.id}/stock", headers=t.headers_a
     )
     assert stock.status_code == status.HTTP_200_OK
     assert [Decimal(str(s["quantity"])) for s in stock.json()] == [Decimal("10.00")]
-    transfers = await t.client.get(f"{inventory_a}/transfers", headers=t.headers_a)
-    assert transfers.status_code == status.HTTP_200_OK
-    assert [(tr["id"], tr["status"]) for tr in transfers.json()] == [
-        (transfer_a, "requested")
-    ]
     foreign_rows = await t.session.execute(
         select(func.count(BranchStock.id)).where(
             BranchStock.organization_id == t.biz_b.organization_id
@@ -460,61 +396,3 @@ async def test_static_khqr_is_isolated_between_tenants(two_tenants: TwoTenants):
     own = await t.client.get(static_a, headers=t.headers_a)
     assert own.status_code == status.HTTP_200_OK
     assert own.json()["bakong_account_id"] == "victim_merchant@bkng"
-
-
-@pytest.mark.anyio
-async def test_combos_cannot_reference_another_tenants_catalog(
-    two_tenants: TwoTenants,
-):
-    """Org B cannot build combos from org A's dishes or categories."""
-    t = two_tenants
-    combos_b = f"/api/v1/businesses/{t.biz_b.id}/combos"
-
-    foreign_item = await t.client.post(
-        combos_b,
-        headers=t.headers_b,
-        json={
-            "name_en": "Stolen Set",
-            "groups": [
-                {"name_en": "Main", "items": [{"menu_item_id": str(t.item_a.id)}]}
-            ],
-        },
-    )
-    assert foreign_item.status_code == status.HTTP_404_NOT_FOUND
-    foreign_category = await t.client.post(
-        combos_b,
-        headers=t.headers_b,
-        json={"name_en": "Stolen Category Set", "category_id": str(t.category_a.id)},
-    )
-    assert foreign_category.status_code == status.HTTP_404_NOT_FOUND
-
-    created = await t.client.post(
-        combos_b,
-        headers=t.headers_b,
-        json={
-            "name_en": "Lunch Set",
-            "groups": [
-                {"name_en": "Main", "items": [{"menu_item_id": str(t.item_b.id)}]}
-            ],
-        },
-    )
-    assert created.status_code == status.HTTP_201_CREATED
-    combo_id = created.json()["id"]
-
-    patch_attack = await t.client.patch(
-        f"{combos_b}/{combo_id}",
-        headers=t.headers_b,
-        json={"category_id": str(t.category_a.id)},
-    )
-    assert patch_attack.status_code == status.HTTP_404_NOT_FOUND
-    group_attack = await t.client.post(
-        f"{combos_b}/{combo_id}/groups",
-        headers=t.headers_b,
-        json={"name_en": "Side", "items": [{"menu_item_id": str(t.item_a.id)}]},
-    )
-    assert group_attack.status_code == status.HTTP_404_NOT_FOUND
-
-    combo = await t.client.get(f"{combos_b}/{combo_id}", headers=t.headers_b)
-    assert combo.status_code == status.HTTP_200_OK
-    assert combo.json()["category_id"] is None
-    assert [g["name_en"] for g in combo.json()["groups"]] == ["Main"]

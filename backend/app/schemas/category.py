@@ -28,6 +28,10 @@ class CategoryBase(BaseModel):
         max_length=500,
         description="Category description in Khmer",
     )
+    branch_id: UUID | None = Field(
+        default=None,
+        description="Optional branch ID if this is a local branch category (null for Central Master)",
+    )
     parent_id: UUID | None = Field(
         default=None,
         description="Parent category ID for subcategories (null for top-level)",
@@ -81,6 +85,7 @@ class CategoryResponse(BaseModel):
     id: UUID
     organization_id: UUID
     business_id: UUID
+    branch_id: UUID | None = None
     parent_id: UUID | None = None
     name_en: str
     name_km: str | None = None

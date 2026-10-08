@@ -148,8 +148,32 @@ export const usePOSStore = create<POSState>((set) => ({
   lastPaymentId: null,
   targetVoidItem: null,
 
-  setZones: (zones) => set({ zones }),
-  setTables: (tables) => set({ tables }),
+  setZones: (zones) =>
+    set((state) => {
+      if (
+        state.zones.length === zones.length &&
+        state.zones.every((z, i) => z.id === zones[i]?.id && z.name_en === zones[i]?.name_en)
+      ) {
+        return state
+      }
+      return { zones }
+    }),
+  setTables: (tables) =>
+    set((state) => {
+      if (
+        state.tables.length === tables.length &&
+        state.tables.every(
+          (t, i) =>
+            t.id === tables[i]?.id &&
+            t.status === tables[i]?.status &&
+            t.session_id === tables[i]?.session_id &&
+            t.table_number === tables[i]?.table_number
+        )
+      ) {
+        return state
+      }
+      return { tables }
+    }),
   setSelectedTable: (selectedTable) => set({ selectedTable }),
   setActiveRounds: (activeRounds) => set({ activeRounds }),
   setBillSummary: (billSummary) => set({ billSummary }),

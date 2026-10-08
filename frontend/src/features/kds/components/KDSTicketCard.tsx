@@ -1,5 +1,5 @@
 import { useState, useEffect, type FC } from 'react'
-import { Clock, Check, CheckCircle2, RotateCcw, AlertTriangle } from 'lucide-react'
+import { Clock, Check, CheckCircle2, RotateCcw, AlertTriangle, Flame, ArrowRightLeft } from 'lucide-react'
 import { KDSTicket, KDSTicketItem, OrderItemStatus } from '../types/kds.types'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { playSuccessSound } from '@/lib/audio'
@@ -9,6 +9,9 @@ export interface KDSTicketCardProps {
   onBumpItem: (orderItemId: string, targetStatus: OrderItemStatus) => Promise<void>
   onBumpTicket: (orderId: string) => Promise<void>
   onUndoItem?: (orderItemId: string) => Promise<void>
+  onFireCourse?: (orderId: string) => Promise<void>
+  onRerouteItem?: (orderItemId: string, targetStationId: string) => Promise<void>
+  stations?: { id: string; name: string }[]
 }
 
 export const KDSTicketCard: FC<KDSTicketCardProps> = ({
@@ -16,6 +19,9 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
   onBumpItem,
   onBumpTicket,
   onUndoItem,
+  onFireCourse,
+  onRerouteItem,
+  stations = [],
 }) => {
   const { language } = useLanguageStore()
 
@@ -232,6 +238,23 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
                     </span>
                   )}
 
+                  {/* Optional Reroute Button */}
+                  {!isReady && onRerouteItem && stations.length > 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const otherStation = stations.find((s) => s.id !== item.kitchen_station_id)
+                        if (otherStation) {
+                          onRerouteItem(item.id, otherStation.id)
+                        }
+                      }}
+                      className="p-1 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                      title={language === 'km' ? 'ផ្ទេរទៅស្ថានីយផ្សេង' : 'Reroute to other station'}
+                    >
+                      <ArrowRightLeft className="w-3 h-3" />
+                    </button>
+                  )}
+
                   {/* Optional Undo Button for accidentally bumped item */}
                   {isReady && onUndoItem && (
                     <button
@@ -259,6 +282,26 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
           <p className="text-[11px] text-red-500 font-medium text-center">
             {inlineError}
           </p>
+        )}
+
+        {/* Fire Held Course Button */}
+        {ticket.items.some((i) => i.status.toLowerCase() === 'held') && onFireCourse && (
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation()
+              setInlineError(null)
+              try {
+                await onFireCourse(ticket.order_id)
+              } catch {
+                setInlineError(language === 'km' ? 'មិនអាចបញ្ជូនមុខម្ហូបបានទេ' : 'Failed to fire course.')
+              }
+            }}
+            className="w-full py-2 px-3 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/40"
+          >
+            <Flame className="w-3.5 h-3.5 text-amber-600" />
+            <span>{language === 'km' ? 'បញ្ជូនមុខម្ហូបទៅធ្វើ (Fire Course)' : 'Fire Held Course'}</span>
+          </button>
         )}
 
         <button

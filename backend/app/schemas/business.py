@@ -26,11 +26,11 @@ class BusinessResponse(BaseModel):
     phone: str | None = None
     email: str | None = None
     base_currency: str = "USD"
-    exchange_rate: Decimal = Decimal("4100.00")
-    tax_percentage: Decimal = Decimal("0.00")
-    is_tax_inclusive: bool = True
-    service_charge_percentage: Decimal = Decimal("0.00")
-    is_service_charge_inclusive: bool = False
+    exchange_rate: Decimal | None = None
+    tax_percentage: Decimal | None = None
+    is_tax_inclusive: bool | None = None
+    service_charge_percentage: Decimal | None = None
+    is_service_charge_inclusive: bool | None = None
     bakong_account_id: str | None = None
     bakong_merchant_name: str | None = None
     bakong_merchant_city: str | None = None

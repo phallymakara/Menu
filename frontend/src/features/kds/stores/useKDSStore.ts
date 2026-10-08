@@ -46,11 +46,48 @@ export const useKDSStore = create<KDSState>((set) => ({
   isLoading: false,
   error: null,
 
-  setStations: (stations) => set({ stations }),
+  setStations: (stations) =>
+    set((state) => {
+      if (
+        state.stations.length === stations.length &&
+        state.stations.every((s, i) => s.id === stations[i]?.id)
+      ) {
+        return state
+      }
+      return { stations }
+    }),
   setSelectedStation: (selectedStationId) => set({ selectedStationId, error: null }),
-  setTickets: (tickets) => set({ tickets }),
-  setRecalledTickets: (recalledTickets) => set({ recalledTickets }),
-  setMetrics: (metrics) => set({ metrics }),
+  setTickets: (tickets) =>
+    set((state) => {
+      if (
+        state.tickets.length === tickets.length &&
+        state.tickets.every((t, i) => t.order_id === tickets[i]?.order_id)
+      ) {
+        return state
+      }
+      return { tickets }
+    }),
+  setRecalledTickets: (recalledTickets) =>
+    set((state) => {
+      if (
+        state.recalledTickets.length === recalledTickets.length &&
+        state.recalledTickets.every((t, i) => t.order_id === recalledTickets[i]?.order_id)
+      ) {
+        return state
+      }
+      return { recalledTickets }
+    }),
+  setMetrics: (metrics) =>
+    set((state) => {
+      if (
+        state.metrics?.active_tickets === metrics?.active_tickets &&
+        state.metrics?.overdue_tickets === metrics?.overdue_tickets &&
+        state.metrics?.avg_prep_time_minutes === metrics?.avg_prep_time_minutes
+      ) {
+        return state
+      }
+      return { metrics }
+    }),
   setIsMuted: (isMuted) => set({ isMuted }),
   toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
   setIsRecallOpen: (isRecallOpen) => set({ isRecallOpen }),

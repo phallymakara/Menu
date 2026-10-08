@@ -15,16 +15,26 @@ import {
   useDeleteCategory,
   useDeleteMenuItem,
   useMenuItems,
+  useReorderCategories,
   useSaveItemOptions,
   useUpdateCategory,
   useUpdateMenuItem,
 } from '../hooks/useMenuQueries'
+import {
+  useBranchPublishedMenu,
+  useSetBranchItemOverride,
+  useDeleteBranchItemOverride,
+  useResetBranchOverrides,
+  useCreateBranchLocalItem,
+  usePromoteLocalItem,
+} from '../hooks/useBranchMenuQueries'
 import type { Category, MenuItem } from '../types/admin.types'
 import {
   EMPTY_CATEGORY_FORM,
   emptyItemForm,
   filterMenuItems,
   itemFormFromMenuItem,
+  toBranchMenuItem,
   toCategory,
   toKhr,
   toMenuItem,
@@ -38,10 +48,7 @@ import { MenuItemCard } from '../components/menu/MenuItemCard'
 import { MenuItemFormModal } from '../components/menu/MenuItemFormModal'
 
 /**
- * Menu catalog admin: categories, items and item options.
- *
- * Signed-in users edit the backend catalog. Without a session (demo mode), or when the
- * server answers 401, edits are kept in local state only.
+ * Menu catalog admin: categories, items, and Master Brand Catalog editing.
  */
 export const MenuManagementTab: FC = () => {
   const { language } = useLanguageStore()
@@ -51,6 +58,30 @@ export const MenuManagementTab: FC = () => {
   const [businessId, setBusinessId] = useState<string | null>(
     localStorage.getItem('emenu_business_id')
   )
+  const [selectedBranchId, setSelectedBranchId] = useState<string | null>(() => {
+    const saved = localStorage.getItem('emenu_branch_id')
+    return saved === 'all' ? null : saved
+  })
+  const [isSwitchingBranch, setIsSwitchingBranch] = useState(false)
+
+  useEffect(() => {
+    const handleBranchChanged = (e: any) => {
+      const branchId = e.detail?.branchId
+      const nextBranchId = branchId === 'all' ? null : (branchId ?? null)
+      setIsSwitchingBranch(true)
+      setSelectedBranchId(nextBranchId)
+      // Clear data immediately so previous branch's items don't linger
+      setItems([])
+      setCategories([])
+      setActiveCategory('all')
+      queryClient.invalidateQueries({ queryKey: ['branch-published-menu'] })
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+    }
+    window.addEventListener('emenu:branch-changed', handleBranchChanged)
+    return () => window.removeEventListener('emenu:branch-changed', handleBranchChanged)
+  }, [queryClient])
+
   const [categories, setCategories] = useState<Category[]>([])
   const [items, setItems] = useState<MenuItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -61,8 +92,10 @@ export const MenuManagementTab: FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
+  // Modals state
   const [isItemModalOpen, setIsItemModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
+
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
   const [itemForm, setItemForm] = useState<MenuItemFormState>(emptyItemForm())
@@ -80,6 +113,7 @@ export const MenuManagementTab: FC = () => {
   }, [])
 
   const { data: businesses = [] } = useBusinesses()
+
   useEffect(() => {
     if (!businessId && businesses.length > 0) {
       setBusinessId(businesses[0].id)
@@ -87,18 +121,79 @@ export const MenuManagementTab: FC = () => {
     }
   }, [businesses, businessId])
 
+  // Master catalog queries
   const { data: rawCategories = [], isLoading: isCategoriesLoading } = useCategories(businessId)
   const { data: rawItems = [], isLoading: isItemsLoading } = useMenuItems(businessId)
-  const isLoading = (isCategoriesLoading || isItemsLoading) && items.length === 0
 
-  // Mirror server data into local state so demo-mode edits can live alongside it.
-  useEffect(() => {
-    if (rawCategories.length > 0) setCategories(rawCategories.map(toCategory))
-  }, [rawCategories])
-  useEffect(() => {
-    if (rawItems.length > 0) setItems(rawItems.map(toMenuItem))
-  }, [rawItems])
+  // Branch published catalog query (active when a branch is selected)
+  const {
+    data: branchMenuData,
+    isLoading: isBranchMenuLoading,
+    isFetching: isBranchMenuFetching,
+  } = useBranchPublishedMenu(businessId, selectedBranchId, true)
 
+  const isBranchDataMatching =
+    !selectedBranchId ||
+    (!!branchMenuData && branchMenuData.branch_id === selectedBranchId)
+
+  const isLoading = selectedBranchId
+    ? isSwitchingBranch ||
+      isBranchMenuLoading ||
+      !isBranchDataMatching ||
+      (isBranchMenuFetching && items.length === 0)
+    : isSwitchingBranch || ((isCategoriesLoading || isItemsLoading) && items.length === 0)
+
+  // Sync data into local items state based on scope
+  useEffect(() => {
+    if (selectedBranchId) {
+      if (branchMenuData && branchMenuData.branch_id === selectedBranchId) {
+        const categoriesList = branchMenuData.categories ?? []
+        const branchItems = categoriesList.flatMap((cat) =>
+          (cat.items ?? []).map(toBranchMenuItem)
+        )
+        setItems(branchItems)
+
+        const mappedBranchCats: Category[] = categoriesList.map((c) => ({
+          id: c.id,
+          name_en: c.name_en,
+          name_km: c.name_km || c.name_en,
+          display_order: c.display_order ?? 0,
+          is_active: true,
+          branch_id: selectedBranchId,
+        }))
+
+        // Include any branch-local categories that don't yet have items
+        const localCats = rawCategories
+          .filter((c: any) => c.branch_id === selectedBranchId)
+          .map(toCategory)
+        for (const lc of localCats) {
+          if (!mappedBranchCats.some((c) => c.id === lc.id)) {
+            mappedBranchCats.push(lc)
+          }
+        }
+        setCategories(mappedBranchCats)
+        setIsSwitchingBranch(false)
+      } else if (!isBranchMenuLoading && !isBranchMenuFetching) {
+        setItems([])
+        setCategories([])
+        setIsSwitchingBranch(false)
+      }
+    } else if (!selectedBranchId) {
+      // Central Master HQ scope: only master categories & master items (branch_id is null)
+      setCategories(rawCategories.filter((c: any) => !c.branch_id).map(toCategory))
+      setItems(rawItems.filter((i: any) => !i.branch_id).map(toMenuItem))
+      setIsSwitchingBranch(false)
+    }
+  }, [
+    selectedBranchId,
+    branchMenuData,
+    isBranchMenuLoading,
+    isBranchMenuFetching,
+    rawCategories,
+    rawItems,
+  ])
+
+  // Master mutations
   const createCategory = useCreateCategory(businessId)
   const updateCategory = useUpdateCategory(businessId)
   const deleteCategory = useDeleteCategory(businessId)
@@ -107,8 +202,30 @@ export const MenuManagementTab: FC = () => {
   const deleteItem = useDeleteMenuItem(businessId)
   const saveItemOptions = useSaveItemOptions(businessId)
   const uploadMedia = useUploadMedia(businessId)
+  const reorderCategories = useReorderCategories(businessId)
+
+  // Branch mutations
+  const setBranchItemOverride = useSetBranchItemOverride(businessId, selectedBranchId)
+  const deleteBranchItemOverride = useDeleteBranchItemOverride(businessId, selectedBranchId)
+  const resetBranchOverrides = useResetBranchOverrides(businessId, selectedBranchId)
+  const createBranchLocalItem = useCreateBranchLocalItem(businessId, selectedBranchId)
+  const promoteLocalItem = usePromoteLocalItem(businessId, selectedBranchId)
 
   const hasSession = () => !!businessId && !!localStorage.getItem('emenu_access_token')
+
+  const handleReorderCategories = async (newCategories: Category[]) => {
+    setCategories(newCategories)
+    if (!hasSession()) return
+    try {
+      await reorderCategories.mutateAsync({
+        items: newCategories.map((c, index) => ({ id: c.id, display_order: index })),
+      })
+    } catch {
+      setErrorMessage(
+        language === 'km' ? 'មិនអាចផ្លាស់ប្តូរលំដាប់ប្រភេទបានទេ' : 'Failed to update category order.'
+      )
+    }
+  }
 
   // --- Categories ---
   const openCreateCategoryModal = () => {
@@ -172,7 +289,8 @@ export const MenuManagementTab: FC = () => {
           name_km: nameKm,
           display_order: categories.length + 1,
           is_active: true,
-        })
+          branch_id: selectedBranchId || null,
+        } as any)
         setCategories((prev) => [...prev, toCategory(created)])
       } else {
         applyCategoryLocally()
@@ -203,7 +321,19 @@ export const MenuManagementTab: FC = () => {
     setErrorMessage(null)
     if (hasSession() && isUuid(categoryId)) {
       try {
-        await deleteCategory.mutateAsync(categoryId)
+        if (selectedBranchId) {
+          const targetCat = categories.find((c) => c.id === categoryId)
+          if (targetCat?.branch_id === selectedBranchId) {
+            // Branch local category: delete directly
+            await deleteCategory.mutateAsync(categoryId)
+          } else {
+            // Master category in branch: reset overrides for this category in this branch
+            await resetBranchOverrides.mutateAsync({ category_id: categoryId })
+          }
+        } else {
+          // Central Master HQ: delete master category
+          await deleteCategory.mutateAsync(categoryId)
+        }
       } catch (err) {
         if (getApiErrorStatus(err) !== 401) {
           setErrorMessage(
@@ -251,7 +381,6 @@ export const MenuManagementTab: FC = () => {
   }
 
   const handleImageSelected = async (file: File) => {
-    // Show a local preview immediately; replace it with the hosted URL once uploaded.
     const reader = new FileReader()
     reader.onloadend = () => {
       if (typeof reader.result === 'string') {
@@ -266,8 +395,9 @@ export const MenuManagementTab: FC = () => {
     try {
       const { url } = await uploadMedia.mutateAsync(file)
       setItemForm((prev) => ({ ...prev, image_url: url }))
+      return url
     } catch {
-      // Upload failed: keep the local preview so the form is still usable.
+      // Keep local preview
     } finally {
       setIsUploadingImage(false)
     }
@@ -318,8 +448,26 @@ export const MenuManagementTab: FC = () => {
         const updated = await updateItem.mutateAsync({ itemId: editingItem.id, payload })
         saved = withFormExtras(toMenuItem(updated))
       } else if (hasSession() && !editingItem) {
-        const created = await createItem.mutateAsync({ ...payload, is_active: true })
-        saved = withFormExtras(toMenuItem(created))
+        if (selectedBranchId) {
+          // In branch scope, create a local item isolated strictly to this branch
+          const created = await createBranchLocalItem.mutateAsync({
+            name_en: itemForm.name_en,
+            name_km: itemForm.name_km || itemForm.name_en,
+            category_id: isUuid(itemForm.category_id) ? itemForm.category_id : null,
+            base_price: itemForm.price_usd,
+            currency: 'USD',
+            description_en: itemForm.description_en,
+            description_km: itemForm.description_km,
+            image_url: itemForm.image_url || null,
+            is_active: true,
+            display_order: items.length + 1,
+          })
+          saved = withFormExtras(toMenuItem(created))
+        } else {
+          // Central Master HQ scope (branch_id is null)
+          const created = await createItem.mutateAsync({ ...payload, is_active: true })
+          saved = withFormExtras(toMenuItem(created))
+        }
       } else {
         saved = buildLocalItem(editingItem ?? undefined)
       }
@@ -363,7 +511,19 @@ export const MenuManagementTab: FC = () => {
     if (!hasSession() || !isUuid(item.id)) return
 
     try {
-      await updateItem.mutateAsync({ itemId: item.id, payload: { is_active: isAvailable } })
+      if (selectedBranchId) {
+        // In branch scope, toggling availability sets a branch stock override
+        await setBranchItemOverride.mutateAsync({
+          itemId: item.id,
+          payload: {
+            menu_item_id: item.id,
+            availability_status: isAvailable ? 'AVAILABLE' : 'TEMPORARILY_OUT_OF_STOCK',
+            price_override: item.price_override ?? null,
+          },
+        })
+      } else {
+        await updateItem.mutateAsync({ itemId: item.id, payload: { is_active: isAvailable } })
+      }
     } catch (err) {
       if (getApiErrorStatus(err) !== 401) {
         setAvailability(!isAvailable)
@@ -383,7 +543,19 @@ export const MenuManagementTab: FC = () => {
     setErrorMessage(null)
     if (hasSession() && isUuid(itemId)) {
       try {
-        await deleteItem.mutateAsync(itemId)
+        if (selectedBranchId) {
+          const targetItem = items.find((i) => i.id === itemId)
+          if (targetItem?.is_local_item || targetItem?.branch_id === selectedBranchId) {
+            // Local item: delete from database
+            await deleteItem.mutateAsync(itemId)
+          } else {
+            // Overridden master item: remove override from this branch so it disappears only from this branch
+            await deleteBranchItemOverride.mutateAsync(itemId)
+          }
+        } else {
+          // Master HQ item: delete from database
+          await deleteItem.mutateAsync(itemId)
+        }
       } catch (err) {
         if (getApiErrorStatus(err) !== 401) {
           setErrorMessage(
@@ -396,6 +568,22 @@ export const MenuManagementTab: FC = () => {
       }
     }
     setItems((prev) => prev.filter((it) => it.id !== itemId))
+  }
+
+  const handlePromoteLocalItem = async (itemId: string) => {
+    if (!selectedBranchId) return
+    const confirmMsg = isKm
+      ? 'តើអ្នកពិតជាចង់លើកមុខម្ហូបសាខានេះទៅជាមុខម្ហូបមេ (Master HQ) មែនទេ?'
+      : 'Are you sure you want to promote this local dish to the Central Master Brand Catalog?'
+    if (!window.confirm(confirmMsg)) return
+
+    try {
+      await promoteLocalItem.mutateAsync(itemId)
+    } catch {
+      setErrorMessage(
+        isKm ? 'មិនអាចលើកជាមុខម្ហូបមេបានទេ' : 'Failed to promote local dish to master catalog.'
+      )
+    }
   }
 
   const filteredItems = filterMenuItems(items, activeCategory, searchQuery)
@@ -439,19 +627,57 @@ export const MenuManagementTab: FC = () => {
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}
         onEditCategory={openEditCategoryModal}
+        onReorder={handleReorderCategories}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
       />
 
-      {/* Loading Indicator */}
+      {/* Lazy Loading Skeleton Grid when switching branch or loading */}
       {isLoading && (
-        <div className="py-12 flex flex-col items-center justify-center space-y-2 text-zinc-400">
-          <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-          <p className="text-xs">{language === 'km' ? 'កំពុងទាញយកមុខម្ហូប...' : 'Loading menu...'}</p>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-xs text-zinc-500 font-medium">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+            <span>
+              {language === 'km'
+                ? 'កំពុងផ្ទុកទិន្នន័យពីសាខា...'
+                : 'Loading branch menu data...'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden flex flex-col justify-between animate-pulse"
+              >
+                <div>
+                  {/* Image Skeleton */}
+                  <div className="aspect-video w-full bg-zinc-100 dark:bg-zinc-800" />
+
+                  {/* Body Skeleton */}
+                  <div className="p-4 sm:p-5 space-y-3">
+                    <div className="space-y-1.5">
+                      <div className="h-4 bg-zinc-200 dark:bg-zinc-800 rounded-md w-3/4" />
+                      <div className="h-3 bg-zinc-100 dark:bg-zinc-800/60 rounded-md w-1/2" />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                      <div className="h-5 bg-zinc-200 dark:bg-zinc-800 rounded-md w-1/3" />
+                      <div className="h-4 bg-zinc-100 dark:bg-zinc-800/60 rounded-md w-1/4" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-4 pb-4 sm:px-5 sm:pb-5 pt-0">
+                  <div className="h-8 bg-zinc-100 dark:bg-zinc-800/60 rounded-full w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Menu Items Grid: Image -> Title & Price -> Description */}
+      {/* Menu Items Grid */}
       {!isLoading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredItems.map((item) => (
@@ -469,6 +695,11 @@ export const MenuManagementTab: FC = () => {
                 handleDeleteItem(item.id)
               }}
               onToggleAvailability={() => handleToggleAvailability(item)}
+              isBranchMode={!!selectedBranchId}
+              onPromoteLocalItem={() => {
+                setOpenMenuId(null)
+                handlePromoteLocalItem(item.id)
+              }}
             />
           ))}
         </div>
@@ -476,16 +707,30 @@ export const MenuManagementTab: FC = () => {
 
       {/* Empty State */}
       {!isLoading && filteredItems.length === 0 && (
-        <div className="py-16 text-center">
-          <p className="text-sm font-semibold text-zinc-500">
-            {language === 'km' ? 'មិនទាន់មានមុខម្ហូបនៅឡើយទេ' : 'No menu items found'}
+        <div className="py-16 text-center space-y-2">
+          <p className="text-base font-semibold text-zinc-700 dark:text-zinc-300">
+            {language === 'km'
+              ? 'មិនទាន់មានមុខម្ហូបក្នុងសាខានេះនៅឡើយទេ'
+              : 'No menu items in this branch yet'}
+          </p>
+          <p className="text-xs text-zinc-400 max-w-md mx-auto">
+            {selectedBranchId
+              ? language === 'km'
+                ? 'សាខានេះត្រូវបានញែកដាច់ដោយឡែក។ អ្នកអាចបន្ថែមមុខម្ហូបថ្មីសម្រាប់សាខានេះ ឬកែប្រែទិន្នន័យពីសាខាមេ (HQ)។'
+                : 'This branch is isolated. You can add local items or override dishes from the Master Catalog (HQ).'
+              : language === 'km'
+                ? 'មិនទាន់មានមុខម្ហូបក្នុងបញ្ជីមុខម្ហូបមេនៅឡើយទេ។'
+                : 'No master catalog items found.'}
           </p>
         </div>
       )}
 
+      {/* Modals */}
       {isItemModalOpen && (
         <MenuItemFormModal
           isEditing={!!editingItem}
+          businessId={businessId}
+          itemId={editingItem?.id}
           form={itemForm}
           setForm={setItemForm}
           categories={categories}

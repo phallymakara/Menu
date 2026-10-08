@@ -177,6 +177,9 @@ class MessageResponse(BaseModel):
     message: str
 
 
+from app.models.enums import StaffRole
+
+
 class MembershipResponse(BaseModel):
     membership_id: UUID
     organization_id: UUID
@@ -184,6 +187,8 @@ class MembershipResponse(BaseModel):
     organization_slug: str
     job_title: str | None
     is_owner: bool
+    role: StaffRole | None = None
+    branch_id: UUID | None = None
 
 
 class CurrentUserResponse(BaseModel):

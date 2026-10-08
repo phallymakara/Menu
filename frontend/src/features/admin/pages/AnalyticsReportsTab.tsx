@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, type FC } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   TrendingUp,
   DollarSign,
@@ -10,6 +11,7 @@ import { useSalesOverview, usePaymentBreakdown } from '../hooks/useAnalyticsQuer
 
 export const AnalyticsReportsTab: FC = () => {
   const { language } = useLanguageStore()
+  const queryClient = useQueryClient()
   const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('today')
 
   const [businessId, setBusinessId] = useState<string | null>(
@@ -29,11 +31,29 @@ export const AnalyticsReportsTab: FC = () => {
 
   const { data: branches = [] } = useBranches(businessId)
   useEffect(() => {
-    if (!branchId && branches.length > 0) {
+    const saved = localStorage.getItem('emenu_branch_id')
+    if (saved === 'all') {
+      setBranchId(null)
+    } else if (saved && branches.some((b) => b.id === saved)) {
+      setBranchId(saved)
+    } else if (!saved && branches.length > 0) {
       setBranchId(branches[0].id)
-      localStorage.setItem('emenu_branch_id', branches[0].id)
     }
-  }, [branches, branchId])
+  }, [branches])
+
+  useEffect(() => {
+    const handleBranchChanged = (e: any) => {
+      const newBranchId = e?.detail?.branchId
+      if (newBranchId) {
+        const target = newBranchId === 'all' ? null : newBranchId
+        setBranchId(target)
+        queryClient.invalidateQueries({ queryKey: ['sales-overview'] })
+        queryClient.invalidateQueries({ queryKey: ['payment-breakdown'] })
+      }
+    }
+    window.addEventListener('emenu:branch-changed', handleBranchChanged)
+    return () => window.removeEventListener('emenu:branch-changed', handleBranchChanged)
+  }, [queryClient])
 
   const { data: overviewData } = useSalesOverview(businessId, branchId)
   const { data: paymentData } = usePaymentBreakdown(businessId, branchId)

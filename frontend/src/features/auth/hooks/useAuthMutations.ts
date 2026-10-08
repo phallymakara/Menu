@@ -57,8 +57,12 @@ export function useLogin() {
           }
 
       setAuth(token, user, refreshToken)
-      const orgId = me?.memberships?.[0]?.organization_id
+      const primaryMembership = me?.memberships?.[0] as any
+      const orgId = primaryMembership?.organization_id
       if (orgId) storeOrganizationId(orgId)
+      if (primaryMembership?.branch_id) {
+        localStorage.setItem('emenu_branch_id', primaryMembership.branch_id)
+      }
       localStorage.setItem('emenu_onboarding_completed', 'true')
       queryClient.invalidateQueries()
     },

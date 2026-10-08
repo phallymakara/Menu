@@ -201,20 +201,13 @@ async def test_branch_price_override_and_resolved_published_menu():
             assert Decimal(str(latte_res["price_override"])) == Decimal("3.75")
             assert Decimal(str(latte_res["effective_price"])) == Decimal("3.75")
 
-            # 3. Get Live Published Menu for Downtown Branch
-            # (No override -> Master Price $3.00)
+            # 3. Get Live Published Menu for Downtown Branch (No override -> 0 items)
             dt_menu_resp = await client.get(
                 f"/api/v1/businesses/{biz.id}/branches/{dt_branch.id}/menu/published",
                 headers=headers,
             )
             assert dt_menu_resp.status_code == status.HTTP_200_OK
-            dt_menu = dt_menu_resp.json()
-            dt_coffee = [
-                c for c in dt_menu["categories"] if c["id"] == str(cat_coffee.id)
-            ][0]
-            dt_latte = [i for i in dt_coffee["items"] if i["id"] == str(latte.id)][0]
-            assert dt_latte["price_override"] is None
-            assert Decimal(str(dt_latte["effective_price"])) == Decimal("3.00")
+            assert dt_menu_resp.json()["total_items"] == 0
 
         app.dependency_overrides.clear()
 
@@ -294,18 +287,12 @@ async def test_branch_stock_availability_toggles_and_bulk_update():
             )
             assert del_resp.status_code == status.HTTP_204_NO_CONTENT
 
-            # Verify reset
+            # Verify reset (croissant override removed, so 0 items remain)
             reset_menu_resp = await client.get(
                 f"/api/v1/businesses/{biz.id}/branches/{dt_branch.id}/menu/published",
                 headers=headers,
             )
-            bakery_res = [
-                c
-                for c in reset_menu_resp.json()["categories"]
-                if c["name_en"] == "Fresh Bakery"
-            ][0]
-            assert bakery_res["items"][0]["availability_status"] == "AVAILABLE"
-            assert bakery_res["items"][0]["is_available"] is True
+            assert reset_menu_resp.json()["total_items"] == 0
 
         app.dependency_overrides.clear()
 
@@ -325,6 +312,7 @@ async def test_selective_category_assignment_to_branch():
         user, org, biz, branches, categories, items = await setup_test_tenant(session)
         _, ap_branch = branches
         cat_coffee, _ = categories
+        latte, _ = items
         token = create_access_token(user.id)
 
         async def _override_db():
@@ -344,6 +332,13 @@ async def test_selective_category_assignment_to_branch():
             assert assign_resp.status_code == status.HTTP_200_OK
             assert len(assign_resp.json()) == 1
 
+            # Override latte to Airport branch
+            await client.post(
+                f"/api/v1/businesses/{biz.id}/branches/{ap_branch.id}/menu/overrides/{latte.id}",
+                headers=headers,
+                json={"menu_item_id": str(latte.id), "availability_status": "AVAILABLE"},
+            )
+
             # Verify Airport published menu contains only Coffee category
             pub_resp = await client.get(
                 f"/api/v1/businesses/{biz.id}/branches/{ap_branch.id}/menu/published",
@@ -353,6 +348,7 @@ async def test_selective_category_assignment_to_branch():
             cats = pub_resp.json()["categories"]
             assert len(cats) == 1
             assert cats[0]["name_en"] == "Espresso & Coffee"
+            assert len(cats[0]["items"]) == 1
 
         app.dependency_overrides.clear()
 

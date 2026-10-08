@@ -32,9 +32,10 @@ export const DiningTablesTab: FC = () => {
   const [businessId, setBusinessId] = useState<string | null>(
     localStorage.getItem('emenu_business_id')
   )
-  const [branchId, setBranchId] = useState<string | null>(
-    localStorage.getItem('emenu_branch_id')
-  )
+  const [branchId, setBranchId] = useState<string | null>(() => {
+    const saved = localStorage.getItem('emenu_branch_id')
+    return saved && saved !== 'all' && isUuid(saved) ? saved : null
+  })
 
   const [zones, setZones] = useState<DiningZone[]>([])
   const [tables, setTables] = useState<DiningTable[]>([])
@@ -71,11 +72,35 @@ export const DiningTablesTab: FC = () => {
   const { data: branches = [] } = useBranches(businessId)
 
   useEffect(() => {
-    if (!branchId && branches.length > 0) {
-      setBranchId(branches[0].id)
-      localStorage.setItem('emenu_branch_id', branches[0].id)
+    if (branches.length > 0) {
+      const stored = localStorage.getItem('emenu_branch_id')
+      const target = stored && stored !== 'all' && isUuid(stored) && branches.some((b) => b.id === stored)
+        ? stored
+        : branches[0].id
+      if (!branchId || (branchId !== target && !branches.some((b) => b.id === branchId))) {
+        setBranchId(target)
+      }
     }
   }, [branches, branchId])
+
+  const [isSwitchingBranch, setIsSwitchingBranch] = useState(false)
+
+  useEffect(() => {
+    const handleBranchChanged = (e: any) => {
+      const newBranchId = e.detail?.branchId
+      const target = (newBranchId && newBranchId !== 'all' && isUuid(newBranchId)) ? newBranchId : branches[0]?.id
+      if (target) {
+        setIsSwitchingBranch(true)
+        setBranchId(target)
+        setTables([])
+        setZones([])
+        queryClient.invalidateQueries({ queryKey: ['dining-areas'] })
+        queryClient.invalidateQueries({ queryKey: ['tables'] })
+      }
+    }
+    window.addEventListener('emenu:branch-changed', handleBranchChanged)
+    return () => window.removeEventListener('emenu:branch-changed', handleBranchChanged)
+  }, [branches, queryClient])
 
   // 2. TanStack Query: Fetch Dining Areas & Tables
   const { data: rawAreas = [], isLoading: isAreasLoading } = useDiningAreas(businessId, branchId)
@@ -85,7 +110,7 @@ export const DiningTablesTab: FC = () => {
   const downloadQrZipMutation = useDownloadTableQrZip(businessId, branchId)
   const { data: qrCodes } = useTableQrCodes(businessId, branchId)
 
-  const isLoading = (isAreasLoading || isTablesLoading) && tables.length === 0
+  const isLoading = isSwitchingBranch || ((isAreasLoading || isTablesLoading) && tables.length === 0)
 
   useEffect(() => {
     const mappedZones: DiningZone[] = rawAreas.map((z) => ({
@@ -98,6 +123,7 @@ export const DiningTablesTab: FC = () => {
     if (!batchZoneId && mappedZones.length > 0) {
       setBatchZoneId(mappedZones[0].id)
     }
+    setIsSwitchingBranch(false)
   }, [rawAreas, batchZoneId])
 
   useEffect(() => {
@@ -111,7 +137,14 @@ export const DiningTablesTab: FC = () => {
       status: (t.status || 'AVAILABLE') as any,
     }))
     setTables(mappedTables)
+    setIsSwitchingBranch(false)
   }, [rawTables, rawAreas])
+
+  useEffect(() => {
+    if (!isAreasLoading && !isTablesLoading) {
+      setIsSwitchingBranch(false)
+    }
+  }, [isAreasLoading, isTablesLoading])
 
   // 3. Delete Table from Tenant DB
   const handleDeleteTable = async (tableId: string) => {
@@ -241,67 +274,54 @@ export const DiningTablesTab: FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header & Primary Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-zinc-950 dark:text-zinc-50 tracking-tight">
-            {language === 'km' ? 'ប្លង់តុ & QR កូដ' : 'Dining Tables & QR Stands'}
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
-            {language === 'km'
-              ? 'គ្រប់គ្រងតុអាហារ បង្កើត QR កូដជាក្រុម និងបោះពុម្ពកាតដាក់លើតុ'
-              : 'Manage dining layout, batch generate QR codes, and print table stands.'}
-          </p>
-        </div>
+      {/* Primary Actions */}
+      <div className="flex items-center justify-start gap-2 flex-wrap">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={handleDownloadBatchZip}
+          disabled={isDownloadingZip || tables.length === 0}
+          className="text-xs sm:text-sm font-semibold px-3.5 py-1.5"
+        >
+          {isDownloadingZip ? (
+            <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+          ) : (
+            <Download className="w-3.5 h-3.5 mr-1.5" />
+          )}
+          {language === 'km' ? 'ទាញយក QR ZIP' : 'Download QR ZIP'}
+        </Button>
 
-        {errorMessage && (
-          <p className="text-xs font-medium text-red-500">
-            {errorMessage}
-          </p>
-        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setIsZoneModalOpen(true)}
+          className="text-xs sm:text-sm font-semibold px-3.5 py-1.5"
+        >
+          {language === 'km' ? '+ តំបន់' : '+ Area'}
+        </Button>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadBatchZip}
-            disabled={isDownloadingZip || tables.length === 0}
-            className="text-xs sm:text-sm font-semibold px-3.5 py-1.5"
-          >
-            {isDownloadingZip ? (
-              <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Download className="w-3.5 h-3.5 mr-1.5" />
-            )}
-            {language === 'km' ? 'ទាញយក QR ZIP' : 'Download QR ZIP'}
-          </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setIsZoneModalOpen(true)}
-            className="text-xs sm:text-sm font-semibold px-3.5 py-1.5"
-          >
-            {language === 'km' ? '+ តំបន់' : '+ Area'}
-          </Button>
-
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            onClick={() => {
-              setBatchErrors({})
-              setIsBatchModalOpen(true)
-            }}
-            className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
-          >
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            {language === 'km' ? 'បង្កើតជាក្រុម' : 'Batch Generate'}
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          onClick={() => {
+            setBatchErrors({})
+            setIsBatchModalOpen(true)
+          }}
+          className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          <Plus className="w-3.5 h-3.5 mr-1.5" />
+          {language === 'km' ? 'បង្កើតជាក្រុម' : 'Batch Generate'}
+        </Button>
       </div>
+
+      {errorMessage && (
+        <p className="text-xs font-medium text-red-500">
+          {errorMessage}
+        </p>
+      )}
 
       {/* Zone Filter Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">

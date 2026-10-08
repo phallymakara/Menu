@@ -7,6 +7,12 @@ export function getLoginErrorMessage(err: unknown, isKm: boolean): string {
     return getTranslation(isKm ? 'km' : 'en', 'auth.tooManyAttempts')
   }
 
+  if (err instanceof ApiError && err.status >= 500) {
+    return isKm
+      ? 'ប្រព័ន្ធមានបញ្ហាបច្ចេកទេសបណ្តោះអាសន្ន។ សូមព្យាយាមម្តងទៀតនៅពេលក្រោយ។'
+      : 'Server is temporarily unavailable. Please try again later.'
+  }
+
   const detail = err instanceof ApiError ? err.detail : undefined
 
   if (typeof detail === 'string') {

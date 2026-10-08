@@ -18,25 +18,18 @@ from app.schemas.inventory import (
     InventoryItemCreate,
     InventoryItemResponse,
     LowStockAlertResponse,
-    StockTransferCreateRequest,
-    StockTransferResponse,
 )
 from app.services.inventory_service import (
     adjust_branch_stock,
-    approve_stock_transfer,
     create_inventory_item,
-    create_stock_transfer,
-    dispatch_stock_transfer,
     get_branch_stock_levels,
     get_inventory_items,
     get_low_stock_alerts,
-    get_stock_transfers,
-    receive_stock_transfer,
 )
 
 router = APIRouter(
     prefix="/businesses/{business_id}/inventory",
-    tags=["Multi-Branch Inventory & Stock Transfers"],
+    tags=["Multi-Branch Inventory"],
     dependencies=[Depends(require_permission_for_writes(Permission.MANAGE_INVENTORY))],
 )
 
@@ -134,111 +127,6 @@ async def adjust_branch_stock_endpoint(
         ) from exc
 
 
-@router.get(
-    "/transfers",
-    response_model=list[StockTransferResponse],
-    summary="List inter-branch stock transfers",
-)
-async def list_stock_transfers_endpoint(
-    business_id: UUID,
-    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-    branch_id: Annotated[UUID | None, Query()] = None,
-) -> list[StockTransferResponse]:
-    """Lists stock transfers filtered by branch or business."""
-    return await get_stock_transfers(
-        session=session,
-        tenant=tenant,
-        business_id=business_id,
-        branch_id=branch_id,
-    )
-
-
-@router.post(
-    "/transfers",
-    response_model=StockTransferResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create an inter-branch stock transfer request",
-)
-async def create_stock_transfer_endpoint(
-    business_id: UUID,
-    payload: StockTransferCreateRequest,
-    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> StockTransferResponse:
-    """Requests stock to be moved from a source branch to destination branch."""
-    try:
-        return await create_stock_transfer(
-            session=session,
-            tenant=tenant,
-            business_id=business_id,
-            payload=payload,
-        )
-    except TenantNotFoundError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc),
-        ) from exc
-
-
-@router.post(
-    "/transfers/{transfer_id}/approve",
-    response_model=StockTransferResponse,
-    summary="Approve a stock transfer request",
-)
-async def approve_stock_transfer_endpoint(
-    business_id: UUID,
-    transfer_id: UUID,
-    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> StockTransferResponse:
-    """Approves a transfer request by source branch manager or General Manager."""
-    return await approve_stock_transfer(
-        session=session,
-        tenant=tenant,
-        business_id=business_id,
-        transfer_id=transfer_id,
-    )
-
-
-@router.post(
-    "/transfers/{transfer_id}/dispatch",
-    response_model=StockTransferResponse,
-    summary="Dispatch a stock transfer (marks IN_TRANSIT & deducts source stock)",
-)
-async def dispatch_stock_transfer_endpoint(
-    business_id: UUID,
-    transfer_id: UUID,
-    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> StockTransferResponse:
-    """Dispatches shipment and automatically decrements stock at source branch."""
-    return await dispatch_stock_transfer(
-        session=session,
-        tenant=tenant,
-        business_id=business_id,
-        transfer_id=transfer_id,
-    )
-
-
-@router.post(
-    "/transfers/{transfer_id}/receive",
-    response_model=StockTransferResponse,
-    summary="Receive a stock transfer (marks COMPLETED & increments destination stock)",
-)
-async def receive_stock_transfer_endpoint(
-    business_id: UUID,
-    transfer_id: UUID,
-    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> StockTransferResponse:
-    """Receives shipment and automatically increments stock at destination branch."""
-    return await receive_stock_transfer(
-        session=session,
-        tenant=tenant,
-        business_id=business_id,
-        transfer_id=transfer_id,
-    )
 
 
 @router.get(

@@ -1425,78 +1425,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/businesses/{business_id}/promotions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List promotions for a business
-         * @description Lists all promotions and coupons belonging to the business.
-         */
-        get: operations["list_promotions_endpoint_api_v1_businesses__business_id__promotions_get"];
-        put?: never;
-        /**
-         * Create a new promotion or coupon code
-         * @description Creates a new promotional discount or coupon code for a business.
-         */
-        post: operations["create_promotion_endpoint_api_v1_businesses__business_id__promotions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/promotions/{promo_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Retrieve promotion details
-         * @description Retrieves a single promotion by ID.
-         */
-        get: operations["get_promotion_endpoint_api_v1_businesses__business_id__promotions__promo_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete promotion
-         * @description Deletes a promotion.
-         */
-        delete: operations["delete_promotion_endpoint_api_v1_businesses__business_id__promotions__promo_id__delete"];
-        options?: never;
-        head?: never;
-        /**
-         * Update promotion settings
-         * @description Updates promotion parameters, expiration, or active status.
-         */
-        patch: operations["update_promotion_endpoint_api_v1_businesses__business_id__promotions__promo_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/branches/{branch_id}/promotions/validate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Validate promo code and calculate discount preview
-         * @description Tests a promo code or manual discount against an order subtotal without saving.
-         */
-        post: operations["validate_promotion_endpoint_api_v1_businesses__business_id__branches__branch_id__promotions_validate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/businesses/{business_id}/branches/{branch_id}/khqr/table-sessions/{session_id}/dynamic": {
         parameters: {
             query?: never;
@@ -1999,90 +1927,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/businesses/{business_id}/inventory/transfers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List inter-branch stock transfers
-         * @description Lists stock transfers filtered by branch or business.
-         */
-        get: operations["list_stock_transfers_endpoint_api_v1_businesses__business_id__inventory_transfers_get"];
-        put?: never;
-        /**
-         * Create an inter-branch stock transfer request
-         * @description Requests stock to be moved from a source branch to destination branch.
-         */
-        post: operations["create_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/inventory/transfers/{transfer_id}/approve": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Approve a stock transfer request
-         * @description Approves a transfer request by source branch manager or General Manager.
-         */
-        post: operations["approve_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers__transfer_id__approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/inventory/transfers/{transfer_id}/dispatch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Dispatch a stock transfer (marks IN_TRANSIT & deducts source stock)
-         * @description Dispatches shipment and automatically decrements stock at source branch.
-         */
-        post: operations["dispatch_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers__transfer_id__dispatch_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/inventory/transfers/{transfer_id}/receive": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Receive a stock transfer (marks COMPLETED & increments destination stock)
-         * @description Receives shipment and automatically increments stock at destination branch.
-         */
-        post: operations["receive_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers__transfer_id__receive_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/businesses/{business_id}/inventory/alerts/low-stock": {
         parameters: {
             query?: never;
@@ -2547,31 +2391,6 @@ export interface paths {
         patch: operations["update_item_variant_endpoint_api_v1_businesses__business_id__items__item_id__variants__variant_id__patch"];
         trace?: never;
     };
-    "/api/v1/businesses/{business_id}/items/{item_id}/recipe": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get the recipe (bill of materials) of a menu item
-         * @description Returns the ingredient lines consumed from branch stock per unit sold.
-         */
-        get: operations["get_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_get"];
-        /**
-         * Replace the whole recipe of a menu item
-         * @description Atomically replaces every recipe line of the menu item; an empty list clears it.
-         *     Quantities are per unit sold, in each inventory item's own unit of measure.
-         */
-        put: operations["replace_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/businesses/{business_id}/modifier-groups": {
         parameters: {
             query?: never;
@@ -2687,98 +2506,6 @@ export interface paths {
          */
         post: operations["assign_item_modifier_groups_endpoint_api_v1_businesses__business_id__items__item_id__modifier_groups_post"];
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/combos": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Combos Endpoint
-         * @description List all combo bundles for a business with pagination.
-         */
-        get: operations["list_combos_endpoint_api_v1_businesses__business_id__combos_get"];
-        put?: never;
-        /**
-         * Create Combo Endpoint
-         * @description Create a new combo bundle with nested choice groups and eligible items.
-         */
-        post: operations["create_combo_endpoint_api_v1_businesses__business_id__combos_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/combos/{combo_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Combo Endpoint
-         * @description Get detailed combo bundle including choice groups and item options.
-         */
-        get: operations["get_combo_endpoint_api_v1_businesses__business_id__combos__combo_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Delete Combo Endpoint
-         * @description Delete a combo bundle and its choice groups.
-         */
-        delete: operations["delete_combo_endpoint_api_v1_businesses__business_id__combos__combo_id__delete"];
-        options?: never;
-        head?: never;
-        /**
-         * Update Combo Endpoint
-         * @description Partially update a combo bundle.
-         */
-        patch: operations["update_combo_endpoint_api_v1_businesses__business_id__combos__combo_id__patch"];
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/combos/{combo_id}/groups": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create Combo Group Endpoint
-         * @description Add a new choice group to an existing combo bundle.
-         */
-        post: operations["create_combo_group_endpoint_api_v1_businesses__business_id__combos__combo_id__groups_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/combos/{combo_id}/groups/{group_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Combo Group Endpoint
-         * @description Delete a choice group from a combo bundle.
-         */
-        delete: operations["delete_combo_group_endpoint_api_v1_businesses__business_id__combos__combo_id__groups__group_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5167,31 +4894,16 @@ export interface components {
              * @default USD
              */
             base_currency?: string;
-            /**
-             * Exchange Rate
-             * @default 4100.00
-             */
-            exchange_rate?: string;
-            /**
-             * Tax Percentage
-             * @default 0.00
-             */
-            tax_percentage?: string;
-            /**
-             * Is Tax Inclusive
-             * @default true
-             */
-            is_tax_inclusive?: boolean;
-            /**
-             * Service Charge Percentage
-             * @default 0.00
-             */
-            service_charge_percentage?: string;
-            /**
-             * Is Service Charge Inclusive
-             * @default false
-             */
-            is_service_charge_inclusive?: boolean;
+            /** Exchange Rate */
+            exchange_rate?: string | null;
+            /** Tax Percentage */
+            tax_percentage?: string | null;
+            /** Is Tax Inclusive */
+            is_tax_inclusive?: boolean | null;
+            /** Service Charge Percentage */
+            service_charge_percentage?: string | null;
+            /** Is Service Charge Inclusive */
+            is_service_charge_inclusive?: boolean | null;
             /** Bakong Account Id */
             bakong_account_id?: string | null;
             /** Bakong Merchant Name */
@@ -5318,11 +5030,6 @@ export interface components {
              * @default khr
              */
             preferred_change_currency?: components["schemas"]["ChangeCurrencyPreference"];
-            /**
-             * Promo Code
-             * @description Optional coupon code (e.g. WELCOME10)
-             */
-            promo_code?: string | null;
             /** @description Optional manual discount type: 'percentage' or 'fixed_amount' */
             manual_discount_type?: components["schemas"]["DiscountType"] | null;
             /**
@@ -5420,6 +5127,11 @@ export interface components {
              */
             description_km?: string | null;
             /**
+             * Branch Id
+             * @description Optional branch ID if this is a local branch category (null for Central Master)
+             */
+            branch_id?: string | null;
+            /**
              * Parent Id
              * @description Parent category ID for subcategories (null for top-level)
              */
@@ -5491,6 +5203,8 @@ export interface components {
              * Format: uuid
              */
             business_id: string;
+            /** Branch Id */
+            branch_id?: string | null;
             /** Parent Id */
             parent_id?: string | null;
             /** Name En */
@@ -5540,6 +5254,8 @@ export interface components {
              * Format: uuid
              */
             business_id: string;
+            /** Branch Id */
+            branch_id?: string | null;
             /** Parent Id */
             parent_id?: string | null;
             /** Name En */
@@ -5618,405 +5334,6 @@ export interface components {
              * @default monthly
              */
             billing_cycle?: components["schemas"]["BillingCycle"];
-        };
-        /**
-         * ComboCreate
-         * @description Payload for creating a new combo with nested choice groups and items.
-         */
-        ComboCreate: {
-            /**
-             * Name En
-             * @description Combo bundle title in English (e.g. 'Lunch Combo')
-             */
-            name_en: string;
-            /**
-             * Name Km
-             * @description Combo bundle title in Khmer (e.g. 'ឈុតអាហារថ្ងៃត្រង់')
-             */
-            name_km?: string | null;
-            /**
-             * Description En
-             * @description Combo description in English
-             */
-            description_en?: string | null;
-            /**
-             * Description Km
-             * @description Combo description in Khmer
-             */
-            description_km?: string | null;
-            /**
-             * Category Id
-             * @description Assigned Category ID
-             */
-            category_id?: string | null;
-            /**
-             * Sku
-             * @description Optional unique combo SKU
-             */
-            sku?: string | null;
-            /**
-             * Pricing Type
-             * @description Pricing strategy: 'FIXED' or 'DISCOUNT_PERCENTAGE'
-             * @default FIXED
-             */
-            pricing_type?: string;
-            /**
-             * Base Price
-             * @description Fixed bundle price (when pricing_type is 'FIXED')
-             * @default 0.00
-             */
-            base_price?: number | string;
-            /**
-             * Discount Percentage
-             * @description Discount % (when pricing_type is 'DISCOUNT_PERCENTAGE')
-             * @default 0.00
-             */
-            discount_percentage?: number | string;
-            /**
-             * Currency
-             * @description Currency code ('USD' or 'KHR')
-             * @default USD
-             */
-            currency?: string;
-            /**
-             * Image Url
-             * @description Combo promotional banner or image URL
-             */
-            image_url?: string | null;
-            /**
-             * Is Active
-             * @description Active visibility toggle
-             * @default true
-             */
-            is_active?: boolean;
-            /**
-             * Display Order
-             * @description Display order index
-             * @default 0
-             */
-            display_order?: number;
-            /**
-             * Groups
-             * @description Choice groups and eligible items for this bundle
-             */
-            groups?: components["schemas"]["ComboGroupCreate"][];
-        };
-        /**
-         * ComboDetailResponse
-         * @description Detailed response schema for a combo bundle with all choice groups and items.
-         */
-        ComboDetailResponse: {
-            /**
-             * Name En
-             * @description Combo bundle title in English (e.g. 'Lunch Combo')
-             */
-            name_en: string;
-            /**
-             * Name Km
-             * @description Combo bundle title in Khmer (e.g. 'ឈុតអាហារថ្ងៃត្រង់')
-             */
-            name_km?: string | null;
-            /**
-             * Description En
-             * @description Combo description in English
-             */
-            description_en?: string | null;
-            /**
-             * Description Km
-             * @description Combo description in Khmer
-             */
-            description_km?: string | null;
-            /**
-             * Category Id
-             * @description Assigned Category ID
-             */
-            category_id?: string | null;
-            /**
-             * Sku
-             * @description Optional unique combo SKU
-             */
-            sku?: string | null;
-            /**
-             * Pricing Type
-             * @description Pricing strategy: 'FIXED' or 'DISCOUNT_PERCENTAGE'
-             * @default FIXED
-             */
-            pricing_type?: string;
-            /**
-             * Base Price
-             * @description Fixed bundle price (when pricing_type is 'FIXED')
-             * @default 0.00
-             */
-            base_price?: string;
-            /**
-             * Discount Percentage
-             * @description Discount % (when pricing_type is 'DISCOUNT_PERCENTAGE')
-             * @default 0.00
-             */
-            discount_percentage?: string;
-            /**
-             * Currency
-             * @description Currency code ('USD' or 'KHR')
-             * @default USD
-             */
-            currency?: string;
-            /**
-             * Image Url
-             * @description Combo promotional banner or image URL
-             */
-            image_url?: string | null;
-            /**
-             * Is Active
-             * @description Active visibility toggle
-             * @default true
-             */
-            is_active?: boolean;
-            /**
-             * Display Order
-             * @description Display order index
-             * @default 0
-             */
-            display_order?: number;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
-            /**
-             * Business Id
-             * Format: uuid
-             */
-            business_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /**
-             * Groups
-             * @default []
-             */
-            groups?: components["schemas"]["ComboGroupResponse"][];
-        };
-        /**
-         * ComboGroupCreate
-         * @description Payload for creating a combo group with items.
-         */
-        ComboGroupCreate: {
-            /**
-             * Name En
-             * @description Choice group name in English (e.g. 'Main Dish', 'Drink')
-             */
-            name_en: string;
-            /**
-             * Name Km
-             * @description Choice group name in Khmer (e.g. 'ម្ហូបចម្បង', 'ភេសជ្ជៈ')
-             */
-            name_km?: string | null;
-            /**
-             * Min Quantity
-             * @description Minimum selections required
-             * @default 1
-             */
-            min_quantity?: number;
-            /**
-             * Max Quantity
-             * @description Maximum selections allowed
-             * @default 1
-             */
-            max_quantity?: number;
-            /**
-             * Display Order
-             * @description Display order index
-             * @default 0
-             */
-            display_order?: number;
-            /**
-             * Items
-             * @description List of eligible items for this choice group
-             */
-            items?: components["schemas"]["ComboGroupItemCreate"][];
-        };
-        /**
-         * ComboGroupItemCreate
-         * @description Payload for adding an item to a combo group.
-         */
-        ComboGroupItemCreate: {
-            /**
-             * Menu Item Id
-             * Format: uuid
-             * @description Target Menu Item ID
-             */
-            menu_item_id: string;
-            /**
-             * Additional Price
-             * @description Extra surcharge for selecting this item (e.g. 0.50 for +$0.50)
-             * @default 0.00
-             */
-            additional_price?: number | string;
-            /**
-             * Is Default
-             * @description Recommended default selection
-             * @default false
-             */
-            is_default?: boolean;
-            /**
-             * Display Order
-             * @description Display order index
-             * @default 0
-             */
-            display_order?: number;
-        };
-        /**
-         * ComboGroupItemResponse
-         * @description Response schema for a combo group item.
-         */
-        ComboGroupItemResponse: {
-            /**
-             * Menu Item Id
-             * Format: uuid
-             * @description Target Menu Item ID
-             */
-            menu_item_id: string;
-            /**
-             * Additional Price
-             * @description Extra surcharge for selecting this item (e.g. 0.50 for +$0.50)
-             * @default 0.00
-             */
-            additional_price?: string;
-            /**
-             * Is Default
-             * @description Recommended default selection
-             * @default false
-             */
-            is_default?: boolean;
-            /**
-             * Display Order
-             * @description Display order index
-             * @default 0
-             */
-            display_order?: number;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Combo Group Id
-             * Format: uuid
-             */
-            combo_group_id: string;
-            /** Menu Item Name En */
-            menu_item_name_en?: string | null;
-            /** Menu Item Name Km */
-            menu_item_name_km?: string | null;
-        };
-        /**
-         * ComboGroupResponse
-         * @description Response schema for a combo choice group.
-         */
-        ComboGroupResponse: {
-            /**
-             * Name En
-             * @description Choice group name in English (e.g. 'Main Dish', 'Drink')
-             */
-            name_en: string;
-            /**
-             * Name Km
-             * @description Choice group name in Khmer (e.g. 'ម្ហូបចម្បង', 'ភេសជ្ជៈ')
-             */
-            name_km?: string | null;
-            /**
-             * Min Quantity
-             * @description Minimum selections required
-             * @default 1
-             */
-            min_quantity?: number;
-            /**
-             * Max Quantity
-             * @description Maximum selections allowed
-             * @default 1
-             */
-            max_quantity?: number;
-            /**
-             * Display Order
-             * @description Display order index
-             * @default 0
-             */
-            display_order?: number;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Combo Id
-             * Format: uuid
-             */
-            combo_id: string;
-            /**
-             * Items
-             * @default []
-             */
-            items?: components["schemas"]["ComboGroupItemResponse"][];
-        };
-        /**
-         * ComboPaginationResponse
-         * @description Paginated list of combos.
-         */
-        ComboPaginationResponse: {
-            /** Items */
-            items: components["schemas"]["ComboDetailResponse"][];
-            /** Total */
-            total: number;
-            /** Page */
-            page: number;
-            /** Page Size */
-            page_size: number;
-            /** Total Pages */
-            total_pages: number;
-        };
-        /**
-         * ComboUpdate
-         * @description Payload for partially updating a combo bundle.
-         */
-        ComboUpdate: {
-            /** Name En */
-            name_en?: string | null;
-            /** Name Km */
-            name_km?: string | null;
-            /** Description En */
-            description_en?: string | null;
-            /** Description Km */
-            description_km?: string | null;
-            /** Category Id */
-            category_id?: string | null;
-            /** Sku */
-            sku?: string | null;
-            /** Pricing Type */
-            pricing_type?: string | null;
-            /** Base Price */
-            base_price?: number | string | null;
-            /** Discount Percentage */
-            discount_percentage?: number | string | null;
-            /** Currency */
-            currency?: string | null;
-            /** Image Url */
-            image_url?: string | null;
-            /** Is Active */
-            is_active?: boolean | null;
-            /** Display Order */
-            display_order?: number | null;
         };
         /** CourseFireRequest */
         CourseFireRequest: {
@@ -6098,6 +5415,15 @@ export interface components {
             session_opened_at?: string | null;
             /** Duration Minutes */
             duration_minutes?: number | null;
+        };
+        /** DelayedOrderItem */
+        DelayedOrderItem: {
+            /** Order Number */
+            order_number: string;
+            /** Elapsed Minutes */
+            elapsed_minutes: number;
+            /** Status */
+            status: string;
         };
         /**
          * DiningAreaCreate
@@ -6259,24 +5585,6 @@ export interface components {
             is_active?: boolean | null;
         };
         /**
-         * DiscountEvaluationResult
-         * @description Result of evaluating a promotion or manual discount.
-         */
-        DiscountEvaluationResult: {
-            /** Is Valid */
-            is_valid: boolean;
-            /** Discount Usd */
-            discount_usd: string;
-            /** Discount Percent */
-            discount_percent?: string | null;
-            /** Discount Reason */
-            discount_reason?: string | null;
-            /** Promotion Id */
-            promotion_id?: string | null;
-            /** Message */
-            message?: string | null;
-        };
-        /**
          * DiscountReason
          * @enum {string}
          */
@@ -6298,11 +5606,6 @@ export interface components {
              * @enum {string}
              */
             currency?: "USD" | "KHR";
-            /**
-             * Promo Code
-             * @description Optional coupon code (e.g. WELCOME10)
-             */
-            promo_code?: string | null;
             manual_discount_type?: components["schemas"]["DiscountType"] | null;
             /** Manual Discount Value */
             manual_discount_value?: number | string | null;
@@ -6855,11 +6158,6 @@ export interface components {
          *     checking the payment in the customer's or merchant's banking app.
          */
         KHQRManualConfirmationRequest: {
-            /**
-             * Promo Code
-             * @description Optional coupon code (e.g. WELCOME10)
-             */
-            promo_code?: string | null;
             /** @description Optional manual discount type: 'percentage' or 'fixed_amount' */
             manual_discount_type?: components["schemas"]["DiscountType"] | null;
             /**
@@ -6953,11 +6251,6 @@ export interface components {
          * @description Payload submitted by cashier to settle a bill with a Bakong-verified KHQR.
          */
         KHQRPaymentRequest: {
-            /**
-             * Promo Code
-             * @description Optional coupon code (e.g. WELCOME10)
-             */
-            promo_code?: string | null;
             /** @description Optional manual discount type: 'percentage' or 'fixed_amount' */
             manual_discount_type?: components["schemas"]["DiscountType"] | null;
             /**
@@ -7026,6 +6319,29 @@ export interface components {
              * @description Native app deep-link: bakong://qr?data=...
              */
             deep_link_url: string;
+        };
+        /** KitchenSLAMetrics */
+        KitchenSLAMetrics: {
+            /**
+             * Avg Accept Seconds
+             * @default 0
+             */
+            avg_accept_seconds?: number;
+            /**
+             * Avg Prep Seconds
+             * @default 0
+             */
+            avg_prep_seconds?: number;
+            /**
+             * Avg Serve Seconds
+             * @default 0
+             */
+            avg_serve_seconds?: number;
+            /**
+             * Delayed Count
+             * @default 0
+             */
+            delayed_count?: number;
         };
         /** KitchenStationCreate */
         KitchenStationCreate: {
@@ -7362,6 +6678,9 @@ export interface components {
             job_title: string | null;
             /** Is Owner */
             is_owner: boolean;
+            role?: components["schemas"]["StaffRole"] | null;
+            /** Branch Id */
+            branch_id?: string | null;
         };
         /**
          * MembershipStatus
@@ -7398,6 +6717,11 @@ export interface components {
              * @description Assigned Category ID
              */
             category_id?: string | null;
+            /**
+             * Branch Id
+             * @description Assigned Branch ID if local to a branch (null for Central Master item)
+             */
+            branch_id?: string | null;
             /**
              * Sku
              * @description Unique stock keeping unit or item code (e.g. 'KHM-001')
@@ -7525,35 +6849,6 @@ export interface components {
             total_pages: number;
         };
         /**
-         * MenuItemRecipeReplaceRequest
-         * @description Full recipe for a menu item; replaces every existing line atomically.
-         */
-        MenuItemRecipeReplaceRequest: {
-            /**
-             * Lines
-             * @description The complete recipe. An empty list clears the recipe.
-             */
-            lines?: components["schemas"]["RecipeLineInput"][];
-        };
-        /**
-         * MenuItemRecipeResponse
-         * @description The full recipe (bill of materials) of a menu item.
-         */
-        MenuItemRecipeResponse: {
-            /**
-             * Menu Item Id
-             * Format: uuid
-             */
-            menu_item_id: string;
-            /**
-             * Business Id
-             * Format: uuid
-             */
-            business_id: string;
-            /** Lines */
-            lines?: components["schemas"]["RecipeLineResponse"][];
-        };
-        /**
          * MenuItemResponse
          * @description Response schema for a single menu item.
          */
@@ -7573,6 +6868,8 @@ export interface components {
              * Format: uuid
              */
             business_id: string;
+            /** Branch Id */
+            branch_id?: string | null;
             /** Category Id */
             category_id?: string | null;
             /** Sku */
@@ -8450,8 +7747,6 @@ export interface components {
             change_usd: string;
             /** Change Khr */
             change_khr: number;
-            /** Promotion Id */
-            promotion_id?: string | null;
             /** Discount Reason */
             discount_reason?: string | null;
             /** Received By User Id */
@@ -8609,212 +7904,6 @@ export interface components {
              * @description Tenant churn percentage based on cancellations
              */
             active_tenant_churn_rate: number;
-        };
-        /**
-         * PromotionCreate
-         * @description Payload to create a new promotion or coupon code.
-         */
-        PromotionCreate: {
-            /**
-             * Name En
-             * @description Promotion English name
-             */
-            name_en: string;
-            /**
-             * Name Km
-             * @description Promotion Khmer name
-             */
-            name_km?: string | null;
-            /**
-             * Code
-             * @description Optional coupon code (e.g. WELCOME15)
-             */
-            code?: string | null;
-            /**
-             * Branch Id
-             * @description Optional branch restriction (null for all branches)
-             */
-            branch_id?: string | null;
-            /** @default percentage */
-            discount_type?: components["schemas"]["DiscountType"];
-            /**
-             * Discount Value
-             * @description Percentage (e.g. 15.00) or fixed amount (e.g. 5.00)
-             */
-            discount_value: number | string;
-            /**
-             * Max Discount Amount Usd
-             * @description Max dollar cap for percentage discounts
-             */
-            max_discount_amount_usd?: number | string | null;
-            /**
-             * Minimum Spend Usd
-             * @description Min subtotal required
-             * @default 0.00
-             */
-            minimum_spend_usd?: number | string;
-            /**
-             * Usage Limit
-             * @description Total redemption limit
-             */
-            usage_limit?: number | null;
-            /** Start Date */
-            start_date?: string | null;
-            /** End Date */
-            end_date?: string | null;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active?: boolean;
-        };
-        /**
-         * PromotionResponse
-         * @description Complete promotion response object.
-         */
-        PromotionResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
-            /**
-             * Business Id
-             * Format: uuid
-             */
-            business_id: string;
-            /** Branch Id */
-            branch_id?: string | null;
-            /** Name En */
-            name_en: string;
-            /** Name Km */
-            name_km?: string | null;
-            /** Code */
-            code?: string | null;
-            discount_type: components["schemas"]["DiscountType"];
-            /** Discount Value */
-            discount_value: string;
-            /** Max Discount Amount Usd */
-            max_discount_amount_usd?: string | null;
-            /** Minimum Spend Usd */
-            minimum_spend_usd: string;
-            /** Usage Limit */
-            usage_limit?: number | null;
-            /** Current Usage Count */
-            current_usage_count: number;
-            /** Start Date */
-            start_date?: string | null;
-            /** End Date */
-            end_date?: string | null;
-            /** Is Active */
-            is_active: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /**
-         * PromotionUpdate
-         * @description Payload to update an existing promotion.
-         */
-        PromotionUpdate: {
-            /** Name En */
-            name_en?: string | null;
-            /** Name Km */
-            name_km?: string | null;
-            /** Code */
-            code?: string | null;
-            /** Branch Id */
-            branch_id?: string | null;
-            discount_type?: components["schemas"]["DiscountType"] | null;
-            /** Discount Value */
-            discount_value?: number | string | null;
-            /** Max Discount Amount Usd */
-            max_discount_amount_usd?: number | string | null;
-            /** Minimum Spend Usd */
-            minimum_spend_usd?: number | string | null;
-            /** Usage Limit */
-            usage_limit?: number | null;
-            /** Start Date */
-            start_date?: string | null;
-            /** End Date */
-            end_date?: string | null;
-            /** Is Active */
-            is_active?: boolean | null;
-        };
-        /**
-         * RecipeLineInput
-         * @description One ingredient line of a recipe replacement request.
-         */
-        RecipeLineInput: {
-            /**
-             * Inventory Item Id
-             * Format: uuid
-             */
-            inventory_item_id: string;
-            /**
-             * Variant Id
-             * @description Variant this line applies to. Omit or null to apply it to every variant; a variant-specific line overrides the all-variants line for the same inventory item.
-             */
-            variant_id?: string | null;
-            /**
-             * Quantity
-             * @description Amount used to make one unit of the menu item, in the inventory item's own unit of measure. Branch stock is tracked to 2 decimal places, so use a smaller unit (g, ml) for finer amounts.
-             */
-            quantity: number | string;
-        };
-        /**
-         * RecipeLineResponse
-         * @description One ingredient line of a menu item recipe.
-         */
-        RecipeLineResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Inventory Item Id
-             * Format: uuid
-             */
-            inventory_item_id: string;
-            /** Inventory Item Name En */
-            inventory_item_name_en: string;
-            /** Inventory Item Name Km */
-            inventory_item_name_km?: string | null;
-            unit_of_measure: components["schemas"]["UnitOfMeasure"];
-            /** Variant Id */
-            variant_id?: string | null;
-            /** Variant Name En */
-            variant_name_en?: string | null;
-            /** Quantity */
-            quantity: string;
-            /**
-             * Cost Per Unit Usd
-             * @description Current unit cost of the inventory item (not a snapshot).
-             */
-            cost_per_unit_usd: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
         };
         /**
          * RefreshTokenRequest
@@ -9128,6 +8217,59 @@ export interface components {
              * @description Gross margin as a percentage of gross sales minus discounts; 0 when there are no net sales.
              */
             gross_margin_percent: string;
+            /**
+             * Pending Orders
+             * @description Active pending orders
+             * @default 0
+             */
+            pending_orders?: number;
+            /**
+             * Cancelled Orders
+             * @description Cancelled/rejected orders
+             * @default 0
+             */
+            cancelled_orders?: number;
+            /**
+             * Payment Success Rate
+             * @description Percentage of successful payments
+             * @default 100.00
+             */
+            payment_success_rate?: string;
+            /**
+             * Order Status Counts
+             * @description Breakdown of orders by status
+             */
+            order_status_counts?: {
+                [key: string]: number;
+            };
+            /**
+             * Order Source Counts
+             * @description Breakdown of orders by source (QR vs Staff)
+             */
+            order_source_counts?: {
+                [key: string]: number;
+            };
+            /**
+             * Payment Status Counts
+             * @description Breakdown of payments by status
+             */
+            payment_status_counts?: {
+                [key: string]: number;
+            };
+            /**
+             * Hourly Sales
+             * @description Hourly sales sum in USD
+             */
+            hourly_sales?: {
+                [key: string]: number;
+            };
+            /**
+             * Delayed Orders
+             * @description Recent orders in kitchen requiring attention
+             */
+            delayed_orders?: components["schemas"]["DelayedOrderItem"][];
+            /** @description Kitchen SLA turnaround metrics */
+            kitchen_sla?: components["schemas"]["KitchenSLAMetrics"];
         };
         /**
          * ServiceRequestResponse
@@ -9262,114 +8404,6 @@ export interface components {
          * @enum {string}
          */
         StockAdjustmentReason: "restock" | "stock_take_audit" | "spoilage_waste" | "damaged" | "transfer_out" | "transfer_in" | "other" | "recipe_depletion" | "recipe_waste";
-        /** StockTransferCreateRequest */
-        StockTransferCreateRequest: {
-            /**
-             * Source Branch Id
-             * Format: uuid
-             */
-            source_branch_id: string;
-            /**
-             * Destination Branch Id
-             * Format: uuid
-             */
-            destination_branch_id: string;
-            /** Items */
-            items: components["schemas"]["StockTransferItemCreate"][];
-            /** Notes */
-            notes?: string | null;
-        };
-        /** StockTransferItemCreate */
-        StockTransferItemCreate: {
-            /**
-             * Inventory Item Id
-             * Format: uuid
-             */
-            inventory_item_id: string;
-            /** Requested Quantity */
-            requested_quantity: number | string;
-        };
-        /** StockTransferItemResponse */
-        StockTransferItemResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Inventory Item Id
-             * Format: uuid
-             */
-            inventory_item_id: string;
-            /** Item Name En */
-            item_name_en: string;
-            unit_of_measure: components["schemas"]["UnitOfMeasure"];
-            /** Requested Quantity */
-            requested_quantity: string;
-            /** Shipped Quantity */
-            shipped_quantity: string;
-            /** Received Quantity */
-            received_quantity: string;
-        };
-        /** StockTransferResponse */
-        StockTransferResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Transfer Number */
-            transfer_number: string;
-            /**
-             * Source Branch Id
-             * Format: uuid
-             */
-            source_branch_id: string;
-            /** Source Branch Name */
-            source_branch_name: string;
-            /**
-             * Destination Branch Id
-             * Format: uuid
-             */
-            destination_branch_id: string;
-            /** Destination Branch Name */
-            destination_branch_name: string;
-            status: components["schemas"]["StockTransferStatus"];
-            /**
-             * Requested By User Id
-             * Format: uuid
-             */
-            requested_by_user_id: string;
-            /** Requested By Name */
-            requested_by_name: string;
-            /** Approved By User Id */
-            approved_by_user_id?: string | null;
-            /** Approved By Name */
-            approved_by_name?: string | null;
-            /** Dispatched At */
-            dispatched_at?: string | null;
-            /** Received At */
-            received_at?: string | null;
-            /** Notes */
-            notes?: string | null;
-            /** Items */
-            items?: components["schemas"]["StockTransferItemResponse"][];
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
-        /**
-         * StockTransferStatus
-         * @enum {string}
-         */
-        StockTransferStatus: "requested" | "approved" | "rejected" | "in_transit" | "completed" | "cancelled";
         /**
          * SubscriptionResponse
          * @description Response schema for an organization's subscription status and usage.
@@ -9832,27 +8866,6 @@ export interface components {
          * @enum {string}
          */
         UserStatus: "active" | "invited" | "suspended" | "terminated" | "archived";
-        /**
-         * ValidatePromoRequest
-         * @description Payload to test or preview a discount on an order subtotal.
-         */
-        ValidatePromoRequest: {
-            /**
-             * Promo Code
-             * @description Coupon code to validate
-             */
-            promo_code?: string | null;
-            manual_discount_type?: components["schemas"]["DiscountType"] | null;
-            /** Manual Discount Value */
-            manual_discount_value?: number | string | null;
-            /** Discount Reason */
-            discount_reason?: components["schemas"]["DiscountReason"] | string | null;
-            /**
-             * Subtotal Usd
-             * @description Active order subtotal
-             */
-            subtotal_usd: number | string;
-        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -12727,223 +11740,6 @@ export interface operations {
             };
         };
     };
-    list_promotions_endpoint_api_v1_businesses__business_id__promotions_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by active status */
-                is_active?: boolean | null;
-                /** @description Filter by branch applicability */
-                branch_id?: string | null;
-            };
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PromotionResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_promotion_endpoint_api_v1_businesses__business_id__promotions_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PromotionCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PromotionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_promotion_endpoint_api_v1_businesses__business_id__promotions__promo_id__get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                promo_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PromotionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_promotion_endpoint_api_v1_businesses__business_id__promotions__promo_id__delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                promo_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_promotion_endpoint_api_v1_businesses__business_id__promotions__promo_id__patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                promo_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PromotionUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PromotionResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    validate_promotion_endpoint_api_v1_businesses__business_id__branches__branch_id__promotions_validate_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                branch_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ValidatePromoRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DiscountEvaluationResult"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     generate_session_khqr_endpoint_api_v1_businesses__business_id__branches__branch_id__khqr_table_sessions__session_id__dynamic_post: {
         parameters: {
             query?: never;
@@ -13861,180 +12657,6 @@ export interface operations {
             };
         };
     };
-    list_stock_transfers_endpoint_api_v1_businesses__business_id__inventory_transfers_get: {
-        parameters: {
-            query?: {
-                branch_id?: string | null;
-            };
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockTransferResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["StockTransferCreateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockTransferResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    approve_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers__transfer_id__approve_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                transfer_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockTransferResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dispatch_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers__transfer_id__dispatch_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                transfer_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockTransferResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    receive_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers__transfer_id__receive_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                transfer_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StockTransferResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_low_stock_alerts_endpoint_api_v1_businesses__business_id__inventory_alerts_low_stock_get: {
         parameters: {
             query?: {
@@ -14595,6 +13217,10 @@ export interface operations {
                 tree?: boolean;
                 /** @description Filter by active visibility toggle */
                 is_active?: boolean | null;
+                /** @description Filter by branch ID (returns branch-specific + master categories) */
+                branch_id?: string | null;
+                /** @description Only return master categories (branch_id is null) */
+                master_only?: boolean;
             };
             header?: {
                 "X-Organization-Id"?: string | null;
@@ -14833,6 +13459,10 @@ export interface operations {
                 page?: number;
                 /** @description Items per page */
                 page_size?: number;
+                /** @description Filter items by specific branch ID */
+                branch_id?: string | null;
+                /** @description Filter to only Central Master items (branch_id is null) */
+                master_only?: boolean;
             };
             header?: {
                 "X-Organization-Id"?: string | null;
@@ -15222,78 +13852,6 @@ export interface operations {
             };
         };
     };
-    get_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                item_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MenuItemRecipeResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    replace_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_put: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                item_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MenuItemRecipeReplaceRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MenuItemRecipeResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_modifier_groups_endpoint_api_v1_businesses__business_id__modifier_groups_get: {
         parameters: {
             query?: {
@@ -15640,262 +14198,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ModifierGroupDetailResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_combos_endpoint_api_v1_businesses__business_id__combos_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by active status */
-                is_active?: boolean | null;
-                /** @description Search combos by name or SKU */
-                search?: string | null;
-                /** @description Page number */
-                page?: number;
-                /** @description Items per page */
-                page_size?: number;
-            };
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ComboPaginationResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_combo_endpoint_api_v1_businesses__business_id__combos_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ComboCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ComboDetailResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_combo_endpoint_api_v1_businesses__business_id__combos__combo_id__get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                combo_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ComboDetailResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_combo_endpoint_api_v1_businesses__business_id__combos__combo_id__delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                combo_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    update_combo_endpoint_api_v1_businesses__business_id__combos__combo_id__patch: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                combo_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ComboUpdate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ComboDetailResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_combo_group_endpoint_api_v1_businesses__business_id__combos__combo_id__groups_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                combo_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ComboGroupCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ComboDetailResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_combo_group_endpoint_api_v1_businesses__business_id__combos__combo_id__groups__group_id__delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                combo_id: string;
-                group_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ComboDetailResponse"];
                 };
             };
             /** @description Validation Error */

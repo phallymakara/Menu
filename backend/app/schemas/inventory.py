@@ -6,7 +6,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import (
     StockAdjustmentReason,
-    StockTransferStatus,
     UnitOfMeasure,
 )
 
@@ -125,50 +124,6 @@ class StockAdjustmentLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class StockTransferItemCreate(BaseModel):
-    inventory_item_id: UUID
-    requested_quantity: Decimal = Field(..., gt=0)
-
-
-class StockTransferCreateRequest(BaseModel):
-    source_branch_id: UUID
-    destination_branch_id: UUID
-    items: list[StockTransferItemCreate] = Field(..., min_length=1)
-    notes: str | None = Field(default=None, max_length=500)
-
-
-class StockTransferItemResponse(BaseModel):
-    id: UUID
-    inventory_item_id: UUID
-    item_name_en: str
-    unit_of_measure: UnitOfMeasure
-    requested_quantity: Decimal
-    shipped_quantity: Decimal
-    received_quantity: Decimal
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class StockTransferResponse(BaseModel):
-    id: UUID
-    transfer_number: str
-    source_branch_id: UUID
-    source_branch_name: str
-    destination_branch_id: UUID
-    destination_branch_name: str
-    status: StockTransferStatus
-    requested_by_user_id: UUID
-    requested_by_name: str
-    approved_by_user_id: UUID | None = None
-    approved_by_name: str | None = None
-    dispatched_at: datetime | None = None
-    received_at: datetime | None = None
-    notes: str | None = None
-    items: list[StockTransferItemResponse] = Field(default_factory=list)
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
 
 
 class LowStockAlertItem(BaseModel):

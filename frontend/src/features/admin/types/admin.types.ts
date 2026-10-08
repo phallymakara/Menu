@@ -5,6 +5,7 @@ export interface Category {
   display_order: number
   is_active: boolean
   items_count?: number
+  branch_id?: string | null
 }
 
 export interface ModifierOption {
@@ -38,6 +39,11 @@ export interface MenuItem {
   is_available: boolean
   kitchen_station?: 'KITCHEN' | 'BAR' | 'BAKERY' | 'GRILL'
   modifier_groups?: ModifierGroup[]
+  master_price?: number
+  price_override?: number | null
+  is_local_item?: boolean
+  availability_status?: string
+  branch_id?: string | null
 }
 
 export interface DiningZone {
@@ -57,6 +63,12 @@ export interface DiningTable {
   status: 'AVAILABLE' | 'OCCUPIED' | 'BILLING'
 }
 
+export interface StaffPosPermissions {
+  can_void_item: boolean
+  can_cancel_order: boolean
+  can_override_price: boolean
+}
+
 export interface StaffMember {
   id: string
   organization_id?: string
@@ -70,9 +82,11 @@ export interface StaffMember {
   job_title?: string | null
   pos_pin?: string | null
   pin_code?: string | null
+  pos_permissions?: StaffPosPermissions | null
   is_owner?: boolean
   is_active: boolean
   status?: string
   created_at: string
 }
+
 

@@ -2,9 +2,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-client'
 import type { components } from '@/types/api'
 
-export type MemberResponse = components['schemas']['MemberResponse']
-export type MemberInvite = components['schemas']['MemberInvite']
-export type MemberUpdate = components['schemas']['MemberUpdate']
+export type MemberResponse = components['schemas']['MemberResponse'] & {
+  pos_permissions?: Record<string, any> | null
+}
+export type MemberInvite = components['schemas']['MemberInvite'] & {
+  pos_permissions?: Record<string, any> | null
+}
+export type MemberUpdate = components['schemas']['MemberUpdate'] & {
+  pos_permissions?: Record<string, any> | null
+}
 
 export function useCurrentUser() {
   return useQuery({

@@ -456,6 +456,8 @@ async def get_me(
             organization_slug=organization.slug,
             job_title=membership.job_title,
             is_owner=membership.is_owner,
+            role=membership.role,
+            branch_id=membership.branch_id,
         )
         for membership, organization in result.all()
     ]

@@ -62,34 +62,34 @@ class Business(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
 
-    exchange_rate: Mapped[Decimal] = mapped_column(
+    exchange_rate: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2),
-        default=Decimal("4100.00"),
-        nullable=False,
+        default=None,
+        nullable=True,
     )
 
-    tax_percentage: Mapped[Decimal] = mapped_column(
+    tax_percentage: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 2),
-        default=Decimal("0.00"),
-        nullable=False,
+        default=None,
+        nullable=True,
     )
 
-    is_tax_inclusive: Mapped[bool] = mapped_column(
+    is_tax_inclusive: Mapped[bool | None] = mapped_column(
         Boolean,
-        default=True,
-        nullable=False,
+        default=None,
+        nullable=True,
     )
 
-    service_charge_percentage: Mapped[Decimal] = mapped_column(
+    service_charge_percentage: Mapped[Decimal | None] = mapped_column(
         Numeric(5, 2),
-        default=Decimal("0.00"),
-        nullable=False,
+        default=None,
+        nullable=True,
     )
 
-    is_service_charge_inclusive: Mapped[bool] = mapped_column(
+    is_service_charge_inclusive: Mapped[bool | None] = mapped_column(
         Boolean,
-        default=False,
-        nullable=False,
+        default=None,
+        nullable=True,
     )
 
     # Bakong KHQR Settings (Default fallback for all branches)

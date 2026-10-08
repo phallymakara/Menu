@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { PageLoader } from '@/components/ui/PageLoader'
+import { RouteErrorBoundary } from '@/components/ui/RouteErrorBoundary'
 
 // Lazy-loaded route components for fast code-splitting and reduced initial bundle size
 const LandingPage = lazy(() =>
@@ -76,26 +77,32 @@ export const router = createBrowserRouter([
   {
     path: '/',
     element: withSuspense(<LandingPage />),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/login',
     element: withSuspense(<LoginPage />),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/register',
     element: withSuspense(<RegisterPage />),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/reset-password',
     element: withSuspense(<ResetPasswordPage />),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/onboarding',
     element: withSuspense(<OnboardingWizardPage />),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/admin',
     element: withSuspense(<AdminLayout />),
+    errorElement: <RouteErrorBoundary />,
     children: [
       {
         index: true,
@@ -112,10 +119,6 @@ export const router = createBrowserRouter([
       {
         path: 'inventory',
         element: withSuspense(<InventoryManagementTab />),
-      },
-      {
-        path: 'inventory/transfers',
-        element: withSuspense(<InventoryManagementTab defaultSection="transfers" />),
       },
       {
         path: 'settings',
@@ -138,18 +141,22 @@ export const router = createBrowserRouter([
   {
     path: '/pos',
     element: withSuspense(<POSPage />),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/kds',
     element: withSuspense(<KDSPage />),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/t/:qr_token',
     element: withSuspense(<GuestOrderPage />),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/order/:branch_id',
     element: withSuspense(<GuestOrderPage />),
+    errorElement: <RouteErrorBoundary />,
   },
   {
     path: '/demo',

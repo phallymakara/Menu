@@ -17,11 +17,6 @@ class DynamicKHQRRequest(BaseModel):
         default="USD",
         description="Currency for dynamic KHQR (USD: 840 or KHR: 116)",
     )
-    promo_code: str | None = Field(
-        default=None,
-        max_length=50,
-        description="Optional coupon code (e.g. WELCOME10)",
-    )
     manual_discount_type: DiscountType | None = Field(default=None)
     manual_discount_value: Decimal | None = Field(default=None, ge=0)
     discount_reason: DiscountReason | str | None = Field(default=None)

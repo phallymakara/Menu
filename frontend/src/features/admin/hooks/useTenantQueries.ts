@@ -3,6 +3,9 @@ import { apiFetch } from '@/lib/api-client'
 import { unwrap } from '@/lib/api-error'
 import type { components } from '@/types/api'
 
+import { ACCESS_TOKEN_KEY } from '@/stores/useAuthStore'
+import { getApiErrorStatus } from '@/lib/api-error'
+
 export type BusinessResponse = components['schemas']['BusinessResponse']
 export type BranchResponse = components['schemas']['BranchResponse']
 export type BusinessUpdate = components['schemas']['BusinessUpdate']
@@ -10,6 +13,7 @@ export type BranchCreate = components['schemas']['BranchCreate']
 export type BranchUpdate = components['schemas']['BranchUpdate']
 
 export function useBusinesses() {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null
   return useQuery({
     queryKey: ['businesses'],
     queryFn: async () => {
@@ -17,10 +21,16 @@ export function useBusinesses() {
       if (error) throw error
       return data || []
     },
+    enabled: !!token,
+    retry: (failureCount, error) => {
+      const st = getApiErrorStatus(error)
+      return st !== 401 && st !== 403 && failureCount < 1
+    },
   })
 }
 
 export function useBranches(businessId: string | null) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null
   return useQuery({
     queryKey: ['branches', businessId],
     queryFn: async () => {
@@ -31,7 +41,11 @@ export function useBranches(businessId: string | null) {
       if (error) throw error
       return data || []
     },
-    enabled: !!businessId,
+    enabled: !!businessId && !!token,
+    retry: (failureCount, error) => {
+      const st = getApiErrorStatus(error)
+      return st !== 401 && st !== 403 && failureCount < 1
+    },
   })
 }
 

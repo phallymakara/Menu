@@ -1,15 +1,14 @@
-import { useState, useEffect, type FC } from 'react'
+import { useState, useEffect, useMemo, type FC } from 'react'
 import {
   Plus,
   Trash2,
-  Phone,
-  Mail,
   X,
   Eye,
   EyeOff,
   Camera,
   Loader2,
-  Building2,
+  Search,
+  ShieldCheck,
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -23,7 +22,7 @@ import {
 } from '../hooks/useStaffQueries'
 import { useUploadMedia } from '../hooks/useMediaQueries'
 import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
-import type { StaffMember } from '../types/admin.types'
+import type { StaffMember, StaffPosPermissions } from '../types/admin.types'
 import type { components } from '@/types/api'
 import { isUuid } from '@/lib/utils'
 
@@ -47,12 +46,10 @@ export const StaffManagementTab: FC = () => {
   const [businessId, setBusinessId] = useState<string | null>(
     localStorage.getItem('emenu_business_id')
   )
-  const [activeBranchId, setActiveBranchId] = useState<string>(
-    localStorage.getItem('emenu_branch_id') || ''
-  )
-
-  const [branches, setBranches] = useState<BranchOption[]>([])
-  const [staffList, setStaffList] = useState<StaffMember[]>([])
+  const [activeBranchId, setActiveBranchId] = useState<string>(() => {
+    return localStorage.getItem('emenu_branch_id') || 'all'
+  })
+  const [isSwitchingBranch, setIsSwitchingBranch] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
   const [errorMessage] = useState<string | null>(null)
@@ -60,6 +57,7 @@ export const StaffManagementTab: FC = () => {
   const [isAddStaffModalOpen, setIsAddStaffModalOpen] = useState(false)
   const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({})
   const [selectedStaffIdForPhoto, setSelectedStaffIdForPhoto] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // 1. TanStack Query: Current User & Org
   const { data: currentUser } = useCurrentUser()
@@ -73,34 +71,38 @@ export const StaffManagementTab: FC = () => {
   }, [currentUser, orgId])
 
   // 2. TanStack Query: Businesses & Branches
-  const { data: businesses = [] } = useBusinesses()
+  const { data: businesses } = useBusinesses()
   useEffect(() => {
-    if (!businessId && businesses.length > 0) {
+    if (!businessId && businesses && businesses.length > 0) {
       setBusinessId(businesses[0].id)
       localStorage.setItem('emenu_business_id', businesses[0].id)
     }
   }, [businesses, businessId])
 
-  const { data: rawBranches = [] } = useBranches(businessId)
+  const { data: rawBranches } = useBranches(businessId)
+  const branches: BranchOption[] = useMemo(() => {
+    if (!rawBranches || rawBranches.length === 0) return []
+    return rawBranches.map((b) => ({
+      id: b.id,
+      name_en: b.name_en,
+      name_km: b.name_km || b.name_en,
+    }))
+  }, [rawBranches])
+
   useEffect(() => {
-    if (rawBranches.length > 0) {
-      const mappedBranches: BranchOption[] = rawBranches.map((b) => ({
-        id: b.id,
-        name_en: b.name_en,
-        name_km: b.name_km || b.name_en,
-      }))
-      setBranches(mappedBranches)
-      if (!activeBranchId) {
-        const stored = localStorage.getItem('emenu_branch_id')
-        const matched = mappedBranches.find((b) => b.id === stored)
-        const targetBranchId = matched ? matched.id : mappedBranches[0].id
-        setActiveBranchId(targetBranchId)
-      }
+    if (!rawBranches || rawBranches.length === 0) return
+    const stored = localStorage.getItem('emenu_branch_id')
+    if (stored === 'all') {
+      if (activeBranchId !== 'all') setActiveBranchId('all')
+    } else if (stored && rawBranches.some((b) => b.id === stored)) {
+      if (activeBranchId !== stored) setActiveBranchId(stored)
+    } else if (!activeBranchId) {
+      setActiveBranchId(rawBranches[0].id)
     }
-  }, [rawBranches, activeBranchId])
+  }, [rawBranches])
 
   // 3. TanStack Query: Staff Members
-  const { data: rawStaff = [], isLoading: isStaffLoading } = useStaffMembers(
+  const { data: rawStaff, isLoading: isStaffLoading } = useStaffMembers(
     orgId,
     activeBranchId && isUuid(activeBranchId) ? activeBranchId : undefined
   )
@@ -109,45 +111,69 @@ export const StaffManagementTab: FC = () => {
   const updateStaffMutation = useUpdateStaffMember(orgId)
   const uploadMedia = useUploadMedia(isUuid(businessId) ? businessId : null)
 
-  const isLoading = isStaffLoading && staffList.length === 0
+  const staffList: StaffMember[] = useMemo(() => {
+    if (!rawStaff || rawStaff.length === 0) return []
+    const mapped: StaffMember[] = (rawStaff as any[]).map((m: any) => ({
+      id: m.id,
+      organization_id: m.organization_id,
+      user_id: m.user_id,
+      branch_id: m.branch_id,
+      full_name: m.full_name,
+      phone: m.phone || '',
+      email: m.email || null,
+      avatar_url: m.avatar_url || null,
+      role: m.role || 'WAITER',
+      job_title: m.job_title || null,
+      pos_pin: m.pos_pin || null,
+      pin_code: m.pos_pin || '••••',
+      pos_permissions: m.pos_permissions || null,
+      is_owner: m.is_owner || false,
+      is_active: (m.status || '').toUpperCase() === 'ACTIVE',
+      status: m.status || 'active',
+      created_at: m.created_at ? m.created_at.split('T')[0] : '2026-08-01',
+    }))
+    return activeBranchId && isUuid(activeBranchId)
+      ? mapped.filter((m) => m.branch_id === activeBranchId)
+      : mapped
+  }, [rawStaff, activeBranchId])
+
+  const filteredStaffList = useMemo(() => {
+    if (!searchQuery.trim()) return staffList
+    const q = searchQuery.toLowerCase().trim()
+    return staffList.filter((staff) => {
+      const nameMatch = staff.full_name.toLowerCase().includes(q)
+      const emailMatch = staff.email ? staff.email.toLowerCase().includes(q) : false
+      const phoneMatch = staff.phone ? staff.phone.includes(q) : false
+      const roleMatch = staff.role ? staff.role.toLowerCase().includes(q) : false
+      const branchObj = branches.find((b) => b.id === staff.branch_id)
+      const branchMatch = branchObj
+        ? (branchObj.name_en && branchObj.name_en.toLowerCase().includes(q)) ||
+          (branchObj.name_km && branchObj.name_km.includes(q))
+        : false
+      return nameMatch || emailMatch || phoneMatch || roleMatch || branchMatch
+    })
+  }, [staffList, searchQuery, branches])
+
+  const isLoading = isSwitchingBranch || (isStaffLoading && staffList.length === 0)
 
   useEffect(() => {
-    if (rawStaff.length > 0) {
-      const mapped: StaffMember[] = (rawStaff as any[]).map((m: any) => ({
-        id: m.id,
-        organization_id: m.organization_id,
-        user_id: m.user_id,
-        branch_id: m.branch_id,
-        full_name: m.full_name,
-        phone: m.phone || '',
-        email: m.email || null,
-        avatar_url: m.avatar_url || null,
-        role: m.role || 'WAITER',
-        job_title: m.job_title || null,
-        pos_pin: m.pos_pin || null,
-        pin_code: m.pos_pin || '••••',
-        is_owner: m.is_owner || false,
-        is_active: (m.status || '').toUpperCase() === 'ACTIVE',
-        status: m.status || 'active',
-        created_at: m.created_at ? m.created_at.split('T')[0] : '2026-08-01',
-      }))
-      const branchMembers = activeBranchId && isUuid(activeBranchId)
-        ? mapped.filter((m) => m.branch_id === activeBranchId)
-        : mapped
-      setStaffList(branchMembers)
+    if (!isStaffLoading) {
+      setIsSwitchingBranch(false)
     }
-  }, [rawStaff, activeBranchId])
+  }, [isStaffLoading])
 
   useEffect(() => {
     const handleBranchChanged = (e: any) => {
       const newBranchId = e.detail?.branchId
       if (newBranchId) {
+        setIsSwitchingBranch(true)
         setActiveBranchId(newBranchId)
+        queryClient.invalidateQueries({ queryKey: ['staff'] })
       }
     }
     window.addEventListener('emenu:branch-changed', handleBranchChanged)
     return () => window.removeEventListener('emenu:branch-changed', handleBranchChanged)
-  }, [])
+  }, [queryClient])
 
   // Form State for Adding Staff
   const [newStaff, setNewStaff] = useState({
@@ -161,6 +187,35 @@ export const StaffManagementTab: FC = () => {
     password: '',
   })
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+
+  // POS Order Permissions Modal State
+  const [permissionsStaff, setPermissionsStaff] = useState<StaffMember | null>(null)
+  const [permissionsForm, setPermissionsForm] = useState<StaffPosPermissions>({
+    can_void_item: false,
+    can_cancel_order: false,
+    can_override_price: false,
+  })
+  const [isSavingPermissions, setIsSavingPermissions] = useState(false)
+
+  const handleSavePermissions = async () => {
+    if (!permissionsStaff) return
+    setIsSavingPermissions(true)
+    try {
+      await updateStaffMutation.mutateAsync({
+        memberId: permissionsStaff.id,
+        payload: {
+          pos_permissions: permissionsForm as any,
+        },
+      })
+      queryClient.invalidateQueries({ queryKey: ['staff'] })
+      setPermissionsStaff(null)
+    } catch (err: any) {
+      console.error('Failed to update permissions:', err)
+      alert(language === 'km' ? 'បរាជ័យក្នុងការរក្សាទុកសិទ្ធិ' : 'Failed to save permissions')
+    } finally {
+      setIsSavingPermissions(false)
+    }
+  }
 
   const togglePinVisibility = (staffId: string) => {
     setRevealedPins((prev) => ({ ...prev, [staffId]: !prev[staffId] }))
@@ -239,10 +294,7 @@ export const StaffManagementTab: FC = () => {
 
   // 4. Delete / Revoke Staff Member
   const handleDeleteStaff = async (memberId: string) => {
-    if (!isUuid(memberId)) {
-      setStaffList(staffList.filter((s) => s.id !== memberId))
-      return
-    }
+    if (!isUuid(memberId)) return
 
     if (!confirm(language === 'km' ? 'តើអ្នកប្រាកដជាចង់លុបបុគ្គលិកនេះទេ?' : 'Are you sure you want to remove this staff member?')) {
       return
@@ -252,7 +304,6 @@ export const StaffManagementTab: FC = () => {
       if (isUuid(orgId)) {
         await revokeStaffMutation.mutateAsync(memberId)
       }
-      setStaffList(staffList.filter((s) => s.id !== memberId))
     } catch {
       alert(language === 'km' ? 'មិនអាចលុបបុគ្គលិកបានទេ' : 'Failed to delete staff member')
     }
@@ -290,17 +341,13 @@ export const StaffManagementTab: FC = () => {
         await updateStaffMutation
           .mutateAsync({ memberId: selectedStaffIdForPhoto, payload: { avatar_url: uploadedUrl } })
           .catch(() => null)
-
-        setStaffList((prev) =>
-          prev.map((s) => (s.id === selectedStaffIdForPhoto ? { ...s, avatar_url: uploadedUrl } : s))
-        )
       }
       setSelectedStaffIdForPhoto(null)
     }
   }
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-4 w-full max-w-5xl mx-auto">
       {/* Hidden File input for changing photo directly on row */}
       <input
         id="change-staff-avatar-input"
@@ -310,19 +357,8 @@ export const StaffManagementTab: FC = () => {
         className="hidden"
       />
 
-      {/* Header & Primary Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-zinc-950 dark:text-zinc-50 tracking-tight">
-            {language === 'km' ? 'បុគ្គលិក & សិទ្ធិ' : 'Staff & Role Permissions'}
-          </h1>
-          <p className="text-xs sm:text-sm text-zinc-500 mt-0.5">
-            {language === 'km'
-              ? 'គ្រប់គ្រងគណនីបុគ្គលិក តួនាទី រូបថត និងលេខកូដសម្ងាត់ (PIN) សម្រាប់ចូលផ្ទាំង POS'
-              : 'Manage staff accounts, roles, profile photos, and 4-digit PINs for POS terminals.'}
-          </p>
-        </div>
-
+      {/* Primary Actions & Search Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Button
           type="button"
           variant="primary"
@@ -345,11 +381,27 @@ export const StaffManagementTab: FC = () => {
             })
             setIsAddStaffModalOpen(true)
           }}
-          className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+          className="text-xs sm:text-sm font-semibold px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-none w-fit"
         >
-          <Plus className="w-3.5 h-3.5 mr-1.5" />
+          <Plus className="w-4 h-4 mr-1.5" />
           {language === 'km' ? 'បន្ថែមបុគ្គលិកថ្មី' : 'Add Staff Member'}
         </Button>
+
+        {/* Search Field */}
+        <div className="relative w-full sm:w-72">
+          <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={
+              language === 'km'
+                ? 'ស្វែងរកបុគ្គលិក...'
+                : 'Search staff...'
+            }
+            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors shadow-none"
+          />
+        </div>
       </div>
 
       {errorMessage && (
@@ -367,26 +419,32 @@ export const StaffManagementTab: FC = () => {
           </p>
         </div>
       ) : staffList.length === 0 ? (
-        <div className="py-12 text-center">
-          <p className="text-sm font-medium text-zinc-500">
+        <div className="min-h-[50vh] flex flex-col items-center justify-center text-center py-16">
+          <p className="text-sm sm:text-base font-medium text-zinc-500">
             {language === 'km' ? 'មិនមានបុគ្គលិកនៅក្នុងសាខានេះនៅឡើយទេ' : 'No staff members in this branch yet'}
           </p>
         </div>
+      ) : filteredStaffList.length === 0 ? (
+        <div className="min-h-[40vh] flex flex-col items-center justify-center text-center py-16">
+          <p className="text-sm sm:text-base font-medium text-zinc-500">
+            {language === 'km' ? 'មិនមានបុគ្គលិកត្រូវនឹងការស្វែងរកទេ' : 'No staff members match the search'}
+          </p>
+        </div>
       ) : (
-        <div className="space-y-3">
-          {staffList.map((staff) => {
+        <div className="space-y-1.5 w-full max-h-[calc(100vh-13rem)] sm:max-h-[calc(100vh-10.5rem)] overflow-y-auto overflow-x-auto pb-2 pr-1.5 sm:pr-2 scroll-smooth">
+          {filteredStaffList.map((staff) => {
             const isPinVisible = !!revealedPins[staff.id]
             const branchObj = branches.find((b) => b.id === staff.branch_id)
 
             return (
               <div
                 key={staff.id}
-                className="p-5 sm:px-6 sm:py-4.5 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col lg:grid lg:grid-cols-[260px_1.2fr_1fr_1fr_120px_auto] items-start lg:items-center gap-4 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors"
+                className="w-full px-3 py-1 sm:px-4 sm:py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 grid grid-cols-[minmax(180px,1.4fr)_minmax(150px,1.2fr)_minmax(110px,1fr)_minmax(100px,1fr)_minmax(80px,auto)_72px] items-center gap-1.5 sm:gap-2 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors shadow-none"
               >
-                {/* 1. Identity & Role under Name (No Filled Color) */}
-                <div className="flex items-center gap-3.5 w-full min-w-0">
+                {/* 1. Identity & Role under Name (Clean text, no badge container) */}
+                <div className="flex items-center gap-2 min-w-0">
                   <div className="relative group shrink-0">
-                    <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex items-center justify-center text-zinc-700 dark:text-zinc-200 font-bold text-base sm:text-lg">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex items-center justify-center text-zinc-700 dark:text-zinc-200 font-bold text-sm sm:text-base">
                       {staff.avatar_url ? (
                         <img
                           src={staff.avatar_url}
@@ -403,19 +461,19 @@ export const StaffManagementTab: FC = () => {
                         setSelectedStaffIdForPhoto(staff.id)
                         document.getElementById('change-staff-avatar-input')?.click()
                       }}
-                      className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white cursor-pointer"
+                      className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white cursor-pointer shadow-none"
                       title={language === 'km' ? 'ប្តូររូបថត' : 'Change photo'}
                     >
-                      <Camera className="w-4 h-4" />
+                      <Camera className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50 truncate">
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="font-bold text-base sm:text-lg text-zinc-950 dark:text-zinc-50 truncate leading-tight">
                       {staff.full_name}
                     </div>
-                    {/* Role badge placed under name without background fill */}
-                    <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 w-fit">
+                    {/* Role directly as clean text without container badge */}
+                    <div className="text-xs sm:text-sm font-semibold text-zinc-500 dark:text-zinc-400 truncate leading-none">
                       {staff.is_owner || staff.role?.toUpperCase() === 'OWNER'
                         ? language === 'km'
                           ? 'ម្ចាស់ហាង (Owner)'
@@ -437,60 +495,69 @@ export const StaffManagementTab: FC = () => {
                           ? 'ចុងភៅ (Kitchen)'
                           : 'Kitchen'
                         : staff.role}
-                    </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* 2. Email Column */}
-                <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 min-w-0 w-full truncate">
-                  <Mail className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                  <span className="truncate">{staff.email || '—'}</span>
+                {/* 2. Email Column - Clean text, enlarged */}
+                <div className="text-base sm:text-lg text-zinc-800 dark:text-zinc-200 min-w-0 truncate font-medium">
+                  {staff.email || '—'}
                 </div>
 
-                {/* 3. Phone Column */}
-                <div className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 min-w-0 w-full truncate">
-                  <Phone className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                  <span className="font-mono">{staff.phone || '—'}</span>
+                {/* 3. Phone Column - Clean text, enlarged */}
+                <div className="text-sm sm:text-base text-zinc-800 dark:text-zinc-200 min-w-0 truncate font-mono">
+                  {staff.phone || '—'}
                 </div>
 
-                {/* 4. Branch Assignment */}
-                <div className="flex items-center gap-1 text-xs text-zinc-500 min-w-0">
-                  {branchObj ? (
-                    <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300">
-                      <Building2 className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                      <span className="truncate">{language === 'km' ? branchObj.name_km : branchObj.name_en}</span>
-                    </span>
-                  ) : (
-                    <span className="text-zinc-400">—</span>
-                  )}
+                {/* 4. Branch Assignment - Clean text, enlarged */}
+                <div className="text-sm sm:text-base text-zinc-800 dark:text-zinc-200 min-w-0 truncate font-medium">
+                  {branchObj ? (language === 'km' ? branchObj.name_km : branchObj.name_en) : '—'}
                 </div>
 
-                {/* 5. POS PIN Code with Reveal Toggle */}
+                {/* 5. POS PIN Code with Reveal Toggle - Clean text, enlarged */}
                 <div className="flex items-center gap-2">
-                  <div className="text-xs font-mono font-bold tracking-widest text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-900 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                  <span className="text-base sm:text-lg font-mono font-bold tracking-widest text-zinc-800 dark:text-zinc-200">
                     {isPinVisible ? staff.pos_pin || (language === 'km' ? 'មិនទាន់កំណត់' : 'Not set') : '••••'}
-                  </div>
+                  </span>
                   <button
                     type="button"
                     onClick={() => togglePinVisibility(staff.id)}
-                    className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer"
+                    className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors cursor-pointer shadow-none"
                     title={isPinVisible ? 'Hide PIN' : 'Show PIN'}
                   >
                     {isPinVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
 
-                {/* 6. Action: Delete Button */}
-                <div className="flex items-center justify-end w-full lg:w-auto">
-                  {!staff.is_owner && (
+                {/* 6. Action: Permissions Shield & Delete Buttons */}
+                <div className="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPermissionsStaff(staff)
+                      const isLead = staff.is_owner || staff.role === 'OWNER' || staff.role === 'MANAGER'
+                      setPermissionsForm({
+                        can_void_item: staff.pos_permissions?.can_void_item ?? isLead,
+                        can_cancel_order: staff.pos_permissions?.can_cancel_order ?? isLead,
+                        can_override_price: staff.pos_permissions?.can_override_price ?? isLead,
+                      })
+                    }}
+                    className="p-1.5 text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer shadow-none"
+                    title={language === 'km' ? 'សិទ្ធិគ្រប់គ្រងការកម្ម៉ង់ (Permissions)' : 'Order Permissions'}
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                  </button>
+                  {!staff.is_owner ? (
                     <button
                       type="button"
                       onClick={() => handleDeleteStaff(staff.id)}
-                      className="p-2 text-zinc-400 hover:text-red-600 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer"
+                      className="p-1.5 text-zinc-400 hover:text-red-600 transition-colors rounded-full hover:bg-red-50 dark:hover:bg-red-950/30 cursor-pointer shadow-none"
                       title={language === 'km' ? 'លុបគណនី' : 'Delete staff'}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
+                  ) : (
+                    <span className="w-7" />
                   )}
                 </div>
               </div>
@@ -506,7 +573,7 @@ export const StaffManagementTab: FC = () => {
             className="fixed inset-0 bg-black/50 backdrop-blur-sm modal-backdrop-animate"
             onClick={() => setIsAddStaffModalOpen(false)}
           />
-          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-4 shadow-2xl modal-dialog-animate z-10 my-auto">
+          <div className="relative bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl max-w-md w-full p-6 sm:p-7 space-y-4 shadow-none modal-dialog-animate z-10 my-auto">
             <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
               <h2 className="text-base sm:text-lg font-bold text-zinc-950 dark:text-zinc-50">
                 {language === 'km' ? 'បន្ថែមបុគ្គលិកថ្មី' : 'Add Staff Member'}
@@ -720,6 +787,144 @@ export const StaffManagementTab: FC = () => {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Staff POS Order Permissions */}
+      {permissionsStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+            onClick={() => !isSavingPermissions && setPermissionsStaff(null)}
+          />
+          <div className="relative w-full max-w-md bg-white dark:bg-zinc-950 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-6 space-y-5 z-10 my-auto shadow-none">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-900">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100">
+                    {language === 'km' ? 'សិទ្ធិគ្រប់គ្រងការកម្ម៉ង់ (POS)' : 'Order & POS Permissions'}
+                  </h3>
+                  <p className="text-xs text-zinc-500">
+                    {permissionsStaff.full_name} ({permissionsStaff.role})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPermissionsStaff(null)}
+                disabled={isSavingPermissions}
+                className="p-1 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {/* Toggle 1: can_void_item */}
+              <div className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/30">
+                <div className="space-y-0.5">
+                  <div className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    {language === 'km' ? 'លុបមុខម្ហូប (Void Items)' : 'Can Void Items'}
+                  </div>
+                  <div className="text-[11px] text-zinc-500">
+                    {language === 'km'
+                      ? 'អនុញ្ញាតឱ្យលុបមុខម្ហូបចេញពីការកម្ម៉ង់ដែលបានផ្ញើរួច'
+                      : 'Allow removing ordered items from active tickets'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPermissionsForm((prev) => ({ ...prev, can_void_item: !prev.can_void_item }))
+                  }
+                  className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${
+                    permissionsForm.can_void_item ? 'bg-emerald-600 justify-end' : 'bg-zinc-300 dark:bg-zinc-700 justify-start'
+                  }`}
+                >
+                  <div className="bg-white w-4 h-4 rounded-full shadow-xs" />
+                </button>
+              </div>
+
+              {/* Toggle 2: can_cancel_order */}
+              <div className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/30">
+                <div className="space-y-0.5">
+                  <div className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    {language === 'km' ? 'បោះបង់ការកម្ម៉ង់ (Cancel Orders)' : 'Can Cancel Orders'}
+                  </div>
+                  <div className="text-[11px] text-zinc-500">
+                    {language === 'km'
+                      ? 'អនុញ្ញាតឱ្យលុបចោលការកម្ម៉ង់ទាំងមូល'
+                      : 'Allow cancelling entire open or unpaid orders'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPermissionsForm((prev) => ({ ...prev, can_cancel_order: !prev.can_cancel_order }))
+                  }
+                  className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${
+                    permissionsForm.can_cancel_order ? 'bg-emerald-600 justify-end' : 'bg-zinc-300 dark:bg-zinc-700 justify-start'
+                  }`}
+                >
+                  <div className="bg-white w-4 h-4 rounded-full shadow-xs" />
+                </button>
+              </div>
+
+              {/* Toggle 3: can_override_price */}
+              <div className="flex items-center justify-between gap-3 p-3 rounded-2xl border border-zinc-100 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-900/30">
+                <div className="space-y-0.5">
+                  <div className="text-xs sm:text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    {language === 'km' ? 'កែប្រែតម្លៃមុខម្ហូប (Override Prices)' : 'Can Override Prices'}
+                  </div>
+                  <div className="text-[11px] text-zinc-500">
+                    {language === 'km'
+                      ? 'អនុញ្ញាតឱ្យកែសម្រួលតម្លៃមុខម្ហូបដោយដៃនៅលើ POS'
+                      : 'Allow manually editing item prices on POS checkout'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPermissionsForm((prev) => ({ ...prev, can_override_price: !prev.can_override_price }))
+                  }
+                  className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors duration-200 ${
+                    permissionsForm.can_override_price ? 'bg-emerald-600 justify-end' : 'bg-zinc-300 dark:bg-zinc-700 justify-start'
+                  }`}
+                >
+                  <div className="bg-white w-4 h-4 rounded-full shadow-xs" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-900">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isSavingPermissions}
+                onClick={() => setPermissionsStaff(null)}
+                className="rounded-full text-xs font-medium px-4 py-2 border-zinc-200 dark:border-zinc-800"
+              >
+                {language === 'km' ? 'បោះបង់' : 'Cancel'}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={isSavingPermissions}
+                onClick={handleSavePermissions}
+                className="rounded-full text-xs font-semibold px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                {isSavingPermissions ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                ) : null}
+                {language === 'km' ? 'រក្សាទុកការកំណត់' : 'Save Permissions'}
+              </Button>
+            </div>
           </div>
         </div>
       )}

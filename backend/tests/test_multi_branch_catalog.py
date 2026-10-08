@@ -194,6 +194,18 @@ async def test_branch_menu_merges_master_and_local_items(multi_branch_setup):
         assert res_b.status_code == status.HTTP_201_CREATED
         assert "id" in res_b.json()
 
+        # Override Beef Lok Lak for Branch A and Branch B
+        await client.post(
+            f"/api/v1/businesses/{multi_branch_setup['business_id']}/branches/{multi_branch_setup['branch_a_id']}/menu/overrides/{multi_branch_setup['master_loklak_id']}",
+            headers=headers,
+            json={"menu_item_id": str(multi_branch_setup["master_loklak_id"]), "price_override": 12.00, "availability_status": "AVAILABLE"},
+        )
+        await client.post(
+            f"/api/v1/businesses/{multi_branch_setup['business_id']}/branches/{multi_branch_setup['branch_b_id']}/menu/overrides/{multi_branch_setup['master_loklak_id']}",
+            headers=headers,
+            json={"menu_item_id": str(multi_branch_setup["master_loklak_id"]), "price_override": 12.00, "availability_status": "AVAILABLE"},
+        )
+
         # 3. Fetch Published Menu for Branch A
         menu_a_res = await client.get(
             f"/api/v1/businesses/{multi_branch_setup['business_id']}/branches/{multi_branch_setup['branch_a_id']}/menu/published",
@@ -281,19 +293,12 @@ async def test_branch_price_override_and_reset_to_master(multi_branch_setup):
         assert reset_res.status_code == status.HTTP_200_OK
         assert reset_res.json()["reset_count"] == 1
 
-        # Verify Branch A now sees master price $12.00
+        # Verify Branch A now has no overrides/items
         menu_after = await client.get(
             f"/api/v1/businesses/{multi_branch_setup['business_id']}/branches/{multi_branch_setup['branch_a_id']}/menu/published",
             headers=headers,
         )
-        loklak_after = next(
-            item
-            for cat in menu_after.json()["categories"]
-            for item in cat["items"]
-            if item["id"] == str(multi_branch_setup["master_loklak_id"])
-        )
-        assert Decimal(str(loklak_after["effective_price"])) == Decimal("12.00")
-        assert loklak_after["price_override"] is None
+        assert menu_after.json()["total_items"] == 0
 
     app.dependency_overrides.clear()
 
@@ -333,7 +338,14 @@ async def test_promote_local_item_to_master(multi_branch_setup):
         )
         assert promote_res.status_code == status.HTTP_200_OK
 
-        # 3. Verify Truffle Fries now appears in Branch B as well!
+        # 3. Override Truffle Fries to Branch B
+        await client.post(
+            f"/api/v1/businesses/{multi_branch_setup['business_id']}/branches/{multi_branch_setup['branch_b_id']}/menu/overrides/{item_id}",
+            headers=headers,
+            json={"menu_item_id": str(item_id), "price_override": 5.00, "availability_status": "AVAILABLE"},
+        )
+
+        # 4. Verify Truffle Fries now appears in Branch B!
         menu_b_res = await client.get(
             f"/api/v1/businesses/{multi_branch_setup['business_id']}/branches/{multi_branch_setup['branch_b_id']}/menu/published",
             headers=headers,

@@ -6,13 +6,15 @@ import {
   UtensilsCrossed,
   Grid3X3,
   Boxes,
-  ArrowLeftRight,
   Users,
   Settings,
 } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 
-export const AdminSidebar: FC<{ onCloseMobile?: () => void }> = ({ onCloseMobile }) => {
+export const AdminSidebar: FC<{
+  onCloseMobile?: () => void
+  isCollapsed?: boolean
+}> = ({ onCloseMobile, isCollapsed = false }) => {
   const { language } = useLanguageStore()
   const location = useLocation()
 
@@ -71,12 +73,6 @@ export const AdminSidebar: FC<{ onCloseMobile?: () => void }> = ({ onCloseMobile
           labelKm: 'គ្រឿងផ្សំដើម',
           labelEn: 'Raw Ingredients',
         },
-        {
-          path: '/admin/inventory/transfers',
-          icon: ArrowLeftRight,
-          labelKm: 'ការផ្ទេរស្តុក',
-          labelEn: 'Stock Transfers',
-        },
       ],
     },
     {
@@ -107,31 +103,52 @@ export const AdminSidebar: FC<{ onCloseMobile?: () => void }> = ({ onCloseMobile
   }
 
   return (
-    <aside className="w-64 h-[calc(100vh-4rem)] sticky top-16 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between p-3 overflow-y-auto shrink-0">
-      <div className="space-y-4">
+    <aside
+      className={`w-full h-full border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between overflow-y-auto overflow-x-hidden shrink-0 transition-[padding] duration-300 ease-in-out motion-reduce:transition-none ${
+        isCollapsed ? 'px-2.5 py-3' : 'p-3'
+      }`}
+    >
+      <div className={isCollapsed ? 'space-y-3' : 'space-y-4'}>
         {navSections.map((section, sIdx) => (
           <div key={sIdx} className="space-y-1">
-            <div className="px-3 text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
-              {language === 'km' ? section.titleKm : section.titleEn}
-            </div>
+            {isCollapsed ? (
+              sIdx > 0 && <div className="my-2 border-t border-zinc-100 dark:border-zinc-800" />
+            ) : (
+              <div className="px-3 text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                {language === 'km' ? section.titleKm : section.titleEn}
+              </div>
+            )}
 
             <div className="space-y-1">
               {section.items.map((item) => {
                 const Icon = item.icon
                 const isActive = isCurrentPath(item.path, item.exact)
+                const label = language === 'km' ? item.labelKm : item.labelEn
+
                 return (
                   <Link
                     key={item.path}
                     to={item.path}
                     onClick={onCloseMobile}
-                    className={`flex items-center gap-3 px-3.5 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                    title={label}
+                    className={`flex items-center rounded-full text-sm font-semibold transition-all group ${
+                      isCollapsed
+                        ? 'w-12 h-12 justify-center mx-auto'
+                        : 'gap-3 px-3.5 py-2.5'
+                    } ${
                       isActive
-                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 font-bold shadow-xs'
+                        ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 font-bold shadow-none'
                         : 'text-zinc-700 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900'
                     }`}
                   >
-                    <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-white dark:text-zinc-950' : 'text-zinc-500'}`} />
-                    <span className="truncate">{language === 'km' ? item.labelKm : item.labelEn}</span>
+                    <Icon
+                      className={`${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} shrink-0 ${
+                        isActive
+                          ? 'text-white dark:text-zinc-950'
+                          : 'text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100'
+                      }`}
+                    />
+                    {!isCollapsed && <span className="truncate">{label}</span>}
                   </Link>
                 )
               })}

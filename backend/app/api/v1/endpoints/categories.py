@@ -89,6 +89,14 @@ async def list_business_categories(
         bool | None,
         Query(description="Filter by active visibility toggle"),
     ] = None,
+    branch_id: Annotated[
+        UUID | None,
+        Query(description="Filter by branch ID (returns branch-specific + master categories)"),
+    ] = None,
+    master_only: Annotated[
+        bool,
+        Query(description="Only return master categories (branch_id is null)"),
+    ] = False,
 ) -> list[CategoryTreeResponse] | list[CategoryResponse]:
     """
     List categories for a business in flat or hierarchical tree format.
@@ -100,6 +108,8 @@ async def list_business_categories(
             business_id=business_id,
             is_active=is_active,
             tree=tree,
+            branch_id=branch_id,
+            master_only=master_only,
         )
     except TenantNotFoundError as exc:
         raise HTTPException(
