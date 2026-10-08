@@ -14,6 +14,52 @@ from pydantic import (
 from app.models.enums import MembershipStatus, StaffRole
 
 
+class StaffPosPermissions(BaseModel):
+    """Staff POS operational and order authority permissions."""
+
+    can_void_item: bool = Field(
+        default=False,
+        description="Whether staff member can void ordered items",
+    )
+    can_cancel_order: bool = Field(
+        default=False,
+        description="Whether staff member can cancel open orders",
+    )
+    can_override_price: bool = Field(
+        default=False,
+        description="Whether staff member can manually edit or override item prices",
+    )
+
+
+def resolve_pos_permissions(
+    role: StaffRole,
+    is_owner: bool = False,
+    stored_permissions: dict[str, Any] | None = None,
+) -> StaffPosPermissions:
+    """Resolve POS permissions applying role-aware defaults when not customized."""
+    if is_owner or role in (StaffRole.OWNER, StaffRole.MANAGER):
+        defaults = {
+            "can_void_item": True,
+            "can_cancel_order": True,
+            "can_override_price": True,
+        }
+    else:
+        defaults = {
+            "can_void_item": False,
+            "can_cancel_order": False,
+            "can_override_price": False,
+        }
+
+    if not stored_permissions or not isinstance(stored_permissions, dict):
+        return StaffPosPermissions(**defaults)
+
+    return StaffPosPermissions(
+        can_void_item=bool(stored_permissions.get("can_void_item", defaults["can_void_item"])),
+        can_cancel_order=bool(stored_permissions.get("can_cancel_order", defaults["can_cancel_order"])),
+        can_override_price=bool(stored_permissions.get("can_override_price", defaults["can_override_price"])),
+    )
+
+
 class MemberInvite(BaseModel):
     """Schema for inviting or directly provisioning a new staff member."""
 
@@ -54,6 +100,10 @@ class MemberInvite(BaseModel):
         default=None,
         max_length=500,
         description="Profile photo or avatar URL",
+    )
+    pos_permissions: StaffPosPermissions | dict[str, Any] | None = Field(
+        default=None,
+        description="POS operational permissions for voids, cancellations, and price overrides",
     )
     password: str | None = Field(
         default=None,
@@ -148,6 +198,10 @@ class MemberUpdate(BaseModel):
         default=None,
         description="Updated membership status (e.g. suspended, active, terminated)",
     )
+    pos_permissions: StaffPosPermissions | dict[str, Any] | None = Field(
+        default=None,
+        description="Updated POS operational permissions",
+    )
 
     @field_validator("role", mode="before")
     @classmethod
@@ -176,6 +230,10 @@ class MemberResponse(BaseModel):
     is_owner: bool
     job_title: str | None = None
     pos_pin: str | None = None
+    pos_permissions: StaffPosPermissions = Field(
+        default_factory=StaffPosPermissions,
+        description="POS operational permissions",
+    )
     status: MembershipStatus
     branch_id: UUID | None = None
     created_at: datetime
@@ -198,3 +256,25 @@ class InviteResponse(BaseModel):
     phone: str | None = None
     pos_pin: str | None = None
     avatar_url: str | None = None
+
+
+class ManagerPinVerifyRequest(BaseModel):
+    """Request to verify manager/owner PIN for POS action override."""
+
+    pin_code: str = Field(..., min_length=4, max_length=10, description="4-6 digit numeric PIN")
+    required_permission: str | None = Field(
+        default=None,
+        description="Optional required permission flag (e.g. can_void_item, can_cancel_order)",
+    )
+    branch_id: UUID | None = Field(
+        default=None,
+        description="Optional branch context",
+    )
+
+
+class ManagerPinVerifyResponse(BaseModel):
+    """Response verifying manager PIN override."""
+
+    valid: bool
+    manager_name: str | None = None
+    manager_role: str | None = None

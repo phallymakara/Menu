@@ -396,6 +396,11 @@ async def get_branch_published_menu(
 
         for item in cat_items:
             override = overrides.get(item.id)
+
+            # Master items only appear in a branch if the owner explicitly overrode them to this branch
+            if item.branch_id is None and override is None:
+                continue
+
             availability = override.availability_status if override else "AVAILABLE"
 
             # Filter out hidden items if requested
@@ -483,6 +488,20 @@ async def get_branch_published_menu(
             )
             resolved_items.append(resolved_item)
             total_published_items += 1
+
+        # Branch isolation:
+        # A master category (branch_id is None) only appears in this branch if:
+        # 1) It has items configured for this branch (local items or overrides), OR
+        # 2) It is explicitly assigned to this branch via BranchCategoryAssignment
+        # A branch local category (branch_id == branch_id) always appears in this branch.
+        is_branch_local_cat = (cat.branch_id == branch_id)
+        is_explicitly_assigned = cat.id in [r.category_id for r in assigned_records]
+        has_branch_items = any(
+            (item.branch_id == branch_id or item.id in overrides)
+            for item in cat_items
+        )
+        if not is_branch_local_cat and not is_explicitly_assigned and not has_branch_items:
+            continue
 
         category_responses.append(
             BranchCategoryMenuResponse(

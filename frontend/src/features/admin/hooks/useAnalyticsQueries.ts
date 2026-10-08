@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-client'
+import { getApiErrorStatus } from '@/lib/api-error'
+import { ACCESS_TOKEN_KEY } from '@/stores/useAuthStore'
 import type { components } from '@/types/api'
 
 export type SalesOverviewMetrics = components['schemas']['SalesOverviewMetrics']
@@ -13,6 +15,7 @@ export function useSalesOverview(
   startDate?: string | null,
   endDate?: string | null
 ) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null
   return useQuery({
     queryKey: ['analytics', 'overview', businessId, branchId, startDate, endDate],
     queryFn: async () => {
@@ -33,7 +36,11 @@ export function useSalesOverview(
       if (error) throw error
       return data ?? null
     },
-    enabled: !!businessId,
+    enabled: !!businessId && !!token,
+    retry: (failureCount, error) => {
+      const st = getApiErrorStatus(error)
+      return st !== 401 && st !== 403 && failureCount < 1
+    },
   })
 }
 
@@ -43,6 +50,7 @@ export function useTopSellingItems(
   startDate?: string | null,
   endDate?: string | null
 ) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null
   return useQuery({
     queryKey: ['analytics', 'top-items', businessId, branchId, startDate, endDate],
     queryFn: async () => {
@@ -63,11 +71,16 @@ export function useTopSellingItems(
       if (error) throw error
       return data?.items ?? []
     },
-    enabled: !!businessId,
+    enabled: !!businessId && !!token,
+    retry: (failureCount, error) => {
+      const st = getApiErrorStatus(error)
+      return st !== 401 && st !== 403 && failureCount < 1
+    },
   })
 }
 
 export function usePaymentBreakdown(businessId: string | null, branchId?: string | null) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null
   return useQuery({
     queryKey: ['analytics', 'payment-breakdown', businessId, branchId],
     queryFn: async () => {
@@ -84,7 +97,11 @@ export function usePaymentBreakdown(businessId: string | null, branchId?: string
       if (error) throw error
       return data ?? null
     },
-    enabled: !!businessId,
+    enabled: !!businessId && !!token,
+    retry: (failureCount, error) => {
+      const st = getApiErrorStatus(error)
+      return st !== 401 && st !== 403 && failureCount < 1
+    },
   })
 }
 

@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { Edit3, MoreVertical, Trash2 } from 'lucide-react'
+import { ArrowUpRight, Edit3, MoreVertical, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import type { MenuItem } from '../../types/admin.types'
 
@@ -10,6 +10,9 @@ interface MenuItemCardProps {
   onEdit: () => void
   onDelete: () => void
   onToggleAvailability: () => void
+  isBranchMode?: boolean
+  onOpenOverride?: () => void
+  onPromoteLocalItem?: () => void
 }
 
 export const MenuItemCard: FC<MenuItemCardProps> = ({
@@ -19,6 +22,9 @@ export const MenuItemCard: FC<MenuItemCardProps> = ({
   onEdit,
   onDelete,
   onToggleAvailability,
+  isBranchMode,
+  onOpenOverride,
+  onPromoteLocalItem,
 }) => {
   const { language } = useLanguageStore()
 
@@ -59,8 +65,32 @@ export const MenuItemCard: FC<MenuItemCardProps> = ({
           {isMenuOpen && (
             <div
               onClick={(e) => e.stopPropagation()}
-              className="absolute right-0 top-8 w-36 py-1 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 z-30 animate-in fade-in zoom-in-95 duration-100"
+              className="absolute right-0 top-8 w-44 py-1 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 z-30 animate-in fade-in zoom-in-95 duration-100"
             >
+              {isBranchMode && onOpenOverride && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onOpenOverride()
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-center gap-2 transition-colors"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>{language === 'km' ? 'កែតម្លៃ/ស្តុកសាខា' : 'Branch Override'}</span>
+                </button>
+              )}
+              {isBranchMode && item.is_local_item && onPromoteLocalItem && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onPromoteLocalItem()
+                  }}
+                  className="w-full px-3 py-2 text-left text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 flex items-center gap-2 transition-colors"
+                >
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  <span>{language === 'km' ? 'លើកជាមុខម្ហូបមេ' : 'Promote to Master'}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -124,16 +154,26 @@ export const MenuItemCard: FC<MenuItemCardProps> = ({
             </p>
           </div>
 
-          {/* 4. Options / Modifiers Badge if configured */}
-          {item.modifier_groups && item.modifier_groups.length > 0 && (
-            <div className="pt-1 flex flex-wrap gap-1.5">
-              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+          {/* 4. Badges: Branch Overrides, Local Dish & Option Groups */}
+          <div className="pt-1 flex flex-wrap gap-1.5">
+            {item.price_override !== null && item.price_override !== undefined && (
+              <span className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                {language === 'km' ? 'តម្លៃសាខា' : 'Branch Override'}
+              </span>
+            )}
+            {item.is_local_item && (
+              <span className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40">
+                {language === 'km' ? 'មុខម្ហូបសាខា' : 'Local Special'}
+              </span>
+            )}
+            {item.modifier_groups && item.modifier_groups.length > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border border-zinc-200/60 dark:border-zinc-700/40">
                 {language === 'km'
                   ? `មានជម្រើស (${item.modifier_groups.length})`
                   : `${item.modifier_groups.length} Option Groups`}
               </span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

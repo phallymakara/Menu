@@ -14,7 +14,7 @@ from app.core.tenant import TenantContext
 from app.models.branch import Branch
 from app.models.business import Business
 from app.models.dining_area import DiningArea
-from app.models.enums import OrderItemStatus, OrderStatus
+from app.models.enums import DiscountType, OrderItemStatus, OrderStatus
 from app.models.order import Order, OrderItem
 from app.models.restaurant_table import RestaurantTable
 from app.models.table_session import TableSession
@@ -28,6 +28,36 @@ from app.schemas.billing import (
 )
 
 logger = structlog.get_logger("app.services.billing_service")
+
+
+def evaluate_manual_discount(
+    subtotal_usd: Decimal,
+    manual_discount_type: DiscountType | None = None,
+    manual_discount_value: Decimal | None = None,
+    discount_reason: str | None = None,
+) -> tuple[Decimal, Decimal | None, str | None]:
+    """
+    Calculates manual cashier discount against an active subtotal.
+    Returns: (discount_usd, discount_pct_if_percentage, discount_reason_str)
+    """
+    if (
+        manual_discount_type is not None
+        and manual_discount_value is not None
+        and manual_discount_value > 0
+    ):
+        if manual_discount_type == DiscountType.PERCENTAGE:
+            calc_val = (
+                subtotal_usd * (manual_discount_value / Decimal("100"))
+            ).quantize(Decimal("0.01"))
+            discount_usd = min(subtotal_usd, calc_val)
+            discount_pct = manual_discount_value
+        else:
+            discount_usd = min(subtotal_usd, manual_discount_value)
+            discount_pct = None
+
+        return discount_usd, discount_pct, str(discount_reason or "Manual Discount")
+
+    return Decimal("0.00"), None, None
 
 
 def _round_khr_to_hundred(amount: Decimal | float) -> int:

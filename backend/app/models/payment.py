@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from app.models.business import Business
     from app.models.order import Order
     from app.models.organization import Organization
-    from app.models.promotion import Promotion
     from app.models.table_session import TableSession
     from app.models.user import User
 
@@ -162,13 +161,6 @@ class Payment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         nullable=False,
     )
 
-    # Discount / Promotion Attribution
-    promotion_id: Mapped[UUID | None] = mapped_column(
-        Uuid,
-        ForeignKey("promotions.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-
     discount_reason: Mapped[str | None] = mapped_column(
         String(100),
         nullable=True,
@@ -219,4 +211,3 @@ class Payment(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     table_session: Mapped[TableSession | None] = relationship("TableSession")
     order: Mapped[Order | None] = relationship("Order")
     received_by: Mapped[User | None] = relationship("User")
-    promotion: Mapped[Promotion | None] = relationship("Promotion")

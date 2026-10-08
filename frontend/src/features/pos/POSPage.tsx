@@ -12,7 +12,8 @@ import { POSOrderDrawer } from './components/POSOrderDrawer'
 import { POSCashPaymentModal } from './components/POSCashPaymentModal'
 import { POSSupervisorVoidModal } from './components/POSSupervisorVoidModal'
 import { POSReceiptModal } from './components/POSReceiptModal'
-import { KHQRPaymentModal } from '@/features/guest/components/KHQRPaymentModal'
+import { POSKHQRModal } from './components/POSKHQRModal'
+import { POSTableActionsModal } from './components/POSTableActionsModal'
 import { ServiceHubDrawer } from '@/features/service-hub/components/ServiceHubDrawer'
 import { serviceRequestKeys } from '@/features/service-hub/hooks/useServiceRequestQueries'
 import { useServiceHubStore } from '@/features/service-hub/stores/useServiceHubStore'
@@ -27,6 +28,7 @@ import {
   useSettleSessionCash,
   useUpdateTableStatus,
   useVoidOrderItem,
+  useCancelOrder,
 } from './hooks/usePOSQueries'
 import { useWebSocket } from '@/lib/websocket'
 import { playSuccessSound, playChime } from '@/lib/audio'
@@ -62,6 +64,7 @@ export const POSPage: FC = () => {
   } = usePOSStore()
   const { language } = useLanguageStore()
 
+  const [isTableActionsModalOpen, setIsTableActionsModalOpen] = useState(false)
   const [storeInfo, setStoreInfo] = useState({
     nameEn: localStorage.getItem('emenu_business_name_en') || '',
     nameKm: localStorage.getItem('emenu_business_name_km') || '',
@@ -73,18 +76,20 @@ export const POSPage: FC = () => {
   const [tenantBizId, setTenantBizId] = useState<string | null>(
     localStorage.getItem('emenu_business_id')
   )
-  const [tenantBranchId, setTenantBranchId] = useState<string | null>(
-    localStorage.getItem('emenu_branch_id')
-  )
+  const [tenantBranchId, setTenantBranchId] = useState<string | null>(() => {
+    const saved = localStorage.getItem('emenu_branch_id')
+    return saved && saved !== 'all' && isUuid(saved) ? saved : null
+  })
   const updateTableStatusMutation = useUpdateTableStatus(tenantBizId, tenantBranchId)
   const settleCashMutation = useSettleSessionCash(tenantBizId, tenantBranchId)
   const voidItemMutation = useVoidOrderItem(tenantBizId, tenantBranchId)
+  const cancelOrderMutation = useCancelOrder(tenantBizId, tenantBranchId)
   const accessToken = localStorage.getItem('emenu_access_token') || ''
 
   // 1. Resolve Active Business and Branch IDs dynamically via TanStack Query
-  const { data: businesses = [] } = useBusinesses()
+  const { data: businesses } = useBusinesses()
   useEffect(() => {
-    if (!tenantBizId && businesses.length > 0) {
+    if (!tenantBizId && businesses && businesses.length > 0) {
       const biz = businesses[0]
       setTenantBizId(biz.id)
       localStorage.setItem('emenu_business_id', biz.id)
@@ -98,55 +103,76 @@ export const POSPage: FC = () => {
     }
   }, [businesses, tenantBizId])
 
-  const { data: branches = [] } = useBranches(tenantBizId)
+  const { data: branches } = useBranches(tenantBizId)
   useEffect(() => {
-    if (!tenantBranchId && branches.length > 0) {
+    if ((!tenantBranchId || tenantBranchId === 'all' || !isUuid(tenantBranchId)) && branches && branches.length > 0) {
       const b = branches[0]
       setTenantBranchId(b.id)
       localStorage.setItem('emenu_branch_id', b.id)
     }
   }, [branches, tenantBranchId])
 
-  // 2. Fetch Dining Areas and Tables via TanStack Query
-  const { data: rawAreas = [], isLoading: isAreasLoading } = useDiningAreas(tenantBizId, tenantBranchId)
-  const { data: rawTables = [], isLoading: isTablesLoading } = useTables(tenantBizId, tenantBranchId)
+  const [isSwitchingBranch, setIsSwitchingBranch] = useState(false)
 
-  const isLoading = (isAreasLoading || isTablesLoading) && tables.length === 0
+  // 2. Fetch Dining Areas and Tables via TanStack Query
+  const { data: rawAreas, isLoading: isAreasLoading } = useDiningAreas(tenantBizId, tenantBranchId)
+  const { data: rawTables, isLoading: isTablesLoading } = useTables(tenantBizId, tenantBranchId)
+
+  const isLoading = isSwitchingBranch || ((isAreasLoading || isTablesLoading) && tables.length === 0)
 
   useEffect(() => {
-    if (rawAreas.length > 0) {
-      const builtZones: POSDiningZone[] = rawAreas.map((z) => ({
-        id: z.id,
-        name_en: z.name_en,
-        name_km: z.name_km || z.name_en,
-      }))
-      setZones(builtZones)
+    const handleBranchChanged = (e: any) => {
+      const branchId = e.detail?.branchId
+      if (branchId) {
+        const target = branchId === 'all' ? (branches?.[0]?.id || null) : branchId
+        setIsSwitchingBranch(true)
+        setTenantBranchId(target)
+        setSelectedTable(null)
+        setActiveRounds([])
+        setTables([])
+        setZones([])
+        queryClient.invalidateQueries({ queryKey: ['tables'] })
+        queryClient.invalidateQueries({ queryKey: ['dining-areas'] })
+      }
     }
+    window.addEventListener('emenu:branch-changed', handleBranchChanged)
+    return () => window.removeEventListener('emenu:branch-changed', handleBranchChanged)
+  }, [branches, queryClient, setSelectedTable, setActiveRounds, setTables, setZones])
+
+  useEffect(() => {
+    if (!rawAreas) return
+    const builtZones: POSDiningZone[] = rawAreas.map((z) => ({
+      id: z.id,
+      name_en: z.name_en,
+      name_km: z.name_km || z.name_en,
+    }))
+    setZones(builtZones)
   }, [rawAreas, setZones])
 
   useEffect(() => {
-    if (rawTables.length > 0) {
-      const builtTables: POSTable[] = rawTables.map((t) => ({
-        id: t.id,
-        table_number: t.table_number,
-        status: (t.status || 'AVAILABLE').toLowerCase() as any,
-        capacity: t.max_capacity || 4,
-        dining_area_id: t.dining_area_id,
-        dining_area_name: rawAreas.find((a) => a.id === t.dining_area_id)?.name_en || 'Main Area',
-        session_id: (t as any).active_session_id || null,
-        session_elapsed_minutes: 0,
-        session_subtotal_usd: 0,
-        guest_count: t.max_capacity || 2,
-        active_orders_count: 0,
-      }))
-      setTables(builtTables)
-    }
+    if (!rawTables) return
+    const safeAreas = rawAreas || []
+    const builtTables: POSTable[] = rawTables.map((t) => ({
+      id: t.id,
+      table_number: t.table_number,
+      status: (t.status || 'AVAILABLE').toLowerCase() as any,
+      capacity: t.max_capacity || 4,
+      dining_area_id: t.dining_area_id,
+      dining_area_name: safeAreas.find((a) => a.id === t.dining_area_id)?.name_en || 'Main Area',
+      session_id: (t as any).active_session_id || null,
+      session_elapsed_minutes: 0,
+      session_subtotal_usd: 0,
+      guest_count: t.max_capacity || 2,
+      active_orders_count: 0,
+    }))
+    setTables(builtTables)
+    setIsSwitchingBranch(false)
   }, [rawTables, rawAreas, setTables])
 
   const fetchPOSData = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['dining-areas', tenantBizId, tenantBranchId] })
-    queryClient.invalidateQueries({ queryKey: ['tables', tenantBizId, tenantBranchId] })
-  }, [queryClient, tenantBizId, tenantBranchId])
+    queryClient.invalidateQueries({ queryKey: ['dining-areas'] })
+    queryClient.invalidateQueries({ queryKey: ['tables'] })
+  }, [queryClient])
 
   // 3. Select Table & Load its Live Order Rounds
   const handleSelectTable = useCallback((table: POSTable) => {
@@ -225,6 +251,27 @@ export const POSPage: FC = () => {
       // The backend void endpoint has no supervisor PIN check yet, so the PIN is not sent.
       await voidItemMutation
         .mutateAsync({ orderId: parentOrder.id, itemId: targetVoidItem.id, reason })
+        .catch(() => null)
+    }
+  }
+
+  const handleCancelRound = async (roundId: string) => {
+    const confirmMsg =
+      language === 'km'
+        ? 'តើអ្នកពិតជាចង់លុបចោលជុំកុម្ម៉ង់នេះមែនទេ?'
+        : 'Are you sure you want to cancel this entire order round?'
+    if (!window.confirm(confirmMsg)) return
+
+    playSuccessSound()
+    setActiveRounds(activeRounds.filter((r) => r.id !== roundId))
+
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      await cancelOrderMutation
+        .mutateAsync({
+          orderId: roundId,
+          cancelReasonCode: 'guest_changed_mind',
+          cancelReason: 'Cashier cancelled round',
+        })
         .catch(() => null)
     }
   }
@@ -338,7 +385,9 @@ export const POSPage: FC = () => {
                 onOpenCashModal={openCashModal}
                 onOpenKHQRModal={openKHQRModal}
                 onOpenVoidModal={openVoidModal}
+                onCancelRound={handleCancelRound}
                 onPrintPrecheck={() => openReceiptModal('PRECHECK')}
+                onOpenTableActions={() => setIsTableActionsModalOpen(true)}
               />
             )}
           </div>
@@ -355,22 +404,40 @@ export const POSPage: FC = () => {
         onConfirmSettlement={handleConfirmCashSettlement}
       />
 
-      {/* Bakong KHQR Settlement Modal */}
-      <KHQRPaymentModal
+      {/* Dynamic Bakong KHQR Settlement Modal */}
+      <POSKHQRModal
         isOpen={isKHQRModalOpen}
         onClose={closeKHQRModal}
-        totalUSD={totalUSD}
+        businessId={tenantBizId}
+        branchId={tenantBranchId}
+        sessionId={selectedTable?.session_id}
         tableNumber={selectedTable?.table_number || 'T-01'}
-        merchantName={resolvedStoreName}
-        isSettled={false}
-        onSimulateSettlement={() => {
-          handleConfirmCashSettlement({
-            tenderedUSD: totalUSD,
-            tenderedKHR: 0,
-            changeUSD: 0,
-            changeKHR: 0,
-          })
-          closeKHQRModal()
+        totalUSD={totalUSD}
+        onSuccessPayment={() => {
+          playSuccessSound()
+          if (selectedTable) {
+            updateTableStatus(selectedTable.id, 'dirty_cleaning', null)
+          }
+          setActiveRounds([])
+          openReceiptModal(`PAY-${Date.now()}`)
+        }}
+      />
+
+      {/* Table Seating, Transfer, and Merge Actions Modal */}
+      <POSTableActionsModal
+        isOpen={isTableActionsModalOpen}
+        onClose={() => setIsTableActionsModalOpen(false)}
+        table={selectedTable}
+        allTables={tables}
+        businessId={tenantBizId}
+        branchId={tenantBranchId}
+        onSuccessAction={() => {
+          fetchPOSData()
+          if (selectedTable?.session_id && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+            queryClient.invalidateQueries({
+              queryKey: ['pos', 'rounds', tenantBizId, tenantBranchId, selectedTable.session_id],
+            })
+          }
         }}
       />
 
@@ -392,6 +459,9 @@ export const POSPage: FC = () => {
         totalKHR={totalKHR}
         subtotalUSD={subtotalUSD}
         taxUSD={taxUSD}
+        businessId={tenantBizId}
+        branchId={tenantBranchId}
+        sessionId={selectedTable?.session_id}
       />
 
       {/* Waiter Service Requests Hub Slide-Over Drawer */}

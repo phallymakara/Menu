@@ -34,11 +34,19 @@ export const LoginPage: FC = () => {
 
     try {
       const isEmail = emailOrPhone.includes('@')
-      await login.mutateAsync({
+      const result = await login.mutateAsync({
         identifier: isEmail ? emailOrPhone.trim().toLowerCase() : emailOrPhone.trim(),
         password,
       })
-      navigate('/admin')
+      const primaryMembership = (result?.me?.memberships?.[0] as any)
+      const role = (primaryMembership?.role || '').toLowerCase()
+      if (role === 'kitchen') {
+        navigate('/kds')
+      } else if (role === 'waiter' || role === 'cashier') {
+        navigate('/pos')
+      } else {
+        navigate('/admin')
+      }
     } catch (err) {
       setErrorMessage(getLoginErrorMessage(err, language === 'km'))
     } finally {

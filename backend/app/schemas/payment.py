@@ -33,11 +33,6 @@ class CashPaymentRequest(BaseModel):
         default=ChangeCurrencyPreference.KHR,
         description="Change return mode: 'khr' (all in Riel), 'usd' (all in USD), or 'split' (USD whole + KHR cents)",
     )
-    promo_code: str | None = Field(
-        default=None,
-        max_length=50,
-        description="Optional coupon code (e.g. WELCOME10)",
-    )
     manual_discount_type: DiscountType | None = Field(
         default=None,
         description="Optional manual discount type: 'percentage' or 'fixed_amount'",
@@ -67,11 +62,6 @@ class KHQRBillAdjustments(BaseModel):
     that the recomputed bill matches the amount the customer paid.
     """
 
-    promo_code: str | None = Field(
-        default=None,
-        max_length=50,
-        description="Optional coupon code (e.g. WELCOME10)",
-    )
     manual_discount_type: DiscountType | None = Field(
         default=None,
         description="Optional manual discount type: 'percentage' or 'fixed_amount'",
@@ -150,7 +140,6 @@ class PaymentResponse(BaseModel):
     change_usd: Decimal
     change_khr: int
 
-    promotion_id: UUID | None = None
     discount_reason: str | None = None
     received_by_user_id: UUID | None = None
     notes: str | None = None

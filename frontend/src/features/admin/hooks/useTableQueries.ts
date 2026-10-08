@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-client'
 import { unwrap } from '@/lib/api-error'
+import { isUuid } from '@/lib/utils'
 import type { components } from '@/types/api'
 
 export type TableResponse = components['schemas']['RestaurantTableResponse']
@@ -23,56 +24,62 @@ function orderingBaseUrl(): string | undefined {
 }
 
 export function useDiningAreas(businessId: string | null, branchId: string | null) {
+  const isValid = isUuid(businessId) && isUuid(branchId)
   return useQuery({
     queryKey: ['dining-areas', businessId, branchId],
     queryFn: async () => {
-      if (!businessId || !branchId) return []
+      if (!isValid) return []
       const { data, error } = await apiFetch.GET(
         '/api/v1/businesses/{business_id}/branches/{branch_id}/areas',
         {
-          params: { path: { business_id: businessId, branch_id: branchId } },
+          params: { path: { business_id: businessId!, branch_id: branchId! } },
         }
       )
       if (error) throw error
       return data || []
     },
-    enabled: !!businessId && !!branchId,
+    enabled: isValid,
+    retry: false,
   })
 }
 
 export function useTables(businessId: string | null, branchId: string | null) {
+  const isValid = isUuid(businessId) && isUuid(branchId)
   return useQuery({
     queryKey: ['tables', businessId, branchId],
     queryFn: async () => {
-      if (!businessId || !branchId) return []
+      if (!isValid) return []
       const { data, error } = await apiFetch.GET(
         '/api/v1/businesses/{business_id}/branches/{branch_id}/tables',
         {
-          params: { path: { business_id: businessId, branch_id: branchId } },
+          params: { path: { business_id: businessId!, branch_id: branchId! } },
         }
       )
       if (error) throw error
       return data || []
     },
-    enabled: !!businessId && !!branchId,
+    enabled: isValid,
+    retry: false,
   })
 }
 
 export function useTablesDashboard(businessId: string | null, branchId: string | null) {
+  const isValid = isUuid(businessId) && isUuid(branchId)
   return useQuery({
     queryKey: ['tables-dashboard', businessId, branchId],
     queryFn: async () => {
-      if (!businessId || !branchId) return null
+      if (!isValid) return null
       const { data, error } = await apiFetch.GET(
         '/api/v1/businesses/{business_id}/branches/{branch_id}/tables-dashboard',
         {
-          params: { path: { business_id: businessId, branch_id: branchId } },
+          params: { path: { business_id: businessId!, branch_id: branchId! } },
         }
       )
       if (error) throw error
       return data
     },
-    enabled: !!businessId && !!branchId,
+    enabled: isValid,
+    retry: false,
     refetchInterval: 15000, // Background poll every 15s for floor map sync
   })
 }
@@ -146,20 +153,22 @@ export function useDownloadTableQrZip(businessId: string | null, branchId: strin
  * guest ordering URL (the same codes as the printable ZIP), keyed by table ID.
  */
 export function useTableQrCodes(businessId: string | null, branchId: string | null) {
+  const isValid = isUuid(businessId) && isUuid(branchId)
   return useQuery({
     queryKey: ['table-qr-codes', businessId, branchId],
     queryFn: async (): Promise<Map<string, TableQrDetail>> => {
-      if (!businessId || !branchId) return new Map()
+      if (!isValid) return new Map()
       const batch = unwrap(
         await apiFetch.GET('/api/v1/businesses/{business_id}/branches/{branch_id}/tables/qr/batch', {
           params: {
-            path: { business_id: businessId, branch_id: branchId },
+            path: { business_id: businessId!, branch_id: branchId! },
             query: { format: 'json', base_url: orderingBaseUrl() },
           },
         })
       ) as TableQrBatch
       return new Map(batch.tables.map((qr) => [qr.table_id, qr]))
     },
-    enabled: !!businessId && !!branchId,
+    enabled: isValid,
+    retry: false,
   })
 }

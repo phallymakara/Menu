@@ -3,6 +3,7 @@ import type {
   MenuItemResponse,
   ModifierGroupDetailResponse,
 } from '../hooks/useMenuQueries'
+import type { BranchMenuItemDisplayResponse } from '../hooks/useBranchMenuQueries'
 import type { Category, MenuItem, ModifierGroup, ModifierOption } from '../types/admin.types'
 
 /** Fallback KHR rate for display until the business exchange rate is wired in. */
@@ -66,6 +67,7 @@ export function toCategory(category: CategoryResponse): Category {
     name_km: category.name_km || category.name_en,
     display_order: category.display_order ?? 0,
     is_active: category.is_active ?? true,
+    branch_id: (category as any).branch_id ?? null,
   }
 }
 
@@ -91,6 +93,34 @@ export function toMenuItem(item: MenuItemResponse): MenuItem {
     is_available: item.is_active ?? true,
     kitchen_station: toKitchenStation(item.kitchen_station),
     modifier_groups: [],
+    branch_id: (item as any).branch_id ?? null,
+    is_local_item: !!(item as any).branch_id,
+  }
+}
+
+export function toBranchMenuItem(item: BranchMenuItemDisplayResponse): MenuItem {
+  const priceUsd = Number(item.effective_price) || 0
+  return {
+    id: item.id,
+    category_id: item.category_id ?? '',
+    name_en: item.name_en,
+    name_km: item.name_km || item.name_en,
+    description_en: item.description_en || '',
+    description_km: item.description_km || '',
+    image_url: item.image_url || null,
+    price_usd: priceUsd,
+    price_khr: toKhr(priceUsd),
+    is_available: item.is_available,
+    kitchen_station: toKitchenStation(item.kitchen_station),
+    modifier_groups: toModifierGroups(item.modifier_groups || []),
+    master_price: Number(item.master_price) || 0,
+    price_override:
+      item.price_override !== null && item.price_override !== undefined
+        ? Number(item.price_override)
+        : null,
+    is_local_item: item.is_local_item ?? false,
+    availability_status: item.availability_status,
+    branch_id: item.branch_id ?? null,
   }
 }
 

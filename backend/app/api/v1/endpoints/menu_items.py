@@ -108,6 +108,12 @@ async def list_business_menu_items(
     ] = None,
     page: Annotated[int, Query(ge=1, description="Page number")] = 1,
     page_size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 50,
+    branch_id: Annotated[
+        UUID | None, Query(description="Filter items by specific branch ID")
+    ] = None,
+    master_only: Annotated[
+        bool, Query(description="Filter to only Central Master items (branch_id is null)")
+    ] = False,
 ) -> MenuItemPaginationResponse:
     """
     List and search menu items with dietary, category, and feature filters.
@@ -130,6 +136,8 @@ async def list_business_menu_items(
             search=search,
             page=page,
             page_size=page_size,
+            branch_id=branch_id,
+            master_only=master_only,
         )
     except TenantNotFoundError as exc:
         raise HTTPException(

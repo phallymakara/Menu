@@ -5994,494 +5994,6 @@
         }
       }
     },
-    "/api/v1/businesses/{business_id}/promotions": {
-      "post": {
-        "tags": [
-          "Discounts & Promotions"
-        ],
-        "summary": "Create a new promotion or coupon code",
-        "description": "Creates a new promotional discount or coupon code for a business.",
-        "operationId": "create_promotion_endpoint_api_v1_businesses__business_id__promotions_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PromotionCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PromotionResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "Discounts & Promotions"
-        ],
-        "summary": "List promotions for a business",
-        "description": "Lists all promotions and coupons belonging to the business.",
-        "operationId": "list_promotions_endpoint_api_v1_businesses__business_id__promotions_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "is_active",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by active status",
-              "title": "Is Active"
-            },
-            "description": "Filter by active status"
-          },
-          {
-            "name": "branch_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by branch applicability",
-              "title": "Branch Id"
-            },
-            "description": "Filter by branch applicability"
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PromotionResponse"
-                  },
-                  "title": "Response List Promotions Endpoint Api V1 Businesses  Business Id  Promotions Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/promotions/{promo_id}": {
-      "get": {
-        "tags": [
-          "Discounts & Promotions"
-        ],
-        "summary": "Retrieve promotion details",
-        "description": "Retrieves a single promotion by ID.",
-        "operationId": "get_promotion_endpoint_api_v1_businesses__business_id__promotions__promo_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "promo_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Promo Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PromotionResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Discounts & Promotions"
-        ],
-        "summary": "Update promotion settings",
-        "description": "Updates promotion parameters, expiration, or active status.",
-        "operationId": "update_promotion_endpoint_api_v1_businesses__business_id__promotions__promo_id__patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "promo_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Promo Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PromotionUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PromotionResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Discounts & Promotions"
-        ],
-        "summary": "Delete promotion",
-        "description": "Deletes a promotion.",
-        "operationId": "delete_promotion_endpoint_api_v1_businesses__business_id__promotions__promo_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "promo_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Promo Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/branches/{branch_id}/promotions/validate": {
-      "post": {
-        "tags": [
-          "Discounts & Promotions"
-        ],
-        "summary": "Validate promo code and calculate discount preview",
-        "description": "Tests a promo code or manual discount against an order subtotal without saving.",
-        "operationId": "validate_promotion_endpoint_api_v1_businesses__business_id__branches__branch_id__promotions_validate_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "branch_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Branch Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ValidatePromoRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DiscountEvaluationResult"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/businesses/{business_id}/branches/{branch_id}/khqr/table-sessions/{session_id}/dynamic": {
       "post": {
         "tags": [
@@ -8528,7 +8040,7 @@
     "/api/v1/businesses/{business_id}/inventory/items": {
       "get": {
         "tags": [
-          "Multi-Branch Inventory & Stock Transfers"
+          "Multi-Branch Inventory"
         ],
         "summary": "List master inventory items for a business",
         "description": "Lists all organization-wide master inventory items.",
@@ -8595,7 +8107,7 @@
       },
       "post": {
         "tags": [
-          "Multi-Branch Inventory & Stock Transfers"
+          "Multi-Branch Inventory"
         ],
         "summary": "Create a new master inventory item",
         "description": "Creates a new inventory item and seeds branch stock balances.",
@@ -8670,7 +8182,7 @@
     "/api/v1/businesses/{business_id}/inventory/branches/{branch_id}/stock": {
       "get": {
         "tags": [
-          "Multi-Branch Inventory & Stock Transfers"
+          "Multi-Branch Inventory"
         ],
         "summary": "Get real-time stock balances for a branch",
         "description": "Retrieves all stock balances and low-stock indicators for a specific branch.",
@@ -8749,7 +8261,7 @@
     "/api/v1/businesses/{business_id}/inventory/branches/{branch_id}/stock/adjust": {
       "post": {
         "tags": [
-          "Multi-Branch Inventory & Stock Transfers"
+          "Multi-Branch Inventory"
         ],
         "summary": "Adjust stock balance (audit, restock, spoilage/waste)",
         "description": "Manually updates stock counts and logs an immutable audit event.",
@@ -8831,394 +8343,10 @@
         }
       }
     },
-    "/api/v1/businesses/{business_id}/inventory/transfers": {
-      "get": {
-        "tags": [
-          "Multi-Branch Inventory & Stock Transfers"
-        ],
-        "summary": "List inter-branch stock transfers",
-        "description": "Lists stock transfers filtered by branch or business.",
-        "operationId": "list_stock_transfers_endpoint_api_v1_businesses__business_id__inventory_transfers_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "branch_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Branch Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/StockTransferResponse"
-                  },
-                  "title": "Response List Stock Transfers Endpoint Api V1 Businesses  Business Id  Inventory Transfers Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Multi-Branch Inventory & Stock Transfers"
-        ],
-        "summary": "Create an inter-branch stock transfer request",
-        "description": "Requests stock to be moved from a source branch to destination branch.",
-        "operationId": "create_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StockTransferCreateRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StockTransferResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/inventory/transfers/{transfer_id}/approve": {
-      "post": {
-        "tags": [
-          "Multi-Branch Inventory & Stock Transfers"
-        ],
-        "summary": "Approve a stock transfer request",
-        "description": "Approves a transfer request by source branch manager or General Manager.",
-        "operationId": "approve_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers__transfer_id__approve_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "transfer_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Transfer Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StockTransferResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/inventory/transfers/{transfer_id}/dispatch": {
-      "post": {
-        "tags": [
-          "Multi-Branch Inventory & Stock Transfers"
-        ],
-        "summary": "Dispatch a stock transfer (marks IN_TRANSIT & deducts source stock)",
-        "description": "Dispatches shipment and automatically decrements stock at source branch.",
-        "operationId": "dispatch_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers__transfer_id__dispatch_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "transfer_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Transfer Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StockTransferResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/inventory/transfers/{transfer_id}/receive": {
-      "post": {
-        "tags": [
-          "Multi-Branch Inventory & Stock Transfers"
-        ],
-        "summary": "Receive a stock transfer (marks COMPLETED & increments destination stock)",
-        "description": "Receives shipment and automatically increments stock at destination branch.",
-        "operationId": "receive_stock_transfer_endpoint_api_v1_businesses__business_id__inventory_transfers__transfer_id__receive_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "transfer_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Transfer Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/StockTransferResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/businesses/{business_id}/inventory/alerts/low-stock": {
       "get": {
         "tags": [
-          "Multi-Branch Inventory & Stock Transfers"
+          "Multi-Branch Inventory"
         ],
         "summary": "Get low-stock item alerts across all branches",
         "description": "Identifies items where branch quantity is at or below the reorder threshold.",
@@ -10690,6 +9818,37 @@
             "description": "Filter by active visibility toggle"
           },
           {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by branch ID (returns branch-specific + master categories)",
+              "title": "Branch Id"
+            },
+            "description": "Filter by branch ID (returns branch-specific + master categories)"
+          },
+          {
+            "name": "master_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Only return master categories (branch_id is null)",
+              "default": false,
+              "title": "Master Only"
+            },
+            "description": "Only return master categories (branch_id is null)"
+          },
+          {
             "name": "X-Organization-Id",
             "in": "header",
             "required": false,
@@ -11371,6 +10530,37 @@
               "title": "Page Size"
             },
             "description": "Items per page"
+          },
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter items by specific branch ID",
+              "title": "Branch Id"
+            },
+            "description": "Filter items by specific branch ID"
+          },
+          {
+            "name": "master_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Filter to only Central Master items (branch_id is null)",
+              "default": false,
+              "title": "Master Only"
+            },
+            "description": "Filter to only Central Master items (branch_id is null)"
           },
           {
             "name": "X-Organization-Id",
@@ -12128,164 +11318,6 @@
         "responses": {
           "204": {
             "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/items/{item_id}/recipe": {
-      "get": {
-        "tags": [
-          "Menu Item Recipes (BOM)"
-        ],
-        "summary": "Get the recipe (bill of materials) of a menu item",
-        "description": "Returns the ingredient lines consumed from branch stock per unit sold.",
-        "operationId": "get_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "item_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Item Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MenuItemRecipeResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "Menu Item Recipes (BOM)"
-        ],
-        "summary": "Replace the whole recipe of a menu item",
-        "description": "Atomically replaces every recipe line of the menu item; an empty list clears it.\nQuantities are per unit sold, in each inventory item's own unit of measure.",
-        "operationId": "replace_menu_item_recipe_endpoint_api_v1_businesses__business_id__items__item_id__recipe_put",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "item_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Item Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MenuItemRecipeReplaceRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MenuItemRecipeResponse"
-                }
-              }
-            }
           },
           "422": {
             "description": "Validation Error",
@@ -13089,601 +12121,6 @@
                     "$ref": "#/components/schemas/ModifierGroupDetailResponse"
                   },
                   "title": "Response Get Item Modifier Groups Endpoint Api V1 Businesses  Business Id  Items  Item Id  Modifier Groups Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/combos": {
-      "post": {
-        "tags": [
-          "Combos & Set Menus"
-        ],
-        "summary": "Create Combo Endpoint",
-        "description": "Create a new combo bundle with nested choice groups and eligible items.",
-        "operationId": "create_combo_endpoint_api_v1_businesses__business_id__combos_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ComboCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComboDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "Combos & Set Menus"
-        ],
-        "summary": "List Combos Endpoint",
-        "description": "List all combo bundles for a business with pagination.",
-        "operationId": "list_combos_endpoint_api_v1_businesses__business_id__combos_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "is_active",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Filter by active status",
-              "title": "Is Active"
-            },
-            "description": "Filter by active status"
-          },
-          {
-            "name": "search",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "Search combos by name or SKU",
-              "title": "Search"
-            },
-            "description": "Search combos by name or SKU"
-          },
-          {
-            "name": "page",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Page number",
-              "default": 1,
-              "title": "Page"
-            },
-            "description": "Page number"
-          },
-          {
-            "name": "page_size",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "description": "Items per page",
-              "default": 20,
-              "title": "Page Size"
-            },
-            "description": "Items per page"
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComboPaginationResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/combos/{combo_id}": {
-      "get": {
-        "tags": [
-          "Combos & Set Menus"
-        ],
-        "summary": "Get Combo Endpoint",
-        "description": "Get detailed combo bundle including choice groups and item options.",
-        "operationId": "get_combo_endpoint_api_v1_businesses__business_id__combos__combo_id__get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "combo_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Combo Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComboDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "patch": {
-        "tags": [
-          "Combos & Set Menus"
-        ],
-        "summary": "Update Combo Endpoint",
-        "description": "Partially update a combo bundle.",
-        "operationId": "update_combo_endpoint_api_v1_businesses__business_id__combos__combo_id__patch",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "combo_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Combo Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ComboUpdate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComboDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Combos & Set Menus"
-        ],
-        "summary": "Delete Combo Endpoint",
-        "description": "Delete a combo bundle and its choice groups.",
-        "operationId": "delete_combo_endpoint_api_v1_businesses__business_id__combos__combo_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "combo_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Combo Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "Successful Response"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/combos/{combo_id}/groups": {
-      "post": {
-        "tags": [
-          "Combos & Set Menus"
-        ],
-        "summary": "Create Combo Group Endpoint",
-        "description": "Add a new choice group to an existing combo bundle.",
-        "operationId": "create_combo_group_endpoint_api_v1_businesses__business_id__combos__combo_id__groups_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "combo_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Combo Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ComboGroupCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComboDetailResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/combos/{combo_id}/groups/{group_id}": {
-      "delete": {
-        "tags": [
-          "Combos & Set Menus"
-        ],
-        "summary": "Delete Combo Group Endpoint",
-        "description": "Delete a choice group from a combo bundle.",
-        "operationId": "delete_combo_group_endpoint_api_v1_businesses__business_id__combos__combo_id__groups__group_id__delete",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "combo_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Combo Id"
-            }
-          },
-          {
-            "name": "group_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Group Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ComboDetailResponse"
                 }
               }
             }
@@ -19811,32 +18248,62 @@
             "default": "USD"
           },
           "exchange_rate": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Exchange Rate",
-            "default": "4100.00"
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exchange Rate"
           },
           "tax_percentage": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Tax Percentage",
-            "default": "0.00"
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Percentage"
           },
           "is_tax_inclusive": {
-            "type": "boolean",
-            "title": "Is Tax Inclusive",
-            "default": true
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Tax Inclusive"
           },
           "service_charge_percentage": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Service Charge Percentage",
-            "default": "0.00"
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Charge Percentage"
           },
           "is_service_charge_inclusive": {
-            "type": "boolean",
-            "title": "Is Service Charge Inclusive",
-            "default": false
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Service Charge Inclusive"
           },
           "bakong_account_id": {
             "anyOf": [
@@ -20271,19 +18738,6 @@
             "description": "Change return mode: 'khr' (all in Riel), 'usd' (all in USD), or 'split' (USD whole + KHR cents)",
             "default": "khr"
           },
-          "promo_code": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Promo Code",
-            "description": "Optional coupon code (e.g. WELCOME10)"
-          },
           "manual_discount_type": {
             "anyOf": [
               {
@@ -20538,6 +18992,19 @@
             "title": "Description Km",
             "description": "Category description in Khmer"
           },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id",
+            "description": "Optional branch ID if this is a local branch category (null for Central Master)"
+          },
           "parent_id": {
             "anyOf": [
               {
@@ -20654,6 +19121,18 @@
             "type": "string",
             "format": "uuid",
             "title": "Business Id"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id"
           },
           "parent_id": {
             "anyOf": [
@@ -20775,6 +19254,18 @@
             "type": "string",
             "format": "uuid",
             "title": "Business Id"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id"
           },
           "parent_id": {
             "anyOf": [
@@ -21033,794 +19524,6 @@
         ],
         "title": "ChangePlanRequest",
         "description": "Payload to upgrade, downgrade, or change subscription tier."
-      },
-      "ComboCreate": {
-        "properties": {
-          "name_en": {
-            "type": "string",
-            "maxLength": 150,
-            "minLength": 1,
-            "title": "Name En",
-            "description": "Combo bundle title in English (e.g. 'Lunch Combo')"
-          },
-          "name_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 150
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Km",
-            "description": "Combo bundle title in Khmer (e.g. '\u1788\u17bb\u178f\u17a2\u17b6\u17a0\u17b6\u179a\u1790\u17d2\u1784\u17c3\u178f\u17d2\u179a\u1784\u17cb')"
-          },
-          "description_en": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description En",
-            "description": "Combo description in English"
-          },
-          "description_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description Km",
-            "description": "Combo description in Khmer"
-          },
-          "category_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Category Id",
-            "description": "Assigned Category ID"
-          },
-          "sku": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sku",
-            "description": "Optional unique combo SKU"
-          },
-          "pricing_type": {
-            "type": "string",
-            "pattern": "^(FIXED|DISCOUNT_PERCENTAGE)$",
-            "title": "Pricing Type",
-            "description": "Pricing strategy: 'FIXED' or 'DISCOUNT_PERCENTAGE'",
-            "default": "FIXED"
-          },
-          "base_price": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Base Price",
-            "description": "Fixed bundle price (when pricing_type is 'FIXED')",
-            "default": "0.00"
-          },
-          "discount_percentage": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 100.0,
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Discount Percentage",
-            "description": "Discount % (when pricing_type is 'DISCOUNT_PERCENTAGE')",
-            "default": "0.00"
-          },
-          "currency": {
-            "type": "string",
-            "pattern": "^(USD|KHR)$",
-            "title": "Currency",
-            "description": "Currency code ('USD' or 'KHR')",
-            "default": "USD"
-          },
-          "image_url": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Image Url",
-            "description": "Combo promotional banner or image URL"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active",
-            "description": "Active visibility toggle",
-            "default": true
-          },
-          "display_order": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Display Order",
-            "description": "Display order index",
-            "default": 0
-          },
-          "groups": {
-            "items": {
-              "$ref": "#/components/schemas/ComboGroupCreate"
-            },
-            "type": "array",
-            "title": "Groups",
-            "description": "Choice groups and eligible items for this bundle"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name_en"
-        ],
-        "title": "ComboCreate",
-        "description": "Payload for creating a new combo with nested choice groups and items."
-      },
-      "ComboDetailResponse": {
-        "properties": {
-          "name_en": {
-            "type": "string",
-            "maxLength": 150,
-            "minLength": 1,
-            "title": "Name En",
-            "description": "Combo bundle title in English (e.g. 'Lunch Combo')"
-          },
-          "name_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 150
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Km",
-            "description": "Combo bundle title in Khmer (e.g. '\u1788\u17bb\u178f\u17a2\u17b6\u17a0\u17b6\u179a\u1790\u17d2\u1784\u17c3\u178f\u17d2\u179a\u1784\u17cb')"
-          },
-          "description_en": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description En",
-            "description": "Combo description in English"
-          },
-          "description_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description Km",
-            "description": "Combo description in Khmer"
-          },
-          "category_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Category Id",
-            "description": "Assigned Category ID"
-          },
-          "sku": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sku",
-            "description": "Optional unique combo SKU"
-          },
-          "pricing_type": {
-            "type": "string",
-            "pattern": "^(FIXED|DISCOUNT_PERCENTAGE)$",
-            "title": "Pricing Type",
-            "description": "Pricing strategy: 'FIXED' or 'DISCOUNT_PERCENTAGE'",
-            "default": "FIXED"
-          },
-          "base_price": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Base Price",
-            "description": "Fixed bundle price (when pricing_type is 'FIXED')",
-            "default": "0.00"
-          },
-          "discount_percentage": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Discount Percentage",
-            "description": "Discount % (when pricing_type is 'DISCOUNT_PERCENTAGE')",
-            "default": "0.00"
-          },
-          "currency": {
-            "type": "string",
-            "pattern": "^(USD|KHR)$",
-            "title": "Currency",
-            "description": "Currency code ('USD' or 'KHR')",
-            "default": "USD"
-          },
-          "image_url": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Image Url",
-            "description": "Combo promotional banner or image URL"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active",
-            "description": "Active visibility toggle",
-            "default": true
-          },
-          "display_order": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Display Order",
-            "description": "Display order index",
-            "default": 0
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "organization_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Organization Id"
-          },
-          "business_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Business Id"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          },
-          "groups": {
-            "items": {
-              "$ref": "#/components/schemas/ComboGroupResponse"
-            },
-            "type": "array",
-            "title": "Groups",
-            "default": []
-          }
-        },
-        "type": "object",
-        "required": [
-          "name_en",
-          "id",
-          "organization_id",
-          "business_id",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "ComboDetailResponse",
-        "description": "Detailed response schema for a combo bundle with all choice groups and items."
-      },
-      "ComboGroupCreate": {
-        "properties": {
-          "name_en": {
-            "type": "string",
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Name En",
-            "description": "Choice group name in English (e.g. 'Main Dish', 'Drink')"
-          },
-          "name_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 100
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Km",
-            "description": "Choice group name in Khmer (e.g. '\u1798\u17d2\u17a0\u17bc\u1794\u1785\u1798\u17d2\u1794\u1784', '\u1797\u17c1\u179f\u1787\u17d2\u1787\u17c8')"
-          },
-          "min_quantity": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Min Quantity",
-            "description": "Minimum selections required",
-            "default": 1
-          },
-          "max_quantity": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Max Quantity",
-            "description": "Maximum selections allowed",
-            "default": 1
-          },
-          "display_order": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Display Order",
-            "description": "Display order index",
-            "default": 0
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ComboGroupItemCreate"
-            },
-            "type": "array",
-            "title": "Items",
-            "description": "List of eligible items for this choice group"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name_en"
-        ],
-        "title": "ComboGroupCreate",
-        "description": "Payload for creating a combo group with items."
-      },
-      "ComboGroupItemCreate": {
-        "properties": {
-          "menu_item_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Menu Item Id",
-            "description": "Target Menu Item ID"
-          },
-          "additional_price": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Additional Price",
-            "description": "Extra surcharge for selecting this item (e.g. 0.50 for +$0.50)",
-            "default": "0.00"
-          },
-          "is_default": {
-            "type": "boolean",
-            "title": "Is Default",
-            "description": "Recommended default selection",
-            "default": false
-          },
-          "display_order": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Display Order",
-            "description": "Display order index",
-            "default": 0
-          }
-        },
-        "type": "object",
-        "required": [
-          "menu_item_id"
-        ],
-        "title": "ComboGroupItemCreate",
-        "description": "Payload for adding an item to a combo group."
-      },
-      "ComboGroupItemResponse": {
-        "properties": {
-          "menu_item_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Menu Item Id",
-            "description": "Target Menu Item ID"
-          },
-          "additional_price": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Additional Price",
-            "description": "Extra surcharge for selecting this item (e.g. 0.50 for +$0.50)",
-            "default": "0.00"
-          },
-          "is_default": {
-            "type": "boolean",
-            "title": "Is Default",
-            "description": "Recommended default selection",
-            "default": false
-          },
-          "display_order": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Display Order",
-            "description": "Display order index",
-            "default": 0
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "combo_group_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Combo Group Id"
-          },
-          "menu_item_name_en": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Menu Item Name En"
-          },
-          "menu_item_name_km": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Menu Item Name Km"
-          }
-        },
-        "type": "object",
-        "required": [
-          "menu_item_id",
-          "id",
-          "combo_group_id"
-        ],
-        "title": "ComboGroupItemResponse",
-        "description": "Response schema for a combo group item."
-      },
-      "ComboGroupResponse": {
-        "properties": {
-          "name_en": {
-            "type": "string",
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Name En",
-            "description": "Choice group name in English (e.g. 'Main Dish', 'Drink')"
-          },
-          "name_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 100
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Km",
-            "description": "Choice group name in Khmer (e.g. '\u1798\u17d2\u17a0\u17bc\u1794\u1785\u1798\u17d2\u1794\u1784', '\u1797\u17c1\u179f\u1787\u17d2\u1787\u17c8')"
-          },
-          "min_quantity": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Min Quantity",
-            "description": "Minimum selections required",
-            "default": 1
-          },
-          "max_quantity": {
-            "type": "integer",
-            "minimum": 1.0,
-            "title": "Max Quantity",
-            "description": "Maximum selections allowed",
-            "default": 1
-          },
-          "display_order": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Display Order",
-            "description": "Display order index",
-            "default": 0
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "combo_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Combo Id"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ComboGroupItemResponse"
-            },
-            "type": "array",
-            "title": "Items",
-            "default": []
-          }
-        },
-        "type": "object",
-        "required": [
-          "name_en",
-          "id",
-          "combo_id"
-        ],
-        "title": "ComboGroupResponse",
-        "description": "Response schema for a combo choice group."
-      },
-      "ComboPaginationResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ComboDetailResponse"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "page": {
-            "type": "integer",
-            "title": "Page"
-          },
-          "page_size": {
-            "type": "integer",
-            "title": "Page Size"
-          },
-          "total_pages": {
-            "type": "integer",
-            "title": "Total Pages"
-          }
-        },
-        "type": "object",
-        "required": [
-          "items",
-          "total",
-          "page",
-          "page_size",
-          "total_pages"
-        ],
-        "title": "ComboPaginationResponse",
-        "description": "Paginated list of combos."
-      },
-      "ComboUpdate": {
-        "properties": {
-          "name_en": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 150,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name En"
-          },
-          "name_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 150
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Km"
-          },
-          "description_en": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description En"
-          },
-          "description_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description Km"
-          },
-          "category_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Category Id"
-          },
-          "sku": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sku"
-          },
-          "pricing_type": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^(FIXED|DISCOUNT_PERCENTAGE)$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pricing Type"
-          },
-          "base_price": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Price"
-          },
-          "discount_percentage": {
-            "anyOf": [
-              {
-                "type": "number",
-                "maximum": 100.0,
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discount Percentage"
-          },
-          "currency": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^(USD|KHR)$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Currency"
-          },
-          "image_url": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Image Url"
-          },
-          "is_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Active"
-          },
-          "display_order": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Display Order"
-          }
-        },
-        "type": "object",
-        "title": "ComboUpdate",
-        "description": "Payload for partially updating a combo bundle."
       },
       "CourseFireRequest": {
         "properties": {
@@ -22100,6 +19803,29 @@
         ],
         "title": "DashboardTableItem",
         "description": "Real-time table item for floor dashboard."
+      },
+      "DelayedOrderItem": {
+        "properties": {
+          "order_number": {
+            "type": "string",
+            "title": "Order Number"
+          },
+          "elapsed_minutes": {
+            "type": "integer",
+            "title": "Elapsed Minutes"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_number",
+          "elapsed_minutes",
+          "status"
+        ],
+        "title": "DelayedOrderItem"
       },
       "DiningAreaCreate": {
         "properties": {
@@ -22467,72 +20193,6 @@
         "title": "DiningAreaUpdate",
         "description": "Payload for partially updating a dining area."
       },
-      "DiscountEvaluationResult": {
-        "properties": {
-          "is_valid": {
-            "type": "boolean",
-            "title": "Is Valid"
-          },
-          "discount_usd": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Discount Usd"
-          },
-          "discount_percent": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discount Percent"
-          },
-          "discount_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discount Reason"
-          },
-          "promotion_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Promotion Id"
-          },
-          "message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Message"
-          }
-        },
-        "type": "object",
-        "required": [
-          "is_valid",
-          "discount_usd"
-        ],
-        "title": "DiscountEvaluationResult",
-        "description": "Result of evaluating a promotion or manual discount."
-      },
       "DiscountReason": {
         "type": "string",
         "enum": [
@@ -22564,19 +20224,6 @@
             "title": "Currency",
             "description": "Currency for dynamic KHQR (USD: 840 or KHR: 116)",
             "default": "USD"
-          },
-          "promo_code": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Promo Code",
-            "description": "Optional coupon code (e.g. WELCOME10)"
           },
           "manual_discount_type": {
             "anyOf": [
@@ -23910,19 +21557,6 @@
       },
       "KHQRManualConfirmationRequest": {
         "properties": {
-          "promo_code": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Promo Code",
-            "description": "Optional coupon code (e.g. WELCOME10)"
-          },
           "manual_discount_type": {
             "anyOf": [
               {
@@ -24155,19 +21789,6 @@
       },
       "KHQRPaymentRequest": {
         "properties": {
-          "promo_code": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Promo Code",
-            "description": "Optional coupon code (e.g. WELCOME10)"
-          },
           "manual_discount_type": {
             "anyOf": [
               {
@@ -24322,6 +21943,32 @@
         ],
         "title": "KHQRResponse",
         "description": "Complete KHQR generation payload with EMVCo string and Base64 QR image."
+      },
+      "KitchenSLAMetrics": {
+        "properties": {
+          "avg_accept_seconds": {
+            "type": "integer",
+            "title": "Avg Accept Seconds",
+            "default": 0
+          },
+          "avg_prep_seconds": {
+            "type": "integer",
+            "title": "Avg Prep Seconds",
+            "default": 0
+          },
+          "avg_serve_seconds": {
+            "type": "integer",
+            "title": "Avg Serve Seconds",
+            "default": 0
+          },
+          "delayed_count": {
+            "type": "integer",
+            "title": "Delayed Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "title": "KitchenSLAMetrics"
       },
       "KitchenStationCreate": {
         "properties": {
@@ -25131,6 +22778,28 @@
           "is_owner": {
             "type": "boolean",
             "title": "Is Owner"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StaffRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id"
           }
         },
         "type": "object",
@@ -25215,6 +22884,19 @@
             ],
             "title": "Category Id",
             "description": "Assigned Category ID"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id",
+            "description": "Assigned Branch ID if local to a branch (null for Central Master item)"
           },
           "sku": {
             "anyOf": [
@@ -25413,50 +23095,6 @@
         "title": "MenuItemPaginationResponse",
         "description": "Paginated list of menu items."
       },
-      "MenuItemRecipeReplaceRequest": {
-        "properties": {
-          "lines": {
-            "items": {
-              "$ref": "#/components/schemas/RecipeLineInput"
-            },
-            "type": "array",
-            "maxItems": 100,
-            "title": "Lines",
-            "description": "The complete recipe. An empty list clears the recipe."
-          }
-        },
-        "type": "object",
-        "title": "MenuItemRecipeReplaceRequest",
-        "description": "Full recipe for a menu item; replaces every existing line atomically."
-      },
-      "MenuItemRecipeResponse": {
-        "properties": {
-          "menu_item_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Menu Item Id"
-          },
-          "business_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Business Id"
-          },
-          "lines": {
-            "items": {
-              "$ref": "#/components/schemas/RecipeLineResponse"
-            },
-            "type": "array",
-            "title": "Lines"
-          }
-        },
-        "type": "object",
-        "required": [
-          "menu_item_id",
-          "business_id"
-        ],
-        "title": "MenuItemRecipeResponse",
-        "description": "The full recipe (bill of materials) of a menu item."
-      },
       "MenuItemResponse": {
         "properties": {
           "id": {
@@ -25473,6 +23111,18 @@
             "type": "string",
             "format": "uuid",
             "title": "Business Id"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id"
           },
           "category_id": {
             "anyOf": [
@@ -27607,18 +25257,6 @@
             "type": "integer",
             "title": "Change Khr"
           },
-          "promotion_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Promotion Id"
-          },
           "discount_reason": {
             "anyOf": [
               {
@@ -27930,597 +25568,6 @@
         ],
         "title": "PlatformSaaSEconomics",
         "description": "SaaS platform-level subscription economics and tenant growth."
-      },
-      "PromotionCreate": {
-        "properties": {
-          "name_en": {
-            "type": "string",
-            "maxLength": 100,
-            "title": "Name En",
-            "description": "Promotion English name"
-          },
-          "name_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 100
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Km",
-            "description": "Promotion Khmer name"
-          },
-          "code": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Code",
-            "description": "Optional coupon code (e.g. WELCOME15)"
-          },
-          "branch_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Branch Id",
-            "description": "Optional branch restriction (null for all branches)"
-          },
-          "discount_type": {
-            "$ref": "#/components/schemas/DiscountType",
-            "default": "percentage"
-          },
-          "discount_value": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Discount Value",
-            "description": "Percentage (e.g. 15.00) or fixed amount (e.g. 5.00)"
-          },
-          "max_discount_amount_usd": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Discount Amount Usd",
-            "description": "Max dollar cap for percentage discounts"
-          },
-          "minimum_spend_usd": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Minimum Spend Usd",
-            "description": "Min subtotal required",
-            "default": "0.00"
-          },
-          "usage_limit": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 1.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Usage Limit",
-            "description": "Total redemption limit"
-          },
-          "start_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Date"
-          },
-          "end_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Date"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active",
-            "default": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "name_en",
-          "discount_value"
-        ],
-        "title": "PromotionCreate",
-        "description": "Payload to create a new promotion or coupon code."
-      },
-      "PromotionResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "organization_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Organization Id"
-          },
-          "business_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Business Id"
-          },
-          "branch_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Branch Id"
-          },
-          "name_en": {
-            "type": "string",
-            "title": "Name En"
-          },
-          "name_km": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Km"
-          },
-          "code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Code"
-          },
-          "discount_type": {
-            "$ref": "#/components/schemas/DiscountType"
-          },
-          "discount_value": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Discount Value"
-          },
-          "max_discount_amount_usd": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Discount Amount Usd"
-          },
-          "minimum_spend_usd": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Minimum Spend Usd"
-          },
-          "usage_limit": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Usage Limit"
-          },
-          "current_usage_count": {
-            "type": "integer",
-            "title": "Current Usage Count"
-          },
-          "start_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Date"
-          },
-          "end_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Date"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "organization_id",
-          "business_id",
-          "name_en",
-          "discount_type",
-          "discount_value",
-          "minimum_spend_usd",
-          "current_usage_count",
-          "is_active",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "PromotionResponse",
-        "description": "Complete promotion response object."
-      },
-      "PromotionUpdate": {
-        "properties": {
-          "name_en": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 100
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name En"
-          },
-          "name_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 100
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Km"
-          },
-          "code": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Code"
-          },
-          "branch_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Branch Id"
-          },
-          "discount_type": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DiscountType"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "discount_value": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discount Value"
-          },
-          "max_discount_amount_usd": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Discount Amount Usd"
-          },
-          "minimum_spend_usd": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Minimum Spend Usd"
-          },
-          "usage_limit": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 1.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Usage Limit"
-          },
-          "start_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start Date"
-          },
-          "end_date": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End Date"
-          },
-          "is_active": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Active"
-          }
-        },
-        "type": "object",
-        "title": "PromotionUpdate",
-        "description": "Payload to update an existing promotion."
-      },
-      "RecipeLineInput": {
-        "properties": {
-          "inventory_item_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Inventory Item Id"
-          },
-          "variant_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Variant Id",
-            "description": "Variant this line applies to. Omit or null to apply it to every variant; a variant-specific line overrides the all-variants line for the same inventory item."
-          },
-          "quantity": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,10}|(?=[\\d.]{1,13}0*$)\\d{0,10}\\.\\d{0,2}0*$)"
-              }
-            ],
-            "title": "Quantity",
-            "description": "Amount used to make one unit of the menu item, in the inventory item's own unit of measure. Branch stock is tracked to 2 decimal places, so use a smaller unit (g, ml) for finer amounts."
-          }
-        },
-        "type": "object",
-        "required": [
-          "inventory_item_id",
-          "quantity"
-        ],
-        "title": "RecipeLineInput",
-        "description": "One ingredient line of a recipe replacement request."
-      },
-      "RecipeLineResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "inventory_item_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Inventory Item Id"
-          },
-          "inventory_item_name_en": {
-            "type": "string",
-            "title": "Inventory Item Name En"
-          },
-          "inventory_item_name_km": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Inventory Item Name Km"
-          },
-          "unit_of_measure": {
-            "$ref": "#/components/schemas/UnitOfMeasure"
-          },
-          "variant_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Variant Id"
-          },
-          "variant_name_en": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Variant Name En"
-          },
-          "quantity": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Quantity"
-          },
-          "cost_per_unit_usd": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Cost Per Unit Usd",
-            "description": "Current unit cost of the inventory item (not a snapshot)."
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "inventory_item_id",
-          "inventory_item_name_en",
-          "unit_of_measure",
-          "quantity",
-          "cost_per_unit_usd",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "RecipeLineResponse",
-        "description": "One ingredient line of a menu item recipe."
       },
       "RefreshTokenRequest": {
         "properties": {
@@ -29114,6 +26161,69 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Gross Margin Percent",
             "description": "Gross margin as a percentage of gross sales minus discounts; 0 when there are no net sales."
+          },
+          "pending_orders": {
+            "type": "integer",
+            "title": "Pending Orders",
+            "description": "Active pending orders",
+            "default": 0
+          },
+          "cancelled_orders": {
+            "type": "integer",
+            "title": "Cancelled Orders",
+            "description": "Cancelled/rejected orders",
+            "default": 0
+          },
+          "payment_success_rate": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Payment Success Rate",
+            "description": "Percentage of successful payments",
+            "default": "100.00"
+          },
+          "order_status_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Order Status Counts",
+            "description": "Breakdown of orders by status"
+          },
+          "order_source_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Order Source Counts",
+            "description": "Breakdown of orders by source (QR vs Staff)"
+          },
+          "payment_status_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Payment Status Counts",
+            "description": "Breakdown of payments by status"
+          },
+          "hourly_sales": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Hourly Sales",
+            "description": "Hourly sales sum in USD"
+          },
+          "delayed_orders": {
+            "items": {
+              "$ref": "#/components/schemas/DelayedOrderItem"
+            },
+            "type": "array",
+            "title": "Delayed Orders",
+            "description": "Recent orders in kitchen requiring attention"
+          },
+          "kitchen_sla": {
+            "$ref": "#/components/schemas/KitchenSLAMetrics",
+            "description": "Kitchen SLA turnaround metrics"
           }
         },
         "type": "object",
@@ -29491,267 +26601,6 @@
           "recipe_waste"
         ],
         "title": "StockAdjustmentReason"
-      },
-      "StockTransferCreateRequest": {
-        "properties": {
-          "source_branch_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Source Branch Id"
-          },
-          "destination_branch_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Destination Branch Id"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/StockTransferItemCreate"
-            },
-            "type": "array",
-            "minItems": 1,
-            "title": "Items"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "source_branch_id",
-          "destination_branch_id",
-          "items"
-        ],
-        "title": "StockTransferCreateRequest"
-      },
-      "StockTransferItemCreate": {
-        "properties": {
-          "inventory_item_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Inventory Item Id"
-          },
-          "requested_quantity": {
-            "anyOf": [
-              {
-                "type": "number",
-                "exclusiveMinimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Requested Quantity"
-          }
-        },
-        "type": "object",
-        "required": [
-          "inventory_item_id",
-          "requested_quantity"
-        ],
-        "title": "StockTransferItemCreate"
-      },
-      "StockTransferItemResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "inventory_item_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Inventory Item Id"
-          },
-          "item_name_en": {
-            "type": "string",
-            "title": "Item Name En"
-          },
-          "unit_of_measure": {
-            "$ref": "#/components/schemas/UnitOfMeasure"
-          },
-          "requested_quantity": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Requested Quantity"
-          },
-          "shipped_quantity": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Shipped Quantity"
-          },
-          "received_quantity": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Received Quantity"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "inventory_item_id",
-          "item_name_en",
-          "unit_of_measure",
-          "requested_quantity",
-          "shipped_quantity",
-          "received_quantity"
-        ],
-        "title": "StockTransferItemResponse"
-      },
-      "StockTransferResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "transfer_number": {
-            "type": "string",
-            "title": "Transfer Number"
-          },
-          "source_branch_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Source Branch Id"
-          },
-          "source_branch_name": {
-            "type": "string",
-            "title": "Source Branch Name"
-          },
-          "destination_branch_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Destination Branch Id"
-          },
-          "destination_branch_name": {
-            "type": "string",
-            "title": "Destination Branch Name"
-          },
-          "status": {
-            "$ref": "#/components/schemas/StockTransferStatus"
-          },
-          "requested_by_user_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Requested By User Id"
-          },
-          "requested_by_name": {
-            "type": "string",
-            "title": "Requested By Name"
-          },
-          "approved_by_user_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approved By User Id"
-          },
-          "approved_by_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approved By Name"
-          },
-          "dispatched_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dispatched At"
-          },
-          "received_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Received At"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/StockTransferItemResponse"
-            },
-            "type": "array",
-            "title": "Items"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "transfer_number",
-          "source_branch_id",
-          "source_branch_name",
-          "destination_branch_id",
-          "destination_branch_name",
-          "status",
-          "requested_by_user_id",
-          "requested_by_name",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "StockTransferResponse"
-      },
-      "StockTransferStatus": {
-        "type": "string",
-        "enum": [
-          "requested",
-          "approved",
-          "rejected",
-          "in_transit",
-          "completed",
-          "cancelled"
-        ],
-        "title": "StockTransferStatus"
       },
       "SubscriptionResponse": {
         "properties": {
@@ -30718,82 +27567,6 @@
           "archived"
         ],
         "title": "UserStatus"
-      },
-      "ValidatePromoRequest": {
-        "properties": {
-          "promo_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Promo Code",
-            "description": "Coupon code to validate"
-          },
-          "manual_discount_type": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DiscountType"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "manual_discount_value": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Manual Discount Value"
-          },
-          "discount_reason": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DiscountReason"
-              },
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Discount Reason"
-          },
-          "subtotal_usd": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Subtotal Usd",
-            "description": "Active order subtotal"
-          }
-        },
-        "type": "object",
-        "required": [
-          "subtotal_usd"
-        ],
-        "title": "ValidatePromoRequest",
-        "description": "Payload to test or preview a discount on an order subtotal."
       },
       "ValidationError": {
         "properties": {

@@ -76,6 +76,19 @@ async def create_menu_item(
                 f"Item with SKU '{payload.sku}' already exists in this business."
             )
 
+    # Validate branch if provided
+    if payload.branch_id is not None:
+        from app.models.branch import Branch
+        br_res = await session.execute(
+            select(Branch).where(
+                Branch.id == payload.branch_id,
+                Branch.business_id == business_id,
+                Branch.organization_id == tenant.organization_id,
+            )
+        )
+        if br_res.scalar_one_or_none() is None:
+            raise TenantNotFoundError("Branch not found in business.")
+
     item_data = payload.model_dump()
     item = MenuItem(
         organization_id=tenant.organization_id,
@@ -97,6 +110,7 @@ async def create_menu_item(
             "name_en": item.name_en,
             "sku": item.sku,
             "price": str(item.base_price),
+            "branch_id": str(item.branch_id),
         },
     )
     await session.commit()
@@ -128,6 +142,8 @@ async def list_menu_items(
     search: str | None = None,
     page: int = 1,
     page_size: int = 50,
+    branch_id: UUID | None = None,
+    master_only: bool = False,
 ) -> MenuItemPaginationResponse:
     """
     Lists menu items with comprehensive filtering, search, and pagination.
@@ -141,6 +157,11 @@ async def list_menu_items(
         MenuItem.business_id == business_id,
         MenuItem.organization_id == tenant.organization_id,
     )
+
+    if branch_id is not None:
+        query = query.where(MenuItem.branch_id == branch_id)
+    elif master_only:
+        query = query.where(MenuItem.branch_id.is_(None))
 
     if category_id is not None:
         query = query.where(MenuItem.category_id == category_id)

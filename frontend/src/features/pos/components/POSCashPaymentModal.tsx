@@ -256,9 +256,9 @@ export const POSCashPaymentModal: FC<POSCashPaymentModalProps> = ({
 
         {/* Inline Error (Clean Red Text, No Outer Container) */}
         {errorMsg && (
-          <div className="text-xs text-red-500 text-center font-medium">
+          <p className="text-xs text-rose-600 dark:text-rose-400 text-center">
             {errorMsg}
-          </div>
+          </p>
         )}
 
         {/* 6. Settlement Confirm Action */}
@@ -271,7 +271,7 @@ export const POSCashPaymentModal: FC<POSCashPaymentModalProps> = ({
           <span>
             {isSubmitting
               ? (language === 'km' ? 'កំពុងទូទាត់...' : 'Settling Payment...')
-              : (language === 'km' ? 'បញ្ជាក់ការគិតប្រាក់ (Complete Settle)' : 'Confirm & Complete Settlement')}
+              : (language === 'km' ? 'បញ្ជាក់ការគិតប្រាក់' : 'Confirm Payment')}
           </span>
         </button>
       </div>

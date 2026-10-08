@@ -72,6 +72,20 @@ async def create_category(
                 "Nested subcategories beyond 2 levels are not supported."
             )
 
+    # Validate branch if provided
+    if payload.branch_id is not None:
+        from app.models.branch import Branch
+
+        branch_res = await session.execute(
+            select(Branch).where(
+                Branch.id == payload.branch_id,
+                Branch.business_id == business_id,
+                Branch.organization_id == tenant.organization_id,
+            )
+        )
+        if branch_res.scalar_one_or_none() is None:
+            raise TenantNotFoundError("Branch not found.")
+
     category_data = payload.model_dump()
     category = Category(
         organization_id=tenant.organization_id,
@@ -89,7 +103,7 @@ async def create_category(
         user_id=tenant.user_id,
         resource_type="category",
         resource_id=str(category.id),
-        details={"name_en": category.name_en, "parent_id": str(category.parent_id)},
+        details={"name_en": category.name_en, "parent_id": str(category.parent_id), "branch_id": str(category.branch_id)},
     )
     await session.commit()
 
@@ -108,11 +122,15 @@ async def list_categories(
     business_id: UUID,
     is_active: bool | None = None,
     tree: bool = False,
+    branch_id: UUID | None = None,
+    master_only: bool = False,
 ) -> list[CategoryResponse | CategoryTreeResponse]:
     """
     Retrieves all categories for a business, either flat or as a nested tree.
     """
     await _verify_business_access(session, tenant, business_id)
+
+    from sqlalchemy import or_
 
     if tree:
         # Query top-level categories with subcategories eager loaded
@@ -127,6 +145,12 @@ async def list_categories(
         )
         if is_active is not None:
             query = query.where(Category.is_active.is_(is_active))
+        if branch_id is not None:
+            query = query.where(
+                or_(Category.branch_id.is_(None), Category.branch_id == branch_id)
+            )
+        elif master_only:
+            query = query.where(Category.branch_id.is_(None))
 
         query = query.order_by(Category.display_order.asc())
         result = await session.execute(query)
@@ -144,6 +168,7 @@ async def list_categories(
                     id=cat.id,
                     organization_id=cat.organization_id,
                     business_id=cat.business_id,
+                    branch_id=cat.branch_id,
                     parent_id=cat.parent_id,
                     name_en=cat.name_en,
                     name_km=cat.name_km,
@@ -169,6 +194,12 @@ async def list_categories(
     )
     if is_active is not None:
         flat_query = flat_query.where(Category.is_active.is_(is_active))
+    if branch_id is not None:
+        flat_query = flat_query.where(
+            or_(Category.branch_id.is_(None), Category.branch_id == branch_id)
+        )
+    elif master_only:
+        flat_query = flat_query.where(Category.branch_id.is_(None))
 
     flat_query = flat_query.order_by(
         Category.parent_id.asc().nullsfirst(),

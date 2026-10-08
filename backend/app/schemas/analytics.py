@@ -7,6 +7,19 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+class DelayedOrderItem(BaseModel):
+    order_number: str
+    elapsed_minutes: int
+    status: str
+
+
+class KitchenSLAMetrics(BaseModel):
+    avg_accept_seconds: int = 0
+    avg_prep_seconds: int = 0
+    avg_serve_seconds: int = 0
+    delayed_count: int = 0
+
+
 class SalesOverviewMetrics(BaseModel):
     """High-level sales and operational summary."""
 
@@ -50,6 +63,31 @@ class SalesOverviewMetrics(BaseModel):
             "Gross margin as a percentage of gross sales minus discounts; "
             "0 when there are no net sales."
         )
+    )
+
+    # Real-time operational breakdown
+    pending_orders: int = Field(default=0, description="Active pending orders")
+    cancelled_orders: int = Field(default=0, description="Cancelled/rejected orders")
+    payment_success_rate: Decimal = Field(
+        default=Decimal("100.00"), description="Percentage of successful payments"
+    )
+    order_status_counts: dict[str, int] = Field(
+        default_factory=dict, description="Breakdown of orders by status"
+    )
+    order_source_counts: dict[str, int] = Field(
+        default_factory=dict, description="Breakdown of orders by source (QR vs Staff)"
+    )
+    payment_status_counts: dict[str, int] = Field(
+        default_factory=dict, description="Breakdown of payments by status"
+    )
+    hourly_sales: dict[str, float] = Field(
+        default_factory=dict, description="Hourly sales sum in USD"
+    )
+    delayed_orders: list[DelayedOrderItem] = Field(
+        default_factory=list, description="Recent orders in kitchen requiring attention"
+    )
+    kitchen_sla: KitchenSLAMetrics = Field(
+        default_factory=KitchenSLAMetrics, description="Kitchen SLA turnaround metrics"
     )
 
 

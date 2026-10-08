@@ -26,7 +26,6 @@ from app.schemas.kds import (
 )
 from app.schemas.order import OrderItemModifierResponse
 from app.services.branch_roaming_service import can_user_roam_branches
-from app.services.recipe_depletion_service import sync_recipe_stock_for_status
 
 logger = structlog.get_logger("app.services.kds_service")
 
@@ -372,13 +371,6 @@ async def bump_item_status(
             parent_order.status = OrderStatus.PREPARING
 
     response = _map_order_item_to_kds_item(item)
-    await sync_recipe_stock_for_status(
-        session,
-        order=parent_order,
-        items=[item],
-        target_status=target,
-        user_id=tenant.user_id,
-    )
     await session.commit()
 
     # Real-time WebSocket Broadcast
@@ -485,13 +477,6 @@ async def bump_station_ticket(
             order.status = OrderStatus.PREPARING
 
     response = _build_kds_ticket_response(order, station_items)
-    await sync_recipe_stock_for_status(
-        session,
-        order=order,
-        items=station_items,
-        target_status=target,
-        user_id=tenant.user_id,
-    )
     await session.commit()
 
     # Real-time WebSocket Broadcast
@@ -570,13 +555,6 @@ async def undo_item_status(
     parent_order.status = OrderStatus.PREPARING
 
     response = _map_order_item_to_kds_item(item)
-    await sync_recipe_stock_for_status(
-        session,
-        order=parent_order,
-        items=[item],
-        target_status=OrderItemStatus.PREPARING,
-        user_id=tenant.user_id,
-    )
     await session.commit()
 
     # Real-time WebSocket Broadcast

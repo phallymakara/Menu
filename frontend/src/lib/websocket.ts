@@ -60,7 +60,22 @@ export function useWebSocket(url: string | null, options: WebSocketOptions = {})
     }
     const socket = socketRef.current
     socketRef.current = null
-    socket?.close()
+    if (socket) {
+      // Suppress noisy browser warnings during React StrictMode mount/unmount cycles
+      socket.onerror = () => {}
+      socket.onclose = () => {}
+      if (socket.readyState === WebSocket.CONNECTING) {
+        socket.onopen = () => {
+          try {
+            socket.close(1000, 'Teardown')
+          } catch {}
+        }
+      } else if (socket.readyState === WebSocket.OPEN) {
+        try {
+          socket.close(1000, 'Teardown')
+        } catch {}
+      }
+    }
   }, [])
 
   const disconnect = useCallback(() => {

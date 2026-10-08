@@ -107,12 +107,20 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
     if (rawBranches.length > 0) {
       setBranches(rawBranches as RealBranch[])
       const savedBranchId = localStorage.getItem('emenu_branch_id')
-      const exists = rawBranches.some((b) => b.id === savedBranchId)
+      const exists = savedBranchId === 'all' || rawBranches.some((b) => b.id === savedBranchId)
 
       if (!savedBranchId || !exists) {
         const defaultBranch = rawBranches[0].id
         setActiveBranchId(defaultBranch)
         localStorage.setItem('emenu_branch_id', defaultBranch)
+        useAuthStore.getState().setContext(
+          useAuthStore.getState().organizationId,
+          useAuthStore.getState().businessId,
+          defaultBranch
+        )
+        window.dispatchEvent(
+          new CustomEvent('emenu:branch-changed', { detail: { branchId: defaultBranch } })
+        )
       } else {
         setActiveBranchId(savedBranchId)
       }
@@ -156,6 +164,28 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
     setActiveBranchId(branchId)
     localStorage.setItem('emenu_branch_id', branchId)
     setIsBranchDropdownOpen(false)
+
+    // Sync active branch in auth store
+    useAuthStore.getState().setContext(
+      useAuthStore.getState().organizationId,
+      useAuthStore.getState().businessId,
+      branchId === 'all' ? null : branchId
+    )
+
+    // Invalidate active branch queries so data reloads immediately across all admin tabs
+    queryClient.invalidateQueries({ queryKey: ['branch-published-menu'] })
+    queryClient.invalidateQueries({ queryKey: ['categories'] })
+    queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+    queryClient.invalidateQueries({ queryKey: ['tables'] })
+    queryClient.invalidateQueries({ queryKey: ['dining-areas'] })
+    queryClient.invalidateQueries({ queryKey: ['sales-overview'] })
+    queryClient.invalidateQueries({ queryKey: ['top-selling-items'] })
+    queryClient.invalidateQueries({ queryKey: ['payment-breakdown'] })
+    queryClient.invalidateQueries({ queryKey: ['staff'] })
+    queryClient.invalidateQueries({ queryKey: ['staff-members'] })
+    queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
+    queryClient.invalidateQueries({ queryKey: ['kds'] })
+
     // Dispatch a custom event so other components refresh their data for the new branch
     window.dispatchEvent(new CustomEvent('emenu:branch-changed', { detail: { branchId } }))
   }
@@ -271,7 +301,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
   const displayStoreName = cleanStoreName(rawStoreName) || rawStoreName
 
   return (
-    <header className="bg-white dark:bg-zinc-950 sticky top-0 z-40 border-b border-zinc-200 dark:border-zinc-800">
+    <header className="bg-white dark:bg-zinc-950 shrink-0 z-40 border-b border-zinc-200 dark:border-zinc-800">
       <div className="px-3 sm:px-6 h-16 flex items-center justify-between gap-2 max-w-full">
         {/* Left: Mobile Toggle & Store Identity */}
         <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
@@ -285,13 +315,19 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center text-white overflow-hidden shrink-0">
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              title={language === 'km' ? 'ចុចដើម្បីបិទ/បើកម៉ឺនុយ' : 'Click logo to toggle sidebar'}
+              aria-label="Toggle sidebar"
+              className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center text-white overflow-hidden shrink-0 hover:opacity-90 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-none"
+            >
               {logoUrl ? (
                 <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
               ) : (
                 <img src="/logo-mark.svg" alt="Logo" className="w-6 h-6 object-contain" />
               )}
-            </div>
+            </button>
             <div>
               <div className="flex items-center gap-2">
                 <span className="hidden sm:inline-block font-bold text-sm sm:text-base tracking-tight text-zinc-950 dark:text-zinc-50 leading-tight">

@@ -35,6 +35,10 @@ class MenuItemBase(BaseModel):
         default=None,
         description="Assigned Category ID",
     )
+    branch_id: UUID | None = Field(
+        default=None,
+        description="Assigned Branch ID if local to a branch (null for Central Master item)",
+    )
     sku: str | None = Field(
         default=None,
         max_length=50,
@@ -142,6 +146,7 @@ class MenuItemResponse(BaseModel):
     id: UUID
     organization_id: UUID
     business_id: UUID
+    branch_id: UUID | None = None
     category_id: UUID | None = None
     sku: str | None = None
     name_en: str

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from uuid import UUID
 
@@ -14,6 +14,7 @@ from app.core.tenant import TenantContext
 from app.models.branch import Branch
 from app.models.business import Business
 from app.models.enums import (
+    OrderSource,
     OrderStatus,
     PaymentStatus,
     StockAdjustmentReason,
@@ -27,6 +28,8 @@ from app.models.table_session import TableSession
 from app.schemas.analytics import (
     BranchComparisonItem,
     BranchComparisonResponse,
+    DelayedOrderItem,
+    KitchenSLAMetrics,
     PaymentBreakdownResponse,
     PaymentMethodMetric,
     SalesOverviewMetrics,
@@ -242,6 +245,195 @@ async def get_sales_overview(
         else Decimal("0.00")
     )
 
+    # 6. Real-time operational breakdown & statuses
+    status_query = select(Order.status, func.count(Order.id)).where(
+        Order.business_id == business_id,
+        Order.organization_id == tenant.organization_id,
+    )
+    if effective_branch_id:
+        status_query = status_query.where(Order.branch_id == effective_branch_id)
+    if start_date:
+        status_query = status_query.where(Order.created_at >= start_date)
+    if end_date:
+        status_query = status_query.where(Order.created_at <= end_date)
+    status_query = status_query.group_by(Order.status)
+    status_res = await session.execute(status_query)
+    raw_status_map = {
+        (row[0].value if hasattr(row[0], "value") else str(row[0])).lower(): int(row[1])
+        for row in status_res.all()
+    }
+
+    order_status_counts = {
+        "completed": raw_status_map.get(OrderStatus.SERVED.value, 0)
+        + raw_status_map.get(OrderStatus.READY_TO_SERVE.value, 0),
+        "preparing": raw_status_map.get(OrderStatus.PREPARING.value, 0),
+        "received": raw_status_map.get(OrderStatus.PENDING.value, 0)
+        + raw_status_map.get(OrderStatus.CONFIRMED.value, 0),
+        "cancelled": raw_status_map.get(OrderStatus.CANCELLED.value, 0),
+        "rejected": 0,
+    }
+    pending_orders = (
+        raw_status_map.get(OrderStatus.PENDING.value, 0)
+        + raw_status_map.get(OrderStatus.CONFIRMED.value, 0)
+        + raw_status_map.get(OrderStatus.PREPARING.value, 0)
+        + raw_status_map.get(OrderStatus.READY_TO_SERVE.value, 0)
+    )
+    cancelled_orders = raw_status_map.get(OrderStatus.CANCELLED.value, 0)
+
+    # 7. Order source breakdown (QR vs Staff)
+    source_query = select(Order.order_source, func.count(Order.id)).where(
+        Order.business_id == business_id,
+        Order.organization_id == tenant.organization_id,
+    )
+    if effective_branch_id:
+        source_query = source_query.where(Order.branch_id == effective_branch_id)
+    if start_date:
+        source_query = source_query.where(Order.created_at >= start_date)
+    if end_date:
+        source_query = source_query.where(Order.created_at <= end_date)
+    source_query = source_query.group_by(Order.order_source)
+    source_res = await session.execute(source_query)
+    raw_source_map = {
+        (row[0].value if hasattr(row[0], "value") else str(row[0])).lower(): int(row[1])
+        for row in source_res.all()
+    }
+    order_source_counts = {
+        "qr": raw_source_map.get(OrderSource.GUEST_QR.value, 0),
+        "staff": raw_source_map.get(OrderSource.STAFF_POS.value, 0),
+    }
+
+    # 8. Payment status breakdown & Success rate
+    pay_status_query = select(Payment.payment_status, func.count(Payment.id)).where(
+        Payment.business_id == business_id,
+        Payment.organization_id == tenant.organization_id,
+    )
+    if effective_branch_id:
+        pay_status_query = pay_status_query.where(Payment.branch_id == effective_branch_id)
+    if start_date:
+        pay_status_query = pay_status_query.where(Payment.created_at >= start_date)
+    if end_date:
+        pay_status_query = pay_status_query.where(Payment.created_at <= end_date)
+    pay_status_query = pay_status_query.group_by(Payment.payment_status)
+    pay_status_res = await session.execute(pay_status_query)
+    raw_pay_map = {
+        (row[0].value if hasattr(row[0], "value") else str(row[0])).lower(): int(row[1])
+        for row in pay_status_res.all()
+    }
+    completed_pays = raw_pay_map.get(PaymentStatus.COMPLETED.value, 0)
+    pending_pays = raw_pay_map.get(PaymentStatus.PENDING.value, 0)
+    failed_pays = raw_pay_map.get(PaymentStatus.FAILED.value, 0)
+    expired_pays = raw_pay_map.get("expired", 0) + raw_pay_map.get(PaymentStatus.CANCELLED.value, 0)
+    total_pays = completed_pays + pending_pays + failed_pays + expired_pays
+    payment_status_counts = {
+        "completed": completed_pays,
+        "pending": pending_pays,
+        "failed": failed_pays,
+        "expired": expired_pays,
+    }
+    payment_success_rate = (
+        Decimal(str(round((completed_pays / total_pays) * 100, 1)))
+        if total_pays > 0
+        else Decimal("100.00")
+    )
+
+    # 9. Hourly sales distribution
+    hourly_query = select(Order.created_at, Order.total_amount_usd).where(
+        Order.business_id == business_id,
+        Order.organization_id == tenant.organization_id,
+        Order.status.in_(completed_statuses),
+    )
+    if effective_branch_id:
+        hourly_query = hourly_query.where(Order.branch_id == effective_branch_id)
+    if start_date:
+        hourly_query = hourly_query.where(Order.created_at >= start_date)
+    if end_date:
+        hourly_query = hourly_query.where(Order.created_at <= end_date)
+    hourly_res = await session.execute(hourly_query)
+    hourly_sales: dict[str, float] = {}
+    for row in hourly_res.all():
+        if row[0]:
+            h_int = row[0].hour
+            suffix = "AM" if h_int < 12 else "PM"
+            disp_h = 12 if h_int in (0, 12) else (h_int if h_int < 12 else h_int - 12)
+            key = f"{disp_h}{suffix}"
+            hourly_sales[key] = round(hourly_sales.get(key, 0.0) + float(row[1] or 0.0), 2)
+
+    # 10. Delayed / active orders requiring attention
+    active_query = select(Order.order_number, Order.created_at, Order.status).where(
+        Order.business_id == business_id,
+        Order.organization_id == tenant.organization_id,
+        Order.status.in_([OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING]),
+    )
+    if effective_branch_id:
+        active_query = active_query.where(Order.branch_id == effective_branch_id)
+    active_query = active_query.order_by(Order.created_at.asc()).limit(5)
+    active_res = await session.execute(active_query)
+    now_utc = datetime.now(timezone.utc)
+    delayed_orders: list[DelayedOrderItem] = []
+    for ord_num, cr_at, ord_status in active_res.all():
+        if cr_at:
+            cr_at_aware = cr_at if cr_at.tzinfo else cr_at.replace(tzinfo=timezone.utc)
+            mins = max(0, int((now_utc - cr_at_aware).total_seconds() // 60))
+        else:
+            mins = 0
+        delayed_orders.append(
+            DelayedOrderItem(
+                order_number=ord_num or "#---",
+                elapsed_minutes=mins,
+                status=ord_status.value if hasattr(ord_status, "value") else str(ord_status),
+            )
+        )
+
+    # 11. Kitchen SLA Turnaround from completed/prepared items
+    sla_query = (
+        select(
+            OrderItem.created_at,
+            OrderItem.cooking_started_at,
+            OrderItem.ready_at,
+            OrderItem.served_at,
+        )
+        .join(Order, OrderItem.order_id == Order.id)
+        .where(
+            Order.business_id == business_id,
+            Order.organization_id == tenant.organization_id,
+        )
+    )
+    if effective_branch_id:
+        sla_query = sla_query.where(Order.branch_id == effective_branch_id)
+    if start_date:
+        sla_query = sla_query.where(Order.created_at >= start_date)
+    if end_date:
+        sla_query = sla_query.where(Order.created_at <= end_date)
+    sla_res = await session.execute(sla_query)
+
+    accept_diffs: list[int] = []
+    prep_diffs: list[int] = []
+    serve_diffs: list[int] = []
+    for o_created, o_cook, o_ready, o_served in sla_res.all():
+        if o_created and o_cook:
+            diff = int((o_cook - o_created).total_seconds())
+            if diff >= 0:
+                accept_diffs.append(diff)
+        if o_cook and o_ready:
+            diff = int((o_ready - o_cook).total_seconds())
+            if diff >= 0:
+                prep_diffs.append(diff)
+        if o_ready and o_served:
+            diff = int((o_served - o_ready).total_seconds())
+            if diff >= 0:
+                serve_diffs.append(diff)
+
+    avg_accept_sec = int(sum(accept_diffs) / len(accept_diffs)) if accept_diffs else 0
+    avg_prep_sec = int(sum(prep_diffs) / len(prep_diffs)) if prep_diffs else 0
+    avg_serve_sec = int(sum(serve_diffs) / len(serve_diffs)) if serve_diffs else 0
+    delayed_count = len([d for d in delayed_orders if d.elapsed_minutes >= 15])
+    kitchen_sla = KitchenSLAMetrics(
+        avg_accept_seconds=avg_accept_sec,
+        avg_prep_seconds=avg_prep_sec,
+        avg_serve_seconds=avg_serve_sec,
+        delayed_count=delayed_count,
+    )
+
     return SalesOverviewMetrics(
         business_id=business_id,
         branch_id=effective_branch_id,
@@ -262,6 +454,15 @@ async def get_sales_overview(
         cost_of_goods_usd=cost_of_goods_usd,
         gross_margin_usd=gross_margin_usd,
         gross_margin_percent=gross_margin_percent,
+        pending_orders=pending_orders,
+        cancelled_orders=cancelled_orders,
+        payment_success_rate=payment_success_rate,
+        order_status_counts=order_status_counts,
+        order_source_counts=order_source_counts,
+        payment_status_counts=payment_status_counts,
+        hourly_sales=hourly_sales,
+        delayed_orders=delayed_orders,
+        kitchen_sla=kitchen_sla,
     )
 
 

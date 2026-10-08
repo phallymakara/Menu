@@ -10,7 +10,10 @@ export type MenuItemCreate = components['schemas']['MenuItemCreate']
 export type MenuItemUpdate = components['schemas']['MenuItemUpdate']
 export type CategoryCreate = components['schemas']['CategoryCreate']
 export type CategoryUpdate = components['schemas']['CategoryUpdate']
+export type CategoryReorderRequest = components['schemas']['CategoryReorderRequest']
 export type ModifierGroupDetailResponse = components['schemas']['ModifierGroupDetailResponse']
+export type ModifierOptionResponse = components['schemas']['ModifierOptionResponse']
+export type ModifierOptionUpdate = components['schemas']['ModifierOptionUpdate']
 
 /** Largest page the items endpoint allows. Menus beyond this need real pagination. */
 const MENU_ITEMS_PAGE_SIZE = 100
@@ -45,7 +48,7 @@ export function useMenuItems(businessId: string | null) {
           },
         })
       )
-      return page.items
+      return page?.items ?? []
     },
     enabled: !!businessId,
   })
@@ -63,6 +66,7 @@ export function useCreateCategory(businessId: string | null) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['branch-published-menu', businessId] })
     },
   })
 }
@@ -81,6 +85,7 @@ export function useUpdateCategory(businessId: string | null) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['branch-published-menu', businessId] })
     },
   })
 }
@@ -98,6 +103,7 @@ export function useDeleteCategory(businessId: string | null) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['branch-published-menu', businessId] })
     },
   })
 }
@@ -114,6 +120,7 @@ export function useCreateMenuItem(businessId: string | null) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-items', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['branch-published-menu', businessId] })
     },
   })
 }
@@ -130,6 +137,7 @@ export function useUpdateMenuItem(businessId: string | null) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-items', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['branch-published-menu', businessId] })
     },
   })
 }
@@ -145,6 +153,7 @@ export function useDeleteMenuItem(businessId: string | null) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['menu-items', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['branch-published-menu', businessId] })
     },
   })
 }
@@ -244,6 +253,88 @@ export function useSaveItemOptions(businessId: string | null) {
     },
     onSuccess: (_, { itemId }) => {
       queryClient.invalidateQueries({ queryKey: ['modifier-groups', businessId, itemId] })
+    },
+  })
+}
+
+/** Batch update display order for menu categories. */
+export function useReorderCategories(businessId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: CategoryReorderRequest) =>
+      unwrap(
+        await apiFetch.PUT('/api/v1/businesses/{business_id}/categories/reorder', {
+          params: { path: { business_id: requireBusinessId(businessId) } },
+          body: payload,
+        })
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories', businessId] })
+    },
+  })
+}
+
+/** Partially update a modifier option (price, name, active). */
+export function useUpdateModifierOption(businessId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      optionId,
+      payload,
+    }: {
+      groupId: string
+      optionId: string
+      payload: ModifierOptionUpdate
+    }) =>
+      unwrap(
+        await apiFetch.PATCH(
+          '/api/v1/businesses/{business_id}/modifier-groups/{group_id}/options/{option_id}',
+          {
+            params: {
+              path: {
+                business_id: requireBusinessId(businessId),
+                group_id: groupId,
+                option_id: optionId,
+              },
+            },
+            body: payload,
+          }
+        )
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modifier-groups', businessId] })
+    },
+  })
+}
+
+/** Delete a modifier option from a modifier group. */
+export function useDeleteModifierOption(businessId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      optionId,
+    }: {
+      groupId: string
+      optionId: string
+    }) =>
+      unwrap(
+        await apiFetch.DELETE(
+          '/api/v1/businesses/{business_id}/modifier-groups/{group_id}/options/{option_id}',
+          {
+            params: {
+              path: {
+                business_id: requireBusinessId(businessId),
+                group_id: groupId,
+                option_id: optionId,
+              },
+            },
+          }
+        )
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modifier-groups', businessId] })
     },
   })
 }

@@ -23,8 +23,8 @@ export default {
         },
       },
       fontFamily: {
-        sans: ['Inter', 'Kantumruy Pro', 'system-ui', 'sans-serif'],
-        khmer: ['Kantumruy Pro', 'Inter', 'system-ui', 'sans-serif'],
+        sans: ['"Kantumruy Pro"', 'Inter', 'system-ui', 'sans-serif'],
+        khmer: ['"Kantumruy Pro"', 'Inter', 'system-ui', 'sans-serif'],
       },
     },
   },

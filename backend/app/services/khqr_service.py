@@ -59,10 +59,10 @@ from app.schemas.khqr import (
 from app.services.billing_service import (
     _resolve_financial_settings,
     calculate_financial_breakdown,
+    evaluate_manual_discount,
     get_order_bill_summary,
     get_table_session_bill_summary,
 )
-from app.services.promotion_service import evaluate_discount
 from app.services.tenancy import get_branch_for_tenant, get_business_for_tenant
 
 logger = structlog.get_logger("app.services.khqr_service")
@@ -341,8 +341,8 @@ class KHQRBillQuote:
 
     bill: BillSummaryResponse
     financials: BillFinancialBreakdown
-    promotion_id: UUID | None
-    discount_reason: str | None
+    promotion_id: UUID | None = None
+    discount_reason: str | None = None
 
     def payable_amount(self, currency: str) -> Decimal:
         """Amount due in ``currency``: USD to the cent, KHR in whole riel."""
@@ -356,32 +356,26 @@ async def _quote_bill(
     business_id: UUID,
     branch_id: UUID,
     bill: BillSummaryResponse,
-    promo_code: str | None,
     manual_discount_type: DiscountType | None,
     manual_discount_value: Decimal | None,
     discount_reason: str | None,
     tenant: TenantContext,
 ) -> KHQRBillQuote:
     """
-    Apply a promotion or manual discount to a bill.
+    Apply manual discount to a bill.
 
     Uses the bill's own tax and service-charge rates and exchange rate, with the
     inclusive flags of the branch, exactly like cash settlement does, so the
     KHQR amount and the settled Payment always agree.
     """
-    eval_result = await evaluate_discount(
-        session=session,
-        business_id=business_id,
-        branch_id=branch_id,
+    discount_usd, _, discount_reason_str = evaluate_manual_discount(
         subtotal_usd=bill.financials.subtotal_usd,
-        promo_code=promo_code,
         manual_discount_type=manual_discount_type,
         manual_discount_value=manual_discount_value,
         discount_reason=discount_reason,
-        tenant=tenant,
     )
 
-    if eval_result.discount_usd > Decimal("0.00"):
+    if discount_usd > Decimal("0.00"):
         _, _, _, is_tax_inclusive, is_sc_inclusive = await _resolve_financial_settings(
             session=session,
             branch_id=branch_id,
@@ -392,7 +386,7 @@ async def _quote_bill(
             tax_pct=bill.financials.tax_percent,
             sc_pct=bill.financials.service_charge_percent,
             exchange_rate=bill.financials.exchange_rate,
-            discount_usd=eval_result.discount_usd,
+            discount_usd=discount_usd,
             is_tax_inclusive=is_tax_inclusive,
             is_sc_inclusive=is_sc_inclusive,
         )
@@ -402,8 +396,8 @@ async def _quote_bill(
     return KHQRBillQuote(
         bill=bill,
         financials=financials,
-        promotion_id=eval_result.promotion_id,
-        discount_reason=eval_result.discount_reason,
+        promotion_id=None,
+        discount_reason=discount_reason_str,
     )
 
 
@@ -413,7 +407,6 @@ async def quote_table_session_bill(
     branch_id: UUID,
     table_session_id: UUID,
     *,
-    promo_code: str | None = None,
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
@@ -432,7 +425,6 @@ async def quote_table_session_bill(
         business_id,
         branch_id,
         bill,
-        promo_code,
         manual_discount_type,
         manual_discount_value,
         discount_reason,
@@ -446,7 +438,6 @@ async def quote_order_bill(
     branch_id: UUID,
     order_id: UUID,
     *,
-    promo_code: str | None = None,
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
@@ -465,7 +456,6 @@ async def quote_order_bill(
         business_id,
         branch_id,
         bill,
-        promo_code,
         manual_discount_type,
         manual_discount_value,
         discount_reason,
@@ -631,7 +621,6 @@ async def generate_dynamic_session_khqr(
     branch_id: UUID,
     table_session_id: UUID,
     currency: KHQRCurrency = "USD",
-    promo_code: str | None = None,
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
@@ -656,7 +645,6 @@ async def generate_dynamic_session_khqr(
         business_id,
         branch_id,
         table_session_id,
-        promo_code=promo_code,
         manual_discount_type=manual_discount_type,
         manual_discount_value=manual_discount_value,
         discount_reason=discount_reason,
@@ -686,7 +674,6 @@ async def generate_dynamic_order_khqr(
     branch_id: UUID,
     order_id: UUID,
     currency: KHQRCurrency = "USD",
-    promo_code: str | None = None,
     manual_discount_type: DiscountType | None = None,
     manual_discount_value: Decimal | None = None,
     discount_reason: str | None = None,
@@ -709,7 +696,6 @@ async def generate_dynamic_order_khqr(
         business_id,
         branch_id,
         order_id,
-        promo_code=promo_code,
         manual_discount_type=manual_discount_type,
         manual_discount_value=manual_discount_value,
         discount_reason=discount_reason,

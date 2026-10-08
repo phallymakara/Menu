@@ -72,14 +72,34 @@ async def get_current_tenant_context(
 
         if row is None:
             logger.warning(
-                "Tenant context resolution failed: no membership for requested org",
+                "Tenant context resolution: requested org not found for user, falling back to primary active membership",
                 user_id=str(current_user.id),
-                organization_id=str(target_org_id),
+                requested_organization_id=str(target_org_id),
             )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access to requested organization denied.",
+            fallback_res = await session.execute(
+                select(OrganizationMembership, Organization)
+                .join(
+                    Organization,
+                    Organization.id == OrganizationMembership.organization_id,
+                )
+                .where(
+                    OrganizationMembership.user_id == current_user.id,
+                    OrganizationMembership.status == MembershipStatus.ACTIVE,
+                    Organization.status == OrganizationStatus.ACTIVE,
+                    Organization.is_active.is_(True),
+                )
+                .order_by(
+                    OrganizationMembership.is_owner.desc(),
+                    OrganizationMembership.created_at.asc(),
+                )
             )
+            row = fallback_res.first()
+
+            if row is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access to requested organization denied.",
+                )
 
         membership, organization = row
 

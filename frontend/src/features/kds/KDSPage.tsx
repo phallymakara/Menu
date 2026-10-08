@@ -3,6 +3,7 @@ import { RefreshCw, AlertCircle } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   KDSTicket,
+  KitchenStation,
 } from './types/kds.types'
 import { KDSHeader } from './components/KDSHeader'
 import { KDSStationTabs } from './components/KDSStationTabs'
@@ -18,30 +19,30 @@ import {
   useKDSTickets,
   useBumpItemStatus,
   useBumpStationTicket,
+  useUndoItemStatus,
+  useRerouteItem,
+  useFireCourse,
+  useStationRecallTickets,
+  useStationMetrics,
 } from './hooks/useKDSQueries'
+import { KitchenStationSettingsModal } from './components/KitchenStationSettingsModal'
 import { isUuid } from '@/lib/utils'
 
 export const KDSPage: FC = () => {
   const { language } = useLanguageStore()
   const {
-    stations,
     selectedStationId,
-    tickets,
     recalledTickets,
     isMuted,
     isRecallOpen,
-    setStations,
     setSelectedStation,
-    setTickets,
     setRecalledTickets,
     setIsRecallOpen,
-    bumpItemStatus,
-    removeTicket,
-    addTicket,
   } = useKDSStore()
 
   const queryClient = useQueryClient()
   const [loadError] = useState<string | null>(null)
+  const [isStationSettingsOpen, setIsStationSettingsOpen] = useState(false)
 
   // Context identifiers
   const [tenantBizId, setTenantBizId] = useState<string | null>(
@@ -58,9 +59,9 @@ export const KDSPage: FC = () => {
   const accessToken = localStorage.getItem('emenu_access_token') || ''
 
   // 1. Resolve Active Business and Branch IDs dynamically via TanStack Query
-  const { data: businesses = [] } = useBusinesses()
+  const { data: businesses } = useBusinesses()
   useEffect(() => {
-    if (!tenantBizId && businesses.length > 0) {
+    if (!tenantBizId && businesses && businesses.length > 0) {
       const biz = businesses[0]
       setTenantBizId(biz.id)
       localStorage.setItem('emenu_business_id', biz.id)
@@ -74,9 +75,9 @@ export const KDSPage: FC = () => {
     }
   }, [businesses, tenantBizId])
 
-  const { data: branches = [] } = useBranches(tenantBizId)
+  const { data: branches } = useBranches(tenantBizId)
   useEffect(() => {
-    if (!tenantBranchId && branches.length > 0) {
+    if (!tenantBranchId && branches && branches.length > 0) {
       const b = branches[0]
       setTenantBranchId(b.id)
       localStorage.setItem('emenu_branch_id', b.id)
@@ -84,49 +85,66 @@ export const KDSPage: FC = () => {
   }, [branches, tenantBranchId])
 
   // 2. Fetch Kitchen Stations and Live Tickets via TanStack Query
-  const { data: rawStations = [], isLoading: isStationsLoading } = useKitchenStations(tenantBizId, tenantBranchId)
-  const { data: rawTickets = [], isLoading: isTicketsLoading } = useKDSTickets(tenantBizId, tenantBranchId, selectedStationId)
+  const { data: rawStations, isLoading: isStationsLoading } = useKitchenStations(tenantBizId, tenantBranchId)
+  const { data: rawTickets, isLoading: isTicketsLoading } = useKDSTickets(tenantBizId, tenantBranchId, selectedStationId)
 
-  const isLoading = (isStationsLoading || isTicketsLoading) && tickets.length === 0
+  // Purely derived stations list (0 effects, 0 risk of infinite re-renders)
+  const stations: KitchenStation[] = useMemo(() => {
+    if (!rawStations || rawStations.length === 0) return []
+    return rawStations.map((station) => ({
+      id: station.id,
+      name: station.name_en,
+      name_km: station.name_km,
+      station_code: station.code,
+      color_hex: station.color_hex,
+      is_active: station.is_active,
+      display_order: station.display_order,
+    }))
+  }, [rawStations])
 
-  useEffect(() => {
-    if (rawStations.length > 0) {
-      setStations(
-        rawStations.map((station) => ({
-          id: station.id,
-          name: station.name_en,
-          name_km: station.name_km,
-          station_code: station.code,
-          color_hex: station.color_hex,
-          is_active: station.is_active,
-          display_order: station.display_order,
-        }))
-      )
-    }
-  }, [rawStations, setStations])
+  // Purely derived tickets list (0 effects, 0 risk of infinite re-renders)
+  const tickets: KDSTicket[] = useMemo(() => {
+    if (!rawTickets) return []
+    const ticketList = Array.isArray(rawTickets)
+      ? (rawTickets as any[])
+      : (rawTickets as any)?.tickets && Array.isArray((rawTickets as any).tickets)
+      ? (rawTickets as any).tickets
+      : []
+    return ticketList as KDSTicket[]
+  }, [rawTickets])
 
-  useEffect(() => {
-    if (Array.isArray(rawTickets)) {
-      setTickets(rawTickets as any[])
-    } else if ((rawTickets as any)?.tickets && Array.isArray((rawTickets as any).tickets)) {
-      setTickets((rawTickets as any).tickets)
-    }
-  }, [rawTickets, setTickets])
+  const [isSwitchingBranch, setIsSwitchingBranch] = useState(false)
+  const isLoading = isSwitchingBranch || ((isStationsLoading || isTicketsLoading) && tickets.length === 0)
 
   const bumpItemMutation = useBumpItemStatus(tenantBizId, tenantBranchId)
   const bumpStationTicketMutation = useBumpStationTicket(tenantBizId, tenantBranchId)
+  const undoItemMutation = useUndoItemStatus(tenantBizId, tenantBranchId)
+  const rerouteItemMutation = useRerouteItem(tenantBizId, tenantBranchId)
+  const fireCourseMutation = useFireCourse(tenantBizId, tenantBranchId)
+
+  const activeStationId = selectedStationId !== 'expo' && selectedStationId ? selectedStationId : null
+  const { data: stationMetrics } = useStationMetrics(tenantBizId, tenantBranchId, activeStationId)
+  const { data: serverRecalledTickets } = useStationRecallTickets(tenantBizId, tenantBranchId, activeStationId)
 
   useEffect(() => {
     const handleBranchChanged = (e: any) => {
       const newBranchId = e.detail?.branchId
       if (newBranchId) {
-        setTenantBranchId(newBranchId)
+        setIsSwitchingBranch(true)
+        const target = newBranchId === 'all' ? (branches && branches[0]?.id ? branches[0].id : null) : newBranchId
+        setTenantBranchId(target)
         queryClient.invalidateQueries({ queryKey: ['kds'] })
       }
     }
     window.addEventListener('emenu:branch-changed', handleBranchChanged)
     return () => window.removeEventListener('emenu:branch-changed', handleBranchChanged)
-  }, [queryClient])
+  }, [branches, queryClient])
+
+  useEffect(() => {
+    if (!isStationsLoading && !isTicketsLoading) {
+      setIsSwitchingBranch(false)
+    }
+  }, [isStationsLoading, isTicketsLoading])
 
   // 3. Real-Time WebSocket Connection for Staff Room
   const wsRoomType = selectedStationId === 'expo' ? 'expo' : 'station'
@@ -180,12 +198,25 @@ export const KDSPage: FC = () => {
       .filter((t) => t.items.length > 0)
   }, [tickets, selectedStationId])
 
+  // Query key for real-time ticket cache
+  const queryTicketsKey = ['kds', 'tickets', tenantBizId, tenantBranchId, selectedStationId]
+
   // Handlers for Bumping and Recalling Items/Tickets
   const handleItemStatusBump = async (
     orderItemId: string,
     targetStatus: any
   ) => {
-    bumpItemStatus(orderItemId, targetStatus)
+    // Optimistically update query cache
+    queryClient.setQueryData(queryTicketsKey, (old: any) => {
+      if (!old) return old
+      const list = Array.isArray(old) ? old : old?.tickets || []
+      return list.map((t: any) => ({
+        ...t,
+        items: (t.items || []).map((item: any) =>
+          item.id === orderItemId ? { ...item, status: targetStatus } : item
+        ),
+      }))
+    })
 
     if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       try {
@@ -194,7 +225,7 @@ export const KDSPage: FC = () => {
           status: targetStatus,
         })
       } catch {
-        // Ignore non-blocking error
+        queryClient.invalidateQueries({ queryKey: queryTicketsKey })
       }
     }
   }
@@ -204,7 +235,13 @@ export const KDSPage: FC = () => {
     if (targetTicket) {
       setRecalledTickets([targetTicket, ...recalledTickets])
     }
-    removeTicket(orderId)
+
+    // Optimistically remove ticket from query cache
+    queryClient.setQueryData(queryTicketsKey, (old: any) => {
+      if (!old) return old
+      const list = Array.isArray(old) ? old : old?.tickets || []
+      return list.filter((t: any) => t.order_id !== orderId)
+    })
 
     if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       try {
@@ -222,14 +259,49 @@ export const KDSPage: FC = () => {
           )
         }
       } catch {
-        // Non-blocking: the ticket is already removed locally and the next refetch reconciles it.
+        queryClient.invalidateQueries({ queryKey: queryTicketsKey })
+      }
+    }
+  }
+
+  const handleItemUndo = async (orderItemId: string) => {
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      try {
+        await undoItemMutation.mutateAsync(orderItemId)
+      } catch {
+        // non-blocking
+      }
+    }
+  }
+
+  const handleFireCourse = async (orderId: string) => {
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      try {
+        await fireCourseMutation.mutateAsync({ orderId })
+      } catch {
+        // non-blocking
+      }
+    }
+  }
+
+  const handleRerouteItem = async (orderItemId: string, targetStationId: string) => {
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      try {
+        await rerouteItemMutation.mutateAsync({ orderItemId, targetStationId })
+      } catch {
+        // non-blocking
       }
     }
   }
 
   const handleTicketRecall = (ticket: KDSTicket) => {
     setRecalledTickets(recalledTickets.filter((t) => t.order_id !== ticket.order_id))
-    addTicket(ticket)
+    queryClient.setQueryData(queryTicketsKey, (old: any) => {
+      if (!old) return [ticket]
+      const list = Array.isArray(old) ? old : old?.tickets || []
+      return [ticket, ...list]
+    })
+    queryClient.invalidateQueries({ queryKey: queryTicketsKey })
   }
 
   return (
@@ -239,17 +311,19 @@ export const KDSPage: FC = () => {
         storeName={language === 'km' ? storeInfo.nameKm || storeInfo.nameEn : storeInfo.nameEn || storeInfo.nameKm}
         storeLogo={storeInfo.logoUrl}
         isConnected={isConnected}
+        metrics={stationMetrics}
+        activeTicketsCount={tickets.length}
+        onOpenRecall={() => setIsRecallOpen(true)}
+        onOpenStations={() => setIsStationSettingsOpen(true)}
       />
 
       {/* 2. Station Switcher Tabs (Only if custom kitchen stations exist) */}
       {stations.length > 0 && (
-        <div className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-4 py-2">
-          <KDSStationTabs
-            stations={stations}
-            selectedStationId={selectedStationId}
-            onSelectStation={setSelectedStation}
-          />
-        </div>
+        <KDSStationTabs
+          stations={stations}
+          selectedStationId={selectedStationId}
+          onSelectStation={setSelectedStation}
+        />
       )}
 
       {/* 3. Main Stage: Ticket Grid Viewport */}
@@ -292,6 +366,10 @@ export const KDSPage: FC = () => {
                 ticket={ticket}
                 onBumpItem={handleItemStatusBump}
                 onBumpTicket={handleTicketBump}
+                onUndoItem={handleItemUndo}
+                onFireCourse={handleFireCourse}
+                onRerouteItem={handleRerouteItem}
+                stations={stations}
               />
             ))}
           </div>
@@ -301,9 +379,21 @@ export const KDSPage: FC = () => {
       {/* 4. Recalled Orders Bottom Drawer */}
       <KDSRecallDrawer
         isOpen={isRecallOpen}
-        recalledTickets={recalledTickets}
+        recalledTickets={
+          serverRecalledTickets && serverRecalledTickets.length > 0
+            ? (serverRecalledTickets as any[])
+            : recalledTickets
+        }
         onClose={() => setIsRecallOpen(false)}
         onRecallTicket={handleTicketRecall}
+      />
+
+      {/* 5. Kitchen Station Settings Modal */}
+      <KitchenStationSettingsModal
+        isOpen={isStationSettingsOpen}
+        onClose={() => setIsStationSettingsOpen(false)}
+        businessId={tenantBizId}
+        branchId={tenantBranchId}
       />
     </div>
   )

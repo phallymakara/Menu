@@ -41,6 +41,7 @@ import {
   useGuestSessionOrders,
   useCreateGuestOrder,
   useRequestBill,
+  useGuestSessionBill,
 } from './hooks/useGuestOrderQueries'
 
 // Fallback Rich Bilingual Demonstration Catalog for Demo & Sandbox
@@ -233,6 +234,7 @@ export const GuestOrderPage: FC = () => {
     !isDemo ? effectiveTableId : null,
     tokenVal
   )
+  const { data: sessionBillData } = useGuestSessionBill(!isDemo ? sessionToken : null)
 
   // Service hub: live requests of this table session. The demo route keeps one local request.
   const guestTableSession = {
@@ -778,7 +780,7 @@ export const GuestOrderPage: FC = () => {
       <KHQRPaymentModal
         isOpen={isPayModalOpen}
         onClose={() => setIsPayModalOpen(false)}
-        totalUSD={totalSessionUSD}
+        totalUSD={Number(sessionBillData?.financials?.grand_total_usd) || totalSessionUSD}
         tableNumber={table?.table_number || '08'}
         merchantName={table?.bakong_merchant_name || table?.business_name || 'Bistro'}
         isSettled={isPaymentSettled}

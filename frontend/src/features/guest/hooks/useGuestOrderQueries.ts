@@ -170,3 +170,22 @@ export function useRequestBill() {
       ),
   })
 }
+
+/**
+ * Fetch itemized bill breakdown for guest mobile session.
+ */
+export function useGuestSessionBill(sessionToken: string | null) {
+  return useQuery({
+    queryKey: ['guest', 'session-bill', sessionToken],
+    queryFn: async () => {
+      if (!sessionToken) return null
+      return unwrap(
+        await apiFetch.GET('/api/v1/public/tables/sessions/{session_token}/bill', {
+          params: { path: { session_token: sessionToken } },
+        })
+      )
+    },
+    enabled: !!sessionToken,
+  })
+}
+

@@ -26,6 +26,7 @@ from app.schemas.member import (
     MemberInvite,
     MemberResponse,
     MemberUpdate,
+    resolve_pos_permissions,
 )
 
 logger = structlog.get_logger("app.services.member_service")
@@ -182,6 +183,14 @@ async def invite_member(
         MembershipStatus.ACTIVE if activate_directly else MembershipStatus.INVITED
     )
 
+    pos_perms = None
+    if payload.pos_permissions:
+        pos_perms = (
+            payload.pos_permissions.model_dump()
+            if hasattr(payload.pos_permissions, "model_dump")
+            else dict(payload.pos_permissions)
+        )
+
     if membership is None:
         membership = OrganizationMembership(
             organization_id=org_id,
@@ -191,6 +200,7 @@ async def invite_member(
             status=membership_status,
             job_title=payload.job_title,
             pos_pin=payload.pos_pin,
+            pos_permissions=pos_perms,
             is_owner=(payload.role == StaffRole.OWNER),
             invitation_token_hash=None if activate_directly else token_hash,
             invitation_expires_at=None if activate_directly else expires_at,
@@ -204,6 +214,8 @@ async def invite_member(
         membership.status = membership_status
         membership.job_title = payload.job_title
         membership.pos_pin = payload.pos_pin
+        if pos_perms is not None:
+            membership.pos_permissions = pos_perms
         membership.invitation_token_hash = None if activate_directly else token_hash
         membership.invitation_expires_at = None if activate_directly else expires_at
         membership.invited_by_user_id = tenant.user_id
@@ -376,6 +388,10 @@ async def _activate_invited_membership(
         role=membership.role,
         is_owner=membership.is_owner,
         job_title=membership.job_title,
+        pos_pin=membership.pos_pin,
+        pos_permissions=resolve_pos_permissions(
+            membership.role, membership.is_owner, membership.pos_permissions
+        ),
         status=membership.status,
         branch_id=membership.branch_id,
         created_at=membership.created_at,
@@ -427,6 +443,9 @@ async def list_members(
             is_owner=m.is_owner,
             job_title=m.job_title,
             pos_pin=m.pos_pin,
+            pos_permissions=resolve_pos_permissions(
+                m.role, m.is_owner, m.pos_permissions
+            ),
             status=m.status,
             branch_id=m.branch_id,
             created_at=m.created_at,
@@ -472,6 +491,9 @@ async def get_member(
         is_owner=membership.is_owner,
         job_title=membership.job_title,
         pos_pin=membership.pos_pin,
+        pos_permissions=resolve_pos_permissions(
+            membership.role, membership.is_owner, membership.pos_permissions
+        ),
         status=membership.status,
         branch_id=membership.branch_id,
         created_at=membership.created_at,
@@ -569,6 +591,16 @@ async def update_member(
     if "avatar_url" in update_data:
         membership.user.avatar_url = update_data.pop("avatar_url")
 
+    # POS permissions handling
+    if "pos_permissions" in update_data:
+        raw_perms = update_data.pop("pos_permissions")
+        if hasattr(raw_perms, "model_dump"):
+            membership.pos_permissions = raw_perms.model_dump()
+        elif isinstance(raw_perms, dict):
+            membership.pos_permissions = raw_perms
+        else:
+            membership.pos_permissions = None
+
     # Membership fields
     for field, value in update_data.items():
         setattr(membership, field, value)
@@ -610,6 +642,10 @@ async def update_member(
         role=membership.role,
         is_owner=membership.is_owner,
         job_title=membership.job_title,
+        pos_pin=membership.pos_pin,
+        pos_permissions=resolve_pos_permissions(
+            membership.role, membership.is_owner, membership.pos_permissions
+        ),
         status=membership.status,
         branch_id=membership.branch_id,
         created_at=membership.created_at,
@@ -672,3 +708,56 @@ async def revoke_or_archive_member(
         org_id=str(org_id),
         revoked_by=str(tenant.user_id),
     )
+
+
+async def verify_manager_pin(
+    session: AsyncSession,
+    tenant: TenantContext,
+    org_id: UUID,
+    pin_code: str,
+    required_permission: str | None = None,
+    branch_id: UUID | None = None,
+) -> tuple[bool, str | None, str | None]:
+    """
+    Verifies if a 4-digit PIN belongs to an active Owner or Manager (or authorized staff)
+    in the organization/branch to approve a sensitive POS operation.
+    """
+    if tenant.organization_id != org_id:
+        raise TenantNotFoundError("Organization not found.")
+
+    query = (
+        select(OrganizationMembership)
+        .options(selectinload(OrganizationMembership.user))
+        .where(
+            OrganizationMembership.organization_id == org_id,
+            OrganizationMembership.status == MembershipStatus.ACTIVE,
+            OrganizationMembership.pos_pin == pin_code.strip(),
+        )
+    )
+    if branch_id:
+        query = query.where(
+            or_(
+                OrganizationMembership.branch_id == branch_id,
+                OrganizationMembership.branch_id.is_(None),
+                OrganizationMembership.is_owner.is_(True),
+            )
+        )
+
+    result = await session.execute(query)
+    memberships = result.scalars().all()
+
+    for m in memberships:
+        # Check if owner or manager
+        if m.is_owner or m.role in (StaffRole.OWNER, StaffRole.MANAGER):
+            return True, m.user.full_name, m.role.value
+        # If specific permission required, check if granted
+        perms = resolve_pos_permissions(m.role, m.is_owner, m.pos_permissions)
+        if required_permission:
+            if getattr(perms, required_permission, False):
+                return True, m.user.full_name, m.role.value
+        else:
+            if perms.can_void_item or perms.can_cancel_order or perms.can_override_price:
+                return True, m.user.full_name, m.role.value
+
+    return False, None, None
+

@@ -5,9 +5,12 @@ import { Button } from '@/components/ui/Button'
 import type { Category } from '../../types/admin.types'
 import type { MenuItemFormState } from '../../utils/menuMapping'
 import { ItemOptionsEditor } from './ItemOptionsEditor'
+import { ItemVariantsEditor } from './ItemVariantsEditor'
 
 interface MenuItemFormModalProps {
   isEditing: boolean
+  businessId?: string | null
+  itemId?: string | null
   form: MenuItemFormState
   setForm: Dispatch<SetStateAction<MenuItemFormState>>
   categories: Category[]
@@ -20,6 +23,8 @@ interface MenuItemFormModalProps {
 
 export const MenuItemFormModal: FC<MenuItemFormModalProps> = ({
   isEditing,
+  businessId = null,
+  itemId = null,
   form,
   setForm,
   categories,
@@ -199,6 +204,11 @@ export const MenuItemFormModal: FC<MenuItemFormModalProps> = ({
               className="w-full px-4 py-3 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm sm:text-base outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors resize-none"
             />
           </div>
+
+          <ItemVariantsEditor
+            businessId={businessId}
+            itemId={itemId}
+          />
 
           <ItemOptionsEditor
             modifierGroups={form.modifier_groups}
