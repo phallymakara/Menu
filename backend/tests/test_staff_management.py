@@ -474,4 +474,3 @@ async def test_pos_permissions_and_manager_pin_override():
         app.dependency_overrides.clear()
 
     await engine.dispose()
-

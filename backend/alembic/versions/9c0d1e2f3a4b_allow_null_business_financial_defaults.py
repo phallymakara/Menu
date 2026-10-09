@@ -5,9 +5,11 @@ Revises: 8b9c0d1e2f3a
 Create Date: 2026-10-08 15:45:00.000000
 
 """
+
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -21,9 +23,15 @@ def upgrade() -> None:
     """Allow businesses financial fields to be null when not configured."""
     op.alter_column("businesses", "exchange_rate", nullable=True, server_default=None)
     op.alter_column("businesses", "tax_percentage", nullable=True, server_default=None)
-    op.alter_column("businesses", "service_charge_percentage", nullable=True, server_default=None)
-    op.alter_column("businesses", "is_tax_inclusive", nullable=True, server_default=None)
-    op.alter_column("businesses", "is_service_charge_inclusive", nullable=True, server_default=None)
+    op.alter_column(
+        "businesses", "service_charge_percentage", nullable=True, server_default=None
+    )
+    op.alter_column(
+        "businesses", "is_tax_inclusive", nullable=True, server_default=None
+    )
+    op.alter_column(
+        "businesses", "is_service_charge_inclusive", nullable=True, server_default=None
+    )
 
     # Clear mock defaults from existing businesses where user never entered data
     op.execute(
@@ -51,8 +59,21 @@ def downgrade() -> None:
             is_service_charge_inclusive = COALESCE(is_service_charge_inclusive, false)
         """
     )
-    op.alter_column("businesses", "exchange_rate", nullable=False, server_default="4100.00")
-    op.alter_column("businesses", "tax_percentage", nullable=False, server_default="0.00")
-    op.alter_column("businesses", "service_charge_percentage", nullable=False, server_default="0.00")
-    op.alter_column("businesses", "is_tax_inclusive", nullable=False, server_default=sa.true())
-    op.alter_column("businesses", "is_service_charge_inclusive", nullable=False, server_default=sa.false())
+    op.alter_column(
+        "businesses", "exchange_rate", nullable=False, server_default="4100.00"
+    )
+    op.alter_column(
+        "businesses", "tax_percentage", nullable=False, server_default="0.00"
+    )
+    op.alter_column(
+        "businesses", "service_charge_percentage", nullable=False, server_default="0.00"
+    )
+    op.alter_column(
+        "businesses", "is_tax_inclusive", nullable=False, server_default=sa.true()
+    )
+    op.alter_column(
+        "businesses",
+        "is_service_charge_inclusive",
+        nullable=False,
+        server_default=sa.false(),
+    )

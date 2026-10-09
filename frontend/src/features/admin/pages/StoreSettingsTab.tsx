@@ -80,17 +80,12 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
     business.bakong_acquiring_bank ?? ''
   )
 
-  // State for Container 1: Currency & Taxes
+  // Validation & save state
   const [currencyErrors, setCurrencyErrors] = useState<Record<string, string>>({})
-  const [isSavedCurrency, setIsSavedCurrency] = useState(false)
-  const [isSavingCurrency, setIsSavingCurrency] = useState(false)
-  const [currencySaveError, setCurrencySaveError] = useState('')
-
-  // State for Container 2: Bakong KHQR
   const [bakongErrors, setBakongErrors] = useState<Record<string, string>>({})
-  const [isSavedBakong, setIsSavedBakong] = useState(false)
-  const [isSavingBakong, setIsSavingBakong] = useState(false)
-  const [bakongSaveError, setBakongSaveError] = useState('')
+  const [isSaved, setIsSaved] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   // Validation 1: Currency & Taxes
   const validateCurrency = () => {
@@ -115,39 +110,6 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
     return Object.keys(errs).length === 0
   }
 
-  // Handle Save 1: Currency & Taxes
-  const handleSaveCurrency = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validateCurrency()) return
-
-    setCurrencySaveError('')
-    setIsSavingCurrency(true)
-    try {
-      await updateBusiness.mutateAsync({
-        businessId: business.id,
-        payload: {
-          base_currency: baseCurrency,
-          exchange_rate: exchangeRate,
-          tax_percentage: vatRate || '0',
-          is_tax_inclusive: isTaxInclusive,
-          service_charge_percentage: serviceChargeRate || '0',
-          is_service_charge_inclusive: isServiceChargeInclusive,
-        },
-      })
-      setIsSavedCurrency(true)
-      setTimeout(() => setIsSavedCurrency(false), 3000)
-    } catch (err) {
-      setCurrencySaveError(
-        getApiErrorMessage(
-          err,
-          language === 'km' ? 'មិនអាចរក្សាទុកការកំណត់បានទេ' : 'Could not save the settings.'
-        )
-      )
-    } finally {
-      setIsSavingCurrency(false)
-    }
-  }
-
   // Validation 2: Bakong KHQR
   const validateBakong = () => {
     const errs: Record<string, string> = {}
@@ -156,10 +118,6 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
         language === 'km'
           ? 'លេខគណនីបាគងត្រូវមានទម្រង់ name@bank'
           : 'Bakong Account ID must look like name@bank'
-    }
-    if (bakongAccountId.trim() && !bakongAcquiringBank) {
-      errs.bakongAcquiringBank =
-        language === 'km' ? 'សូមជ្រើសរើសធនាគារទទួលប្រាក់' : 'Please select an acquiring bank'
     }
     if (bakongAccountId.trim() && !bakongMerchantName.trim()) {
       errs.bakongMerchantName = language === 'km' ? 'សូមបញ្ចូលឈ្មោះហាងដែលត្រូវបង្ហាញលើ QR' : 'Store name for QR code is required'
@@ -173,34 +131,42 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
     return Object.keys(errs).length === 0
   }
 
-  // Handle Save 2: Bakong KHQR
-  const handleSaveBakong = async (e: React.FormEvent) => {
+  // Unified save handler
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validateBakong()) return
+    const currencyOk = validateCurrency()
+    const bakongOk = validateBakong()
+    if (!currencyOk || !bakongOk) return
 
-    setBakongSaveError('')
-    setIsSavingBakong(true)
+    setSaveError('')
+    setIsSaving(true)
     const accountId = bakongAccountId.trim()
     try {
       await updateBusiness.mutateAsync({
         businessId: business.id,
         payload: {
+          base_currency: baseCurrency,
+          exchange_rate: exchangeRate,
+          tax_percentage: vatRate || '0',
+          is_tax_inclusive: isTaxInclusive,
+          service_charge_percentage: serviceChargeRate || '0',
+          is_service_charge_inclusive: isServiceChargeInclusive,
           bakong_account_id: accountId || null,
           bakong_merchant_name: accountId ? bakongMerchantName.trim() : null,
           bakong_acquiring_bank: accountId ? (bakongAcquiringBank || null) : null,
         },
       })
-      setIsSavedBakong(true)
-      setTimeout(() => setIsSavedBakong(false), 3000)
+      setIsSaved(true)
+      setTimeout(() => setIsSaved(false), 3000)
     } catch (err) {
-      setBakongSaveError(
+      setSaveError(
         getApiErrorMessage(
           err,
           language === 'km' ? 'មិនអាចរក្សាទុកការកំណត់បានទេ' : 'Could not save the settings.'
         )
       )
     } finally {
-      setIsSavingBakong(false)
+      setIsSaving(false)
     }
   }
 
@@ -215,13 +181,13 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
   ]
 
   return (
-    <div className="w-full space-y-6">
+    <form onSubmit={handleSave} className="w-full space-y-6">
       {/* 1. Cambodian Financials & Currency Rules */}
       <div className="space-y-2">
         <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
           {language === 'km' ? '១. រូបិយប័ណ្ណ និងអត្រាប្តូរប្រាក់ (USD / KHR)' : '1. Currency & Exchange Rates'}
         </h3>
-        <form onSubmit={handleSaveCurrency} className="p-5 sm:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4 shadow-none">
+        <div className="p-5 sm:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4 shadow-none">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 block">
@@ -268,7 +234,7 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 block">
-              {language === 'km' ? 'ពន្ធ VAT (%)' : 'VAT Tax Rate (%)'}
+              {language === 'km' ? 'អត្រាពន្ធ VAT (%)' : 'VAT Tax Rate (%)'}
             </label>
             <input
               type="text"
@@ -279,7 +245,7 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
                 setVatRate(numericVal)
                 if (currencyErrors.vatRate) setCurrencyErrors((prev) => ({ ...prev, vatRate: '' }))
               }}
-              placeholder={language === 'km' ? 'បញ្ចូលពន្ធ VAT (%)' : 'Enter VAT (%)'}
+              placeholder={language === 'km' ? 'បញ្ចូលអត្រាពន្ធ VAT (%)' : 'Enter VAT (%)'}
               className={`w-full px-4 py-2.5 rounded-full border bg-white dark:bg-zinc-950 text-sm outline-none transition-colors shadow-none ${
                 currencyErrors.vatRate
                   ? 'border-red-500 focus:border-red-500'
@@ -341,28 +307,7 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
             {language === 'km' ? 'តម្លៃមុខម្ហូបរួមបញ្ចូលថ្លៃសេវារួចហើយ' : 'Menu prices already include the service charge'}
           </label>
         </div>
-
-        {/* Save button for Container 1 */}
-        <div className="pt-2 flex items-center justify-end">
-          {currencySaveError && (
-            <p role="alert" className="mr-3 text-xs font-medium text-red-600 dark:text-red-400">
-              {currencySaveError}
-            </p>
-          )}
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            disabled={isSavingCurrency}
-            className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-full shadow-none transition-colors"
-          >
-            {isSavingCurrency && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
-            {isSavedCurrency
-              ? (language === 'km' ? 'បានរក្សាទុក!' : 'Saved!')
-              : (language === 'km' ? 'រក្សាទុកការកំណត់' : 'Save Changes')}
-          </Button>
-        </div>
-      </form>
+      </div>
     </div>
 
       {/* 2. Bakong KHQR Settlement */}
@@ -370,7 +315,7 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
         <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
           {language === 'km' ? '២. គណនីទូទាត់បាគង KHQR' : '2. Bakong KHQR Settlement Account'}
         </h3>
-        <form onSubmit={handleSaveBakong} className="p-5 sm:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4 shadow-none">
+        <div className="p-5 sm:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4 shadow-none">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1">
             <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 block">
@@ -454,28 +399,7 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
             </div>
           )}
         </div>
-
-        {/* Save button for Container 2 */}
-        <div className="pt-2 flex items-center justify-end">
-          {bakongSaveError && (
-            <p role="alert" className="mr-3 text-xs font-medium text-red-600 dark:text-red-400">
-              {bakongSaveError}
-            </p>
-          )}
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            disabled={isSavingBakong}
-            className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-full shadow-none transition-colors"
-          >
-            {isSavingBakong && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
-            {isSavedBakong
-              ? (language === 'km' ? 'បានរក្សាទុក!' : 'Saved!')
-              : (language === 'km' ? 'រក្សាទុកការកំណត់' : 'Save Changes')}
-          </Button>
-        </div>
-      </form>
+      </div>
     </div>
 
       {/* 3. Telegram Instant Order & Payment Bot */}
@@ -485,37 +409,45 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
         </h3>
         <div className="p-5 sm:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4 shadow-none">
           <div className="space-y-1">
-          <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 block">
-            Telegram Bot Token
-          </label>
-          <input
-            type="text"
-            disabled
-            value=""
-            placeholder={language === 'km' ? 'មិនទាន់អាចប្រើបាន' : 'Not available yet'}
-            className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 text-sm outline-none shadow-none cursor-not-allowed"
-          />
-          <p className="text-xs text-zinc-500">
-            {language === 'km'
-              ? 'ការជូនដំណឹង Telegram នឹងអាចកំណត់បាន នៅពេលប្រព័ន្ធអាចរក្សាទុក Bot Token ដោយការអ៊ិនគ្រីប។'
-              : 'Telegram alerts will be configurable once bot tokens can be stored encrypted.'}
-          </p>
-        </div>
-
-        {/* Save button for Container 3 (Disabled) */}
-        <div className="pt-2 flex items-center justify-end">
-          <Button
-            type="button"
-            disabled
-            variant="primary"
-            size="sm"
-            className="px-5 py-2 bg-zinc-200 dark:bg-zinc-800 text-zinc-400 dark:text-zinc-600 text-xs font-semibold rounded-full shadow-none cursor-not-allowed"
-          >
-            {language === 'km' ? 'រក្សាទុកការកំណត់' : 'Save Changes'}
-          </Button>
+            <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 block">
+              Telegram Bot Token
+            </label>
+            <input
+              type="text"
+              disabled
+              value=""
+              placeholder={language === 'km' ? 'មិនទាន់អាចប្រើបាន' : 'Not available yet'}
+              className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 text-sm outline-none shadow-none cursor-not-allowed"
+            />
+            <p className="text-xs text-zinc-500">
+              {language === 'km'
+                ? 'ការជូនដំណឹង Telegram នឹងអាចកំណត់បាន នៅពេលប្រព័ន្ធអាចរក្សាទុក Bot Token ដោយការអ៊ិនគ្រីប។'
+                : 'Telegram alerts will be configurable once bot tokens can be stored encrypted.'}
+            </p>
+          </div>
         </div>
       </div>
-    </div>
-  </div>
-)
+
+      {/* Form Save Button */}
+      <div className="pt-2 flex items-center justify-end">
+        {saveError && (
+          <p role="alert" className="mr-3 text-xs font-medium text-red-600 dark:text-red-400">
+            {saveError}
+          </p>
+        )}
+        <Button
+          type="submit"
+          variant="primary"
+          size="sm"
+          disabled={isSaving}
+          className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-full shadow-none transition-colors"
+        >
+          {isSaving && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+          {isSaved
+            ? (language === 'km' ? 'បានរក្សាទុក!' : 'Saved!')
+            : (language === 'km' ? 'រក្សាទុកការកំណត់' : 'Save Changes')}
+        </Button>
+      </div>
+    </form>
+  )
 }

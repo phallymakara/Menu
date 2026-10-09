@@ -2,6 +2,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
+from app.models.enums import StaffRole
+
 # Password policy shared by registration and password reset.
 PASSWORD_MIN_LENGTH = 8
 PASSWORD_MAX_LENGTH = 128
@@ -175,9 +177,6 @@ class MessageResponse(BaseModel):
     """A human-readable confirmation message."""
 
     message: str
-
-
-from app.models.enums import StaffRole
 
 
 class MembershipResponse(BaseModel):

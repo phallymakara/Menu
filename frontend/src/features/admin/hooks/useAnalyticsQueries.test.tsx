@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, waitFor } from '@testing-library/react'
 import { useSalesOverview, useTopSellingItems } from './useAnalyticsQueries'
@@ -24,8 +24,13 @@ function stubFetch(body: unknown) {
 const urlOf = (fetchMock: ReturnType<typeof stubFetch>) =>
   new URL((fetchMock.mock.calls[0] as unknown as [Request])[0].url)
 
+beforeEach(() => {
+  localStorage.setItem('emenu_access_token', 'test-token')
+})
+
 afterEach(() => {
   vi.unstubAllGlobals()
+  localStorage.clear()
 })
 
 describe('analytics date range', () => {

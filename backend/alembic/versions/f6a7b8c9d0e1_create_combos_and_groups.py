@@ -221,21 +221,37 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index(
-        op.f("ix_combo_group_items_menu_item_id"), table_name="combo_group_items"
-    )
-    op.drop_index(
-        op.f("ix_combo_group_items_combo_group_id"), table_name="combo_group_items"
-    )
-    op.drop_table("combo_group_items")
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    tables = set(insp.get_table_names())
 
-    op.drop_index(op.f("ix_combo_groups_combo_id"), table_name="combo_groups")
-    op.drop_table("combo_groups")
+    if "combo_group_items" in tables:
+        op.drop_index(
+            op.f("ix_combo_group_items_menu_item_id"),
+            table_name="combo_group_items",
+            if_exists=True,
+        )
+        op.drop_index(
+            op.f("ix_combo_group_items_combo_group_id"),
+            table_name="combo_group_items",
+            if_exists=True,
+        )
+        op.drop_table("combo_group_items")
 
-    op.drop_index(op.f("ix_combos_sku"), table_name="combos")
-    op.drop_index(op.f("ix_combos_organization_id"), table_name="combos")
-    op.drop_index(op.f("ix_combos_is_active"), table_name="combos")
-    op.drop_index(op.f("ix_combos_display_order"), table_name="combos")
-    op.drop_index(op.f("ix_combos_category_id"), table_name="combos")
-    op.drop_index(op.f("ix_combos_business_id"), table_name="combos")
-    op.drop_table("combos")
+    if "combo_groups" in tables:
+        op.drop_index(
+            op.f("ix_combo_groups_combo_id"), table_name="combo_groups", if_exists=True
+        )
+        op.drop_table("combo_groups")
+
+    if "combos" in tables:
+        for idx in (
+            "ix_combos_sku",
+            "ix_combos_organization_id",
+            "ix_combos_is_active",
+            "ix_combos_display_order",
+            "ix_combos_category_id",
+            "ix_combos_business_id",
+        ):
+            op.drop_index(op.f(idx), table_name="combos", if_exists=True)
+        op.drop_table("combos")

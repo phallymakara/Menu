@@ -308,7 +308,9 @@ async def get_sales_overview(
         Payment.organization_id == tenant.organization_id,
     )
     if effective_branch_id:
-        pay_status_query = pay_status_query.where(Payment.branch_id == effective_branch_id)
+        pay_status_query = pay_status_query.where(
+            Payment.branch_id == effective_branch_id
+        )
     if start_date:
         pay_status_query = pay_status_query.where(Payment.created_at >= start_date)
     if end_date:
@@ -322,7 +324,9 @@ async def get_sales_overview(
     completed_pays = raw_pay_map.get(PaymentStatus.COMPLETED.value, 0)
     pending_pays = raw_pay_map.get(PaymentStatus.PENDING.value, 0)
     failed_pays = raw_pay_map.get(PaymentStatus.FAILED.value, 0)
-    expired_pays = raw_pay_map.get("expired", 0) + raw_pay_map.get(PaymentStatus.CANCELLED.value, 0)
+    expired_pays = raw_pay_map.get("expired", 0) + raw_pay_map.get(
+        PaymentStatus.CANCELLED.value, 0
+    )
     total_pays = completed_pays + pending_pays + failed_pays + expired_pays
     payment_status_counts = {
         "completed": completed_pays,
@@ -356,13 +360,17 @@ async def get_sales_overview(
             suffix = "AM" if h_int < 12 else "PM"
             disp_h = 12 if h_int in (0, 12) else (h_int if h_int < 12 else h_int - 12)
             key = f"{disp_h}{suffix}"
-            hourly_sales[key] = round(hourly_sales.get(key, 0.0) + float(row[1] or 0.0), 2)
+            hourly_sales[key] = round(
+                hourly_sales.get(key, 0.0) + float(row[1] or 0.0), 2
+            )
 
     # 10. Delayed / active orders requiring attention
     active_query = select(Order.order_number, Order.created_at, Order.status).where(
         Order.business_id == business_id,
         Order.organization_id == tenant.organization_id,
-        Order.status.in_([OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING]),
+        Order.status.in_(
+            [OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING]
+        ),
     )
     if effective_branch_id:
         active_query = active_query.where(Order.branch_id == effective_branch_id)
@@ -380,7 +388,9 @@ async def get_sales_overview(
             DelayedOrderItem(
                 order_number=ord_num or "#---",
                 elapsed_minutes=mins,
-                status=ord_status.value if hasattr(ord_status, "value") else str(ord_status),
+                status=ord_status.value
+                if hasattr(ord_status, "value")
+                else str(ord_status),
             )
         )
 

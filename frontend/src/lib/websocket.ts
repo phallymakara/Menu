@@ -68,12 +68,16 @@ export function useWebSocket(url: string | null, options: WebSocketOptions = {})
         socket.onopen = () => {
           try {
             socket.close(1000, 'Teardown')
-          } catch {}
+          } catch {
+            // Ignore teardown errors during unmount
+          }
         }
       } else if (socket.readyState === WebSocket.OPEN) {
         try {
           socket.close(1000, 'Teardown')
-        } catch {}
+        } catch {
+          // Ignore teardown errors during unmount
+        }
       }
     }
   }, [])

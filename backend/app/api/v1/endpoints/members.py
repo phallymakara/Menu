@@ -22,11 +22,11 @@ from app.schemas.member import (
     InviteAccept,
     InviteAcceptExisting,
     InviteResponse,
+    ManagerPinVerifyRequest,
+    ManagerPinVerifyResponse,
     MemberInvite,
     MemberResponse,
     MemberUpdate,
-    ManagerPinVerifyRequest,
-    ManagerPinVerifyResponse,
 )
 from app.services.member_service import (
     accept_invitation,
@@ -316,4 +316,3 @@ async def verify_staff_manager_pin(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
-

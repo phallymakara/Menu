@@ -124,8 +124,6 @@ class StockAdjustmentLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-
-
 class LowStockAlertItem(BaseModel):
     branch_id: UUID
     branch_name: str

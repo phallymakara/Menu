@@ -78,7 +78,7 @@ async def limited_app():
     async def _override_session_factory():
         return sessionmaker
 
-    limiter = MemoryRateLimiter()
+    limiter = MemoryRateLimiter(clock=FakeClock(1_000_050.0))
 
     async def _override_limiter():
         return limiter

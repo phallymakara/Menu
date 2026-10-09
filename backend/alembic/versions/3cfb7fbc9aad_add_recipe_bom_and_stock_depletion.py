@@ -158,33 +158,59 @@ def downgrade() -> None:
     recipe entries are relabelled ``OTHER`` to stay loadable. Their notes still
     describe the depletion or waste, and stock levels are left as they are.
     """
-    op.execute(
-        "UPDATE stock_adjustment_logs SET reason = 'OTHER' "
-        "WHERE reason IN ('RECIPE_DEPLETION', 'RECIPE_WASTE')"
-    )
-    op.drop_index(
-        op.f("ix_stock_adjustment_logs_order_item_id"),
-        table_name="stock_adjustment_logs",
-    )
-    op.drop_constraint(
-        op.f("fk_stock_adjustment_logs_order_item_id_order_items"),
-        "stock_adjustment_logs",
-        type_="foreignkey",
-    )
-    op.drop_column("stock_adjustment_logs", "order_item_id")
-    op.drop_column("stock_adjustment_logs", "unit_cost_usd")
-    op.drop_column("order_items", "stock_depleted_at")
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    tables = set(insp.get_table_names())
 
-    op.drop_index("uq_menu_item_recipes_variant", table_name="menu_item_recipes")
-    op.drop_index("uq_menu_item_recipes_all_variants", table_name="menu_item_recipes")
-    for column in (
-        "business_id",
-        "inventory_item_id",
-        "menu_item_id",
-        "organization_id",
-        "variant_id",
-    ):
-        op.drop_index(
-            op.f(f"ix_menu_item_recipes_{column}"), table_name="menu_item_recipes"
+    if "stock_adjustment_logs" in tables:
+        op.execute(
+            "UPDATE stock_adjustment_logs SET reason = 'OTHER' "
+            "WHERE reason IN ('RECIPE_DEPLETION', 'RECIPE_WASTE')"
         )
-    op.drop_table("menu_item_recipes")
+        op.drop_index(
+            op.f("ix_stock_adjustment_logs_order_item_id"),
+            table_name="stock_adjustment_logs",
+            if_exists=True,
+        )
+        fks = {fk["name"] for fk in insp.get_foreign_keys("stock_adjustment_logs")}
+        if "fk_stock_adjustment_logs_order_item_id_order_items" in fks:
+            op.drop_constraint(
+                op.f("fk_stock_adjustment_logs_order_item_id_order_items"),
+                "stock_adjustment_logs",
+                type_="foreignkey",
+            )
+        cols = {c["name"] for c in insp.get_columns("stock_adjustment_logs")}
+        if "order_item_id" in cols:
+            op.drop_column("stock_adjustment_logs", "order_item_id")
+        if "unit_cost_usd" in cols:
+            op.drop_column("stock_adjustment_logs", "unit_cost_usd")
+
+    if "order_items" in tables:
+        cols = {c["name"] for c in insp.get_columns("order_items")}
+        if "stock_depleted_at" in cols:
+            op.drop_column("order_items", "stock_depleted_at")
+
+    if "menu_item_recipes" in tables:
+        op.drop_index(
+            "uq_menu_item_recipes_variant",
+            table_name="menu_item_recipes",
+            if_exists=True,
+        )
+        op.drop_index(
+            "uq_menu_item_recipes_all_variants",
+            table_name="menu_item_recipes",
+            if_exists=True,
+        )
+        for column in (
+            "business_id",
+            "inventory_item_id",
+            "menu_item_id",
+            "organization_id",
+            "variant_id",
+        ):
+            op.drop_index(
+                op.f(f"ix_menu_item_recipes_{column}"),
+                table_name="menu_item_recipes",
+                if_exists=True,
+            )
+        op.drop_table("menu_item_recipes")

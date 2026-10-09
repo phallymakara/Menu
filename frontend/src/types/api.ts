@@ -2788,6 +2788,26 @@ export interface paths {
         patch: operations["update_staff_member_api_v1_organizations__org_id__members__member_id__patch"];
         trace?: never;
     };
+    "/api/v1/organizations/{org_id}/members/verify-manager-pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Staff Manager Pin
+         * @description Verify a 4-digit manager or owner PIN for sensitive POS authorization overrides.
+         */
+        post: operations["verify_staff_manager_pin_api_v1_organizations__org_id__members_verify_manager_pin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/plans": {
         parameters: {
             query?: never;
@@ -6482,6 +6502,39 @@ export interface components {
             alerts?: components["schemas"]["LowStockAlertItem"][];
         };
         /**
+         * ManagerPinVerifyRequest
+         * @description Request to verify manager/owner PIN for POS action override.
+         */
+        ManagerPinVerifyRequest: {
+            /**
+             * Pin Code
+             * @description 4-6 digit numeric PIN
+             */
+            pin_code: string;
+            /**
+             * Required Permission
+             * @description Optional required permission flag (e.g. can_void_item, can_cancel_order)
+             */
+            required_permission?: string | null;
+            /**
+             * Branch Id
+             * @description Optional branch context
+             */
+            branch_id?: string | null;
+        };
+        /**
+         * ManagerPinVerifyResponse
+         * @description Response verifying manager PIN override.
+         */
+        ManagerPinVerifyResponse: {
+            /** Valid */
+            valid: boolean;
+            /** Manager Name */
+            manager_name?: string | null;
+            /** Manager Role */
+            manager_role?: string | null;
+        };
+        /**
          * MasterCatalogSyncRequest
          * @description Payload for HQ to push master catalog updates to branches.
          */
@@ -6571,6 +6624,13 @@ export interface components {
              */
             avatar_url?: string | null;
             /**
+             * Pos Permissions
+             * @description POS operational permissions for voids, cancellations, and price overrides
+             */
+            pos_permissions?: components["schemas"]["StaffPosPermissions"] | {
+                [key: string]: unknown;
+            } | null;
+            /**
              * Password
              * @description Optional direct password for staff login without invitation token
              */
@@ -6611,6 +6671,8 @@ export interface components {
             job_title?: string | null;
             /** Pos Pin */
             pos_pin?: string | null;
+            /** @description POS operational permissions */
+            pos_permissions?: components["schemas"]["StaffPosPermissions"];
             status: components["schemas"]["MembershipStatus"];
             /** Branch Id */
             branch_id?: string | null;
@@ -6657,6 +6719,13 @@ export interface components {
             avatar_url?: string | null;
             /** @description Updated membership status (e.g. suspended, active, terminated) */
             status?: components["schemas"]["MembershipStatus"] | null;
+            /**
+             * Pos Permissions
+             * @description Updated POS operational permissions
+             */
+            pos_permissions?: components["schemas"]["StaffPosPermissions"] | {
+                [key: string]: unknown;
+            } | null;
         };
         /** MembershipResponse */
         MembershipResponse: {
@@ -8353,6 +8422,30 @@ export interface components {
             guest_notes?: string | null;
             /** Items */
             items: components["schemas"]["OrderItemCreate"][];
+        };
+        /**
+         * StaffPosPermissions
+         * @description Staff POS operational and order authority permissions.
+         */
+        StaffPosPermissions: {
+            /**
+             * Can Void Item
+             * @description Whether staff member can void ordered items
+             * @default false
+             */
+            can_void_item?: boolean;
+            /**
+             * Can Cancel Order
+             * @description Whether staff member can cancel open orders
+             * @default false
+             */
+            can_cancel_order?: boolean;
+            /**
+             * Can Override Price
+             * @description Whether staff member can manually edit or override item prices
+             * @default false
+             */
+            can_override_price?: boolean;
         };
         /**
          * StaffRole
@@ -14817,6 +14910,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_staff_manager_pin_api_v1_organizations__org_id__members_verify_manager_pin_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManagerPinVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManagerPinVerifyResponse"];
                 };
             };
             /** @description Validation Error */

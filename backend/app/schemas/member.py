@@ -54,9 +54,15 @@ def resolve_pos_permissions(
         return StaffPosPermissions(**defaults)
 
     return StaffPosPermissions(
-        can_void_item=bool(stored_permissions.get("can_void_item", defaults["can_void_item"])),
-        can_cancel_order=bool(stored_permissions.get("can_cancel_order", defaults["can_cancel_order"])),
-        can_override_price=bool(stored_permissions.get("can_override_price", defaults["can_override_price"])),
+        can_void_item=bool(
+            stored_permissions.get("can_void_item", defaults["can_void_item"])
+        ),
+        can_cancel_order=bool(
+            stored_permissions.get("can_cancel_order", defaults["can_cancel_order"])
+        ),
+        can_override_price=bool(
+            stored_permissions.get("can_override_price", defaults["can_override_price"])
+        ),
     )
 
 
@@ -261,7 +267,9 @@ class InviteResponse(BaseModel):
 class ManagerPinVerifyRequest(BaseModel):
     """Request to verify manager/owner PIN for POS action override."""
 
-    pin_code: str = Field(..., min_length=4, max_length=10, description="4-6 digit numeric PIN")
+    pin_code: str = Field(
+        ..., min_length=4, max_length=10, description="4-6 digit numeric PIN"
+    )
     required_permission: str | None = Field(
         default=None,
         description="Optional required permission flag (e.g. can_void_item, can_cancel_order)",

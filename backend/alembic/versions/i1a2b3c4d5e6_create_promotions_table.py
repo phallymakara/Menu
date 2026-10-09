@@ -119,14 +119,30 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Drop promotions table and remove foreign keys."""
-    op.drop_constraint(
-        op.f("fk_payments_promotion_id_promotions"), "payments", type_="foreignkey"
-    )
-    op.drop_column("payments", "discount_reason")
-    op.drop_column("payments", "promotion_id")
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    tables = set(insp.get_table_names())
 
-    op.drop_index(op.f("ix_promotions_code"), table_name="promotions")
-    op.drop_index(op.f("ix_promotions_branch_id"), table_name="promotions")
-    op.drop_index(op.f("ix_promotions_business_id"), table_name="promotions")
-    op.drop_index(op.f("ix_promotions_organization_id"), table_name="promotions")
-    op.drop_table("promotions")
+    if "payments" in tables:
+        fks = {fk["name"] for fk in insp.get_foreign_keys("payments")}
+        if "fk_payments_promotion_id_promotions" in fks:
+            op.drop_constraint(
+                op.f("fk_payments_promotion_id_promotions"),
+                "payments",
+                type_="foreignkey",
+            )
+        cols = {c["name"] for c in insp.get_columns("payments")}
+        if "discount_reason" in cols:
+            op.drop_column("payments", "discount_reason")
+        if "promotion_id" in cols:
+            op.drop_column("payments", "promotion_id")
+
+    if "promotions" in tables:
+        for idx in (
+            "ix_promotions_code",
+            "ix_promotions_branch_id",
+            "ix_promotions_business_id",
+            "ix_promotions_organization_id",
+        ):
+            op.drop_index(op.f(idx), table_name="promotions", if_exists=True)
+        op.drop_table("promotions")

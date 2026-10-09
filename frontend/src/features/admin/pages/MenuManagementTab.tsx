@@ -63,6 +63,14 @@ export const MenuManagementTab: FC = () => {
     return saved === 'all' ? null : saved
   })
   const [isSwitchingBranch, setIsSwitchingBranch] = useState(false)
+  const [categories, setCategories] = useState<Category[]>([])
+  const [items, setItems] = useState<MenuItem[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [activeCategory, setActiveCategory] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
   useEffect(() => {
     const handleBranchChanged = (e: any) => {
@@ -81,16 +89,6 @@ export const MenuManagementTab: FC = () => {
     window.addEventListener('emenu:branch-changed', handleBranchChanged)
     return () => window.removeEventListener('emenu:branch-changed', handleBranchChanged)
   }, [queryClient])
-
-  const [categories, setCategories] = useState<Category[]>([])
-  const [items, setItems] = useState<MenuItem[]>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isUploadingImage, setIsUploadingImage] = useState(false)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
-  const [activeCategory, setActiveCategory] = useState('all')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
   // Modals state
   const [isItemModalOpen, setIsItemModalOpen] = useState(false)

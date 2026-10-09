@@ -756,8 +756,11 @@ async def verify_manager_pin(
             if getattr(perms, required_permission, False):
                 return True, m.user.full_name, m.role.value
         else:
-            if perms.can_void_item or perms.can_cancel_order or perms.can_override_price:
+            if (
+                perms.can_void_item
+                or perms.can_cancel_order
+                or perms.can_override_price
+            ):
                 return True, m.user.full_name, m.role.value
 
     return False, None, None
-

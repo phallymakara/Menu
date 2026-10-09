@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import (
     Boolean,
-    DateTime,
     Enum,
     ForeignKey,
     Numeric,
@@ -176,8 +174,6 @@ class BranchStock(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="branch_stocks",
         lazy="selectin",
     )
-
-
 
 
 class StockAdjustmentLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
