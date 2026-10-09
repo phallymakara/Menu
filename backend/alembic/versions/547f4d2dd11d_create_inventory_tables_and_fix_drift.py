@@ -392,27 +392,51 @@ def downgrade() -> None:
     PostgreSQL cannot remove a value from an enum type, so ``archived`` stays in
     ``membership_status``; it is unused by the previous revision and harmless.
     """
-    op.drop_index(
-        op.f("ix_modifier_options_display_order"), table_name="modifier_options"
-    )
-    for table in ("combo_group_items", "combo_groups"):
-        for column in ("business_id", "organization_id"):
-            op.drop_index(op.f(f"ix_{table}_{column}"), table_name=table)
-    op.drop_index("uq_menu_items_branch_sku", table_name="menu_items")
-    op.drop_index("uq_menu_items_master_sku", table_name="menu_items")
-    op.create_unique_constraint(
-        "uq_menu_items_business_sku", "menu_items", ["business_id", "sku"]
-    )
-    op.alter_column(
-        "menu_items",
-        "image_url",
-        existing_type=sa.String(length=2048),
-        type_=sa.String(length=500),
-        existing_nullable=True,
-    )
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    tables = set(insp.get_table_names())
 
-    op.drop_table("stock_transfer_items")
-    op.drop_table("stock_adjustment_logs")
-    op.drop_table("branch_stocks")
-    op.drop_table("inventory_items")
-    op.drop_table("stock_transfers")
+    if "modifier_options" in tables:
+        op.drop_index(
+            op.f("ix_modifier_options_display_order"),
+            table_name="modifier_options",
+            if_exists=True,
+        )
+    for table in ("combo_group_items", "combo_groups"):
+        if table in tables:
+            for column in ("business_id", "organization_id"):
+                op.drop_index(
+                    op.f(f"ix_{table}_{column}"), table_name=table, if_exists=True
+                )
+    if "menu_items" in tables:
+        op.drop_index(
+            "uq_menu_items_branch_sku", table_name="menu_items", if_exists=True
+        )
+        op.drop_index(
+            "uq_menu_items_master_sku", table_name="menu_items", if_exists=True
+        )
+        try:
+            op.create_unique_constraint(
+                "uq_menu_items_business_sku", "menu_items", ["business_id", "sku"]
+            )
+        except Exception:
+            pass
+        cols = {c["name"] for c in insp.get_columns("menu_items")}
+        if "image_url" in cols:
+            op.alter_column(
+                "menu_items",
+                "image_url",
+                existing_type=sa.String(length=2048),
+                type_=sa.String(length=500),
+                existing_nullable=True,
+            )
+
+    for tbl in (
+        "stock_transfer_items",
+        "stock_adjustment_logs",
+        "branch_stocks",
+        "inventory_items",
+        "stock_transfers",
+    ):
+        if tbl in tables:
+            op.drop_table(tbl)
