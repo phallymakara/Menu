@@ -8,6 +8,8 @@ Create Date: 2026-10-07 21:58:00.000000
 
 from collections.abc import Sequence
 
+import sqlalchemy as sa
+
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -19,36 +21,41 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Drop promotions table and remove promotion_id from payments."""
-    # 1. Drop foreign key constraint on payments
-    try:
-        op.drop_constraint(
-            op.f("fk_payments_promotion_id_promotions"),
-            "payments",
-            type_="foreignkey",
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    tables = set(insp.get_table_names())
+
+    # 1. Drop foreign key constraint on payments if present
+    if "payments" in tables:
+        fks = {fk["name"] for fk in insp.get_foreign_keys("payments")}
+        if "fk_payments_promotion_id_promotions" in fks:
+            op.drop_constraint(
+                op.f("fk_payments_promotion_id_promotions"),
+                "payments",
+                type_="foreignkey",
+            )
+        # 2. Drop promotion_id column from payments if present
+        cols = {c["name"] for c in insp.get_columns("payments")}
+        if "promotion_id" in cols:
+            op.drop_column("payments", "promotion_id")
+
+    # 3. Drop indexes on promotions and table
+    if "promotions" in tables:
+        op.drop_index(
+            op.f("ix_promotions_code"), table_name="promotions", if_exists=True
         )
-    except Exception:
-        pass
-
-    # 2. Drop promotion_id column from payments
-    try:
-        op.drop_column("payments", "promotion_id")
-    except Exception:
-        pass
-
-    # 3. Drop indexes on promotions
-    op.drop_index(op.f("ix_promotions_code"), table_name="promotions", if_exists=True)
-    op.drop_index(
-        op.f("ix_promotions_branch_id"), table_name="promotions", if_exists=True
-    )
-    op.drop_index(
-        op.f("ix_promotions_business_id"), table_name="promotions", if_exists=True
-    )
-    op.drop_index(
-        op.f("ix_promotions_organization_id"), table_name="promotions", if_exists=True
-    )
-
-    # 4. Drop promotions table
-    op.drop_table("promotions")
+        op.drop_index(
+            op.f("ix_promotions_branch_id"), table_name="promotions", if_exists=True
+        )
+        op.drop_index(
+            op.f("ix_promotions_business_id"), table_name="promotions", if_exists=True
+        )
+        op.drop_index(
+            op.f("ix_promotions_organization_id"),
+            table_name="promotions",
+            if_exists=True,
+        )
+        op.drop_table("promotions")
 
 
 def downgrade() -> None:

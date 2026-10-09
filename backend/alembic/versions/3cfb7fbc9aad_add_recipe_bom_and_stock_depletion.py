@@ -172,14 +172,13 @@ def downgrade() -> None:
             table_name="stock_adjustment_logs",
             if_exists=True,
         )
-        try:
+        fks = {fk["name"] for fk in insp.get_foreign_keys("stock_adjustment_logs")}
+        if "fk_stock_adjustment_logs_order_item_id_order_items" in fks:
             op.drop_constraint(
                 op.f("fk_stock_adjustment_logs_order_item_id_order_items"),
                 "stock_adjustment_logs",
                 type_="foreignkey",
             )
-        except Exception:
-            pass
         cols = {c["name"] for c in insp.get_columns("stock_adjustment_logs")}
         if "order_item_id" in cols:
             op.drop_column("stock_adjustment_logs", "order_item_id")

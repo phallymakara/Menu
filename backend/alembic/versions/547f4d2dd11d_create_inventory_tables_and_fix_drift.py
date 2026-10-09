@@ -415,12 +415,11 @@ def downgrade() -> None:
         op.drop_index(
             "uq_menu_items_master_sku", table_name="menu_items", if_exists=True
         )
-        try:
+        uqs = {uq["name"] for uq in insp.get_unique_constraints("menu_items")}
+        if "uq_menu_items_business_sku" not in uqs:
             op.create_unique_constraint(
                 "uq_menu_items_business_sku", "menu_items", ["business_id", "sku"]
             )
-        except Exception:
-            pass
         cols = {c["name"] for c in insp.get_columns("menu_items")}
         if "image_url" in cols:
             op.alter_column(

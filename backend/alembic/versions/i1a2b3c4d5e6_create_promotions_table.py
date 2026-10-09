@@ -124,14 +124,13 @@ def downgrade() -> None:
     tables = set(insp.get_table_names())
 
     if "payments" in tables:
-        try:
+        fks = {fk["name"] for fk in insp.get_foreign_keys("payments")}
+        if "fk_payments_promotion_id_promotions" in fks:
             op.drop_constraint(
                 op.f("fk_payments_promotion_id_promotions"),
                 "payments",
                 type_="foreignkey",
             )
-        except Exception:
-            pass
         cols = {c["name"] for c in insp.get_columns("payments")}
         if "discount_reason" in cols:
             op.drop_column("payments", "discount_reason")
