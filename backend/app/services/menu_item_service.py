@@ -79,6 +79,7 @@ async def create_menu_item(
     # Validate branch if provided
     if payload.branch_id is not None:
         from app.models.branch import Branch
+
         br_res = await session.execute(
             select(Branch).where(
                 Branch.id == payload.branch_id,

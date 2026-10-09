@@ -318,8 +318,6 @@ async def adjust_branch_stock(
     )
 
 
-
-
 async def get_low_stock_alerts(
     session: AsyncSession,
     tenant: TenantContext,

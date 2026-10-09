@@ -283,8 +283,6 @@ async def test_manual_stock_adjustment_and_waste_audit(inventory_setup):
     app.dependency_overrides.clear()
 
 
-
-
 @pytest.mark.anyio
 async def test_low_stock_alerts(inventory_setup):
     """

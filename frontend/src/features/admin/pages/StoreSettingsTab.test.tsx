@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -43,6 +43,10 @@ function stubApi(patchStatus = 200) {
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
+
+beforeEach(() => {
+  localStorage.setItem('emenu_access_token', 'test-token')
+})
 
 afterEach(() => {
   cleanup()

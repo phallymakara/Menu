@@ -5,6 +5,7 @@ Revises: 63e1f164e29b
 Create Date: 2026-10-07 21:58:00.000000
 
 """
+
 from collections.abc import Sequence
 
 from alembic import op
@@ -36,9 +37,15 @@ def upgrade() -> None:
 
     # 3. Drop indexes on promotions
     op.drop_index(op.f("ix_promotions_code"), table_name="promotions", if_exists=True)
-    op.drop_index(op.f("ix_promotions_branch_id"), table_name="promotions", if_exists=True)
-    op.drop_index(op.f("ix_promotions_business_id"), table_name="promotions", if_exists=True)
-    op.drop_index(op.f("ix_promotions_organization_id"), table_name="promotions", if_exists=True)
+    op.drop_index(
+        op.f("ix_promotions_branch_id"), table_name="promotions", if_exists=True
+    )
+    op.drop_index(
+        op.f("ix_promotions_business_id"), table_name="promotions", if_exists=True
+    )
+    op.drop_index(
+        op.f("ix_promotions_organization_id"), table_name="promotions", if_exists=True
+    )
 
     # 4. Drop promotions table
     op.drop_table("promotions")

@@ -13492,6 +13492,81 @@
         }
       }
     },
+    "/api/v1/organizations/{org_id}/members/verify-manager-pin": {
+      "post": {
+        "tags": [
+          "Organization Staff & Members"
+        ],
+        "summary": "Verify Staff Manager Pin",
+        "description": "Verify a 4-digit manager or owner PIN for sensitive POS authorization overrides.",
+        "operationId": "verify_staff_manager_pin_api_v1_organizations__org_id__members_verify_manager_pin_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ManagerPinVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManagerPinVerifyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/plans": {
       "get": {
         "tags": [
@@ -22315,6 +22390,84 @@
         ],
         "title": "LowStockAlertResponse"
       },
+      "ManagerPinVerifyRequest": {
+        "properties": {
+          "pin_code": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 4,
+            "title": "Pin Code",
+            "description": "4-6 digit numeric PIN"
+          },
+          "required_permission": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Permission",
+            "description": "Optional required permission flag (e.g. can_void_item, can_cancel_order)"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id",
+            "description": "Optional branch context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pin_code"
+        ],
+        "title": "ManagerPinVerifyRequest",
+        "description": "Request to verify manager/owner PIN for POS action override."
+      },
+      "ManagerPinVerifyResponse": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "manager_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manager Name"
+          },
+          "manager_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manager Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid"
+        ],
+        "title": "ManagerPinVerifyResponse",
+        "description": "Response verifying manager PIN override."
+      },
       "MasterCatalogSyncRequest": {
         "properties": {
           "target_branch_ids": {
@@ -22482,6 +22635,22 @@
             "title": "Avatar Url",
             "description": "Profile photo or avatar URL"
           },
+          "pos_permissions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StaffPosPermissions"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pos Permissions",
+            "description": "POS operational permissions for voids, cancellations, and price overrides"
+          },
           "password": {
             "anyOf": [
               {
@@ -22586,6 +22755,10 @@
               }
             ],
             "title": "Pos Pin"
+          },
+          "pos_permissions": {
+            "$ref": "#/components/schemas/StaffPosPermissions",
+            "description": "POS operational permissions"
           },
           "status": {
             "$ref": "#/components/schemas/MembershipStatus"
@@ -22738,6 +22911,22 @@
               }
             ],
             "description": "Updated membership status (e.g. suspended, active, terminated)"
+          },
+          "pos_permissions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StaffPosPermissions"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pos Permissions",
+            "description": "Updated POS operational permissions"
           }
         },
         "type": "object",
@@ -26487,6 +26676,31 @@
           "items"
         ],
         "title": "StaffOrderPlacementRequest"
+      },
+      "StaffPosPermissions": {
+        "properties": {
+          "can_void_item": {
+            "type": "boolean",
+            "title": "Can Void Item",
+            "description": "Whether staff member can void ordered items",
+            "default": false
+          },
+          "can_cancel_order": {
+            "type": "boolean",
+            "title": "Can Cancel Order",
+            "description": "Whether staff member can cancel open orders",
+            "default": false
+          },
+          "can_override_price": {
+            "type": "boolean",
+            "title": "Can Override Price",
+            "description": "Whether staff member can manually edit or override item prices",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "StaffPosPermissions",
+        "description": "Staff POS operational and order authority permissions."
       },
       "StaffRole": {
         "type": "string",

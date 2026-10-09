@@ -494,13 +494,16 @@ async def get_branch_published_menu(
         # 1) It has items configured for this branch (local items or overrides), OR
         # 2) It is explicitly assigned to this branch via BranchCategoryAssignment
         # A branch local category (branch_id == branch_id) always appears in this branch.
-        is_branch_local_cat = (cat.branch_id == branch_id)
+        is_branch_local_cat = cat.branch_id == branch_id
         is_explicitly_assigned = cat.id in [r.category_id for r in assigned_records]
         has_branch_items = any(
-            (item.branch_id == branch_id or item.id in overrides)
-            for item in cat_items
+            (item.branch_id == branch_id or item.id in overrides) for item in cat_items
         )
-        if not is_branch_local_cat and not is_explicitly_assigned and not has_branch_items:
+        if (
+            not is_branch_local_cat
+            and not is_explicitly_assigned
+            and not has_branch_items
+        ):
             continue
 
         category_responses.append(

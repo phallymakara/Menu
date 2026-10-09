@@ -5,13 +5,14 @@ Revises: fc16f8098088
 Create Date: 2026-10-07 17:30:26.556848
 
 """
+
 from typing import Sequence, Union
 
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '63e1f164e29b'
-down_revision: Union[str, Sequence[str], None] = 'fc16f8098088'
+revision: str = "63e1f164e29b"
+down_revision: Union[str, Sequence[str], None] = "fc16f8098088"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

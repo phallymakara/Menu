@@ -127,8 +127,6 @@ async def adjust_branch_stock_endpoint(
         ) from exc
 
 
-
-
 @router.get(
     "/alerts/low-stock",
     response_model=LowStockAlertResponse,

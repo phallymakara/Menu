@@ -198,12 +198,20 @@ async def test_branch_menu_merges_master_and_local_items(multi_branch_setup):
         await client.post(
             f"/api/v1/businesses/{multi_branch_setup['business_id']}/branches/{multi_branch_setup['branch_a_id']}/menu/overrides/{multi_branch_setup['master_loklak_id']}",
             headers=headers,
-            json={"menu_item_id": str(multi_branch_setup["master_loklak_id"]), "price_override": 12.00, "availability_status": "AVAILABLE"},
+            json={
+                "menu_item_id": str(multi_branch_setup["master_loklak_id"]),
+                "price_override": 12.00,
+                "availability_status": "AVAILABLE",
+            },
         )
         await client.post(
             f"/api/v1/businesses/{multi_branch_setup['business_id']}/branches/{multi_branch_setup['branch_b_id']}/menu/overrides/{multi_branch_setup['master_loklak_id']}",
             headers=headers,
-            json={"menu_item_id": str(multi_branch_setup["master_loklak_id"]), "price_override": 12.00, "availability_status": "AVAILABLE"},
+            json={
+                "menu_item_id": str(multi_branch_setup["master_loklak_id"]),
+                "price_override": 12.00,
+                "availability_status": "AVAILABLE",
+            },
         )
 
         # 3. Fetch Published Menu for Branch A
@@ -342,7 +350,11 @@ async def test_promote_local_item_to_master(multi_branch_setup):
         await client.post(
             f"/api/v1/businesses/{multi_branch_setup['business_id']}/branches/{multi_branch_setup['branch_b_id']}/menu/overrides/{item_id}",
             headers=headers,
-            json={"menu_item_id": str(item_id), "price_override": 5.00, "availability_status": "AVAILABLE"},
+            json={
+                "menu_item_id": str(item_id),
+                "price_override": 5.00,
+                "availability_status": "AVAILABLE",
+            },
         )
 
         # 4. Verify Truffle Fries now appears in Branch B!

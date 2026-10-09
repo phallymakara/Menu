@@ -103,7 +103,11 @@ async def create_category(
         user_id=tenant.user_id,
         resource_type="category",
         resource_id=str(category.id),
-        details={"name_en": category.name_en, "parent_id": str(category.parent_id), "branch_id": str(category.branch_id)},
+        details={
+            "name_en": category.name_en,
+            "parent_id": str(category.parent_id),
+            "branch_id": str(category.branch_id),
+        },
     )
     await session.commit()
 

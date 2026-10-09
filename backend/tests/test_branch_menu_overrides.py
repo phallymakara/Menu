@@ -336,7 +336,10 @@ async def test_selective_category_assignment_to_branch():
             await client.post(
                 f"/api/v1/businesses/{biz.id}/branches/{ap_branch.id}/menu/overrides/{latte.id}",
                 headers=headers,
-                json={"menu_item_id": str(latte.id), "availability_status": "AVAILABLE"},
+                json={
+                    "menu_item_id": str(latte.id),
+                    "availability_status": "AVAILABLE",
+                },
             )
 
             # Verify Airport published menu contains only Coffee category

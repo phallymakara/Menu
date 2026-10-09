@@ -91,7 +91,9 @@ async def list_business_categories(
     ] = None,
     branch_id: Annotated[
         UUID | None,
-        Query(description="Filter by branch ID (returns branch-specific + master categories)"),
+        Query(
+            description="Filter by branch ID (returns branch-specific + master categories)"
+        ),
     ] = None,
     master_only: Annotated[
         bool,

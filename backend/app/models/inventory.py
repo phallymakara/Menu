@@ -176,8 +176,6 @@ class BranchStock(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
 
-
-
 class StockAdjustmentLog(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "stock_adjustment_logs"
 

@@ -112,7 +112,8 @@ async def list_business_menu_items(
         UUID | None, Query(description="Filter items by specific branch ID")
     ] = None,
     master_only: Annotated[
-        bool, Query(description="Filter to only Central Master items (branch_id is null)")
+        bool,
+        Query(description="Filter to only Central Master items (branch_id is null)"),
     ] = False,
 ) -> MenuItemPaginationResponse:
     """
