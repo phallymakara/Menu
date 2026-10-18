@@ -97,16 +97,17 @@ export const AdminLayout: FC = () => {
       <AdminHeader onToggleSidebar={handleToggleSidebar} />
 
       <div className="flex-1 min-h-0 min-w-0 flex overflow-hidden relative">
-        {/* Desktop Sidebar Rail: fixed w-20 flex placeholder so main content never shifts */}
-        <div className="hidden lg:block shrink-0 w-20 h-full relative z-30">
-          <div
-            className={`absolute top-0 left-0 h-full bg-white dark:bg-zinc-950 transition-[width] duration-300 ease-in-out motion-reduce:transition-none z-30 ${
-              desktopSidebarOpen ? 'w-64 border-r border-zinc-200 dark:border-zinc-800' : 'w-20'
-            }`}
-          >
-            <div className="w-full h-full">
-              <AdminSidebar isCollapsed={!desktopSidebarOpen} />
-            </div>
+        {/* Desktop Sidebar: in-flow flex item so main content dynamically resizes based on show/hide */}
+        <aside
+          aria-label={language === 'km' ? 'ម៉ឺនុយរដ្ឋបាល' : 'Admin Navigation'}
+          className={`hidden lg:block shrink-0 h-full relative transition-[width] duration-300 ease-in-out motion-reduce:transition-none z-20 ${
+            desktopSidebarOpen ? 'w-64' : 'w-20'
+          }`}
+          onPointerDown={handlePointerDown}
+          onPointerUp={handlePointerUp}
+        >
+          <div className="w-full h-full relative">
+            <AdminSidebar isCollapsed={!desktopSidebarOpen} />
 
             {/* Move / Toggle Button on Sidebar Border */}
             <button
@@ -121,7 +122,7 @@ export const AdminLayout: FC = () => {
                   : (language === 'km' ? 'ពង្រីកម៉ឺនុយ' : 'Expand sidebar')
               }
               aria-label={desktopSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-              className="absolute top-5 -right-3.5 z-40 w-7 h-7 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-50 flex items-center justify-center transition-all cursor-pointer shadow-none"
+              className="absolute top-5 -right-3.5 z-40 w-7 h-7 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:text-zinc-950 dark:hover:text-zinc-50 flex items-center justify-center transition-all cursor-pointer shadow-sm hover:scale-110 active:scale-95"
             >
               {desktopSidebarOpen ? (
                 <ChevronLeft className="w-4 h-4" />
@@ -130,7 +131,7 @@ export const AdminLayout: FC = () => {
               )}
             </button>
           </div>
-        </div>
+        </aside>
 
         {/* Mobile Drawer Sidebar with swipe-to-close gesture */}
         {mobileSidebarOpen && (

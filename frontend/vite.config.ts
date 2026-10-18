@@ -36,6 +36,12 @@ export default defineConfig(({ mode }) => {
         '/ws': {
           target: wsBackendUrl,
           ws: true,
+          configure: (proxy) => {
+            proxy.on('error', (err: any) => {
+              if (err?.code === 'ECONNRESET' || err?.code === 'EPIPE') return
+              console.error('[vite] ws proxy error:', err)
+            })
+          },
         },
       },
     },

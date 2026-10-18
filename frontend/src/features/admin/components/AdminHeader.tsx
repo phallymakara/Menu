@@ -293,49 +293,49 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
       .trim()
   }
 
-  const rawStoreName =
-    language === 'km'
-      ? businessName.km || businessName.en || 'ហាងរបស់ខ្ញុំ'
-      : businessName.en || businessName.km || 'My Store'
+  const isPersonalOwnerName = Boolean(
+    user?.full_name &&
+    businessName.en &&
+    businessName.en.trim().toLowerCase() === user.full_name.trim().toLowerCase()
+  )
+
+  const rawStoreName = isPersonalOwnerName
+    ? (language === 'km' ? businessName.km || 'ហាងរបស់ខ្ញុំ' : 'My Store')
+    : language === 'km'
+    ? businessName.km || businessName.en || 'ហាងរបស់ខ្ញុំ'
+    : businessName.en || businessName.km || 'My Store'
 
   const displayStoreName = cleanStoreName(rawStoreName) || rawStoreName
 
   return (
     <header className="bg-white dark:bg-zinc-950 shrink-0 z-40 border-b border-zinc-200 dark:border-zinc-800">
       <div className="px-3 sm:px-6 h-16 flex items-center justify-between gap-2 max-w-full">
-        {/* Left: Mobile Toggle & Store Identity */}
+        {/* Left: Store Logo / Hamburger & Store Identity */}
         <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
           <button
             type="button"
             onClick={onToggleSidebar}
-            aria-label="Toggle navigation menu"
-            className="lg:hidden p-2 rounded-lg text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            title={language === 'km' ? 'ចុចដើម្បីបិទ/បើកម៉ឺនុយ' : 'Click to toggle sidebar'}
+            aria-label="Toggle sidebar"
+            className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 flex items-center justify-center overflow-hidden shrink-0 transition-all cursor-pointer shadow-none border border-zinc-200 dark:border-zinc-700 hover:scale-105 active:scale-95"
           >
-            <MenuIcon className="w-5 h-5" />
+            {logoUrl ? (
+              <img src={logoUrl} alt="Store Logo" className="w-full h-full object-cover" />
+            ) : (
+              <MenuIcon className="w-5 h-5 text-zinc-700 dark:text-zinc-300" />
+            )}
           </button>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onToggleSidebar}
-              title={language === 'km' ? 'ចុចដើម្បីបិទ/បើកម៉ឺនុយ' : 'Click logo to toggle sidebar'}
-              aria-label="Toggle sidebar"
-              className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center text-white overflow-hidden shrink-0 hover:opacity-90 active:scale-95 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/50 shadow-none"
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              className="font-bold text-sm sm:text-base tracking-tight text-zinc-950 dark:text-zinc-50 leading-tight truncate max-w-[140px] sm:max-w-[240px]"
+              title={displayStoreName}
             >
-              {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
-              ) : (
-                <img src="/logo-mark.svg" alt="Logo" className="w-6 h-6 object-contain" />
-              )}
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="hidden sm:inline-block font-bold text-sm sm:text-base tracking-tight text-zinc-950 dark:text-zinc-50 leading-tight">
-                  {displayStoreName}
-                </span>
+              {displayStoreName}
+            </span>
 
-                {/* Branch Switcher Button */}
-                <div className="relative">
+            {/* Branch Switcher Button */}
+            <div className="relative shrink-0">
                   <button
                     type="button"
                     onClick={() => {
@@ -434,14 +434,13 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                       </div>
                     </>
                   )}
-                </div>
               </div>
             </div>
           </div>
-        </div>
 
         {/* Right: Language, Theme, User profile & Logout */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+
           <LanguageSwitcher />
           <ThemeToggle />
 

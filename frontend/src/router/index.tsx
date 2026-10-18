@@ -68,6 +68,38 @@ const POSPage = lazy(() =>
   }))
 )
 
+// Lazy-loaded Platform Super Admin components
+const PlatformAdminLayout = lazy(() =>
+  import('@/features/platform-admin/PlatformAdminLayout').then((m) => ({
+    default: m.PlatformAdminLayout,
+  }))
+)
+const PlatformOverviewTab = lazy(() =>
+  import('@/features/platform-admin/pages/PlatformOverviewTab').then((m) => ({
+    default: m.PlatformOverviewTab,
+  }))
+)
+const PlatformOrganizationsTab = lazy(() =>
+  import('@/features/platform-admin/pages/PlatformOrganizationsTab').then((m) => ({
+    default: m.PlatformOrganizationsTab,
+  }))
+)
+const PlatformPlansTab = lazy(() =>
+  import('@/features/platform-admin/pages/PlatformPlansTab').then((m) => ({
+    default: m.PlatformPlansTab,
+  }))
+)
+const PlatformUsersTab = lazy(() =>
+  import('@/features/platform-admin/pages/PlatformUsersTab').then((m) => ({
+    default: m.PlatformUsersTab,
+  }))
+)
+const PlatformAuditLogsTab = lazy(() =>
+  import('@/features/platform-admin/pages/PlatformAuditLogsTab').then((m) => ({
+    default: m.PlatformAuditLogsTab,
+  }))
+)
+
 // Helper wrapper for Suspense
 const withSuspense = (children: ReactNode) => (
   <Suspense fallback={<PageLoader />}>{children}</Suspense>
@@ -137,6 +169,41 @@ export const router = createBrowserRouter([
         element: withSuspense(<POSPage />),
       },
     ],
+  },
+  {
+    path: '/superadmin',
+    element: withSuspense(<PlatformAdminLayout />),
+    errorElement: <RouteErrorBoundary />,
+    children: [
+      {
+        index: true,
+        element: <Navigate to="overview" replace />,
+      },
+      {
+        path: 'overview',
+        element: withSuspense(<PlatformOverviewTab />),
+      },
+      {
+        path: 'organizations',
+        element: withSuspense(<PlatformOrganizationsTab />),
+      },
+      {
+        path: 'plans',
+        element: withSuspense(<PlatformPlansTab />),
+      },
+      {
+        path: 'users',
+        element: withSuspense(<PlatformUsersTab />),
+      },
+      {
+        path: 'audit-logs',
+        element: withSuspense(<PlatformAuditLogsTab />),
+      },
+    ],
+  },
+  {
+    path: '/platform-admin/*',
+    element: <Navigate to="/superadmin" replace />,
   },
   {
     path: '/pos',

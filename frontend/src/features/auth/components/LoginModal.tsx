@@ -6,6 +6,7 @@ import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthModalStore } from '@/stores/useAuthModalStore'
 import { useLogin } from '../hooks/useAuthMutations'
 import { getLoginErrorMessage } from '../utils/authErrors'
+import { getRoleBasedRedirectPath } from '../utils/roleRedirect'
 
 export interface LoginModalProps {
   isOpen: boolean
@@ -53,12 +54,13 @@ export const LoginModal: FC<LoginModalProps> = ({ isOpen, onClose }) => {
 
     try {
       const isEmail = emailOrPhone.includes('@')
-      await login.mutateAsync({
+      const result = await login.mutateAsync({
         identifier: isEmail ? emailOrPhone.trim().toLowerCase() : emailOrPhone.trim(),
         password,
       })
       onClose()
-      navigate('/admin')
+      const redirectPath = getRoleBasedRedirectPath(result?.me)
+      navigate(redirectPath)
     } catch (err) {
       setErrorMessage(getLoginErrorMessage(err, isKm))
     } finally {

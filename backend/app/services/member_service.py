@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID
 
 import structlog
@@ -183,13 +184,15 @@ async def invite_member(
         MembershipStatus.ACTIVE if activate_directly else MembershipStatus.INVITED
     )
 
-    pos_perms = None
-    if payload.pos_permissions:
-        pos_perms = (
-            payload.pos_permissions.model_dump()
-            if hasattr(payload.pos_permissions, "model_dump")
-            else dict(payload.pos_permissions)
-        )
+    pos_perms: dict[str, Any] | None = None
+    if payload.pos_permissions is not None:
+        raw_perms: Any = payload.pos_permissions
+        if isinstance(raw_perms, dict):
+            pos_perms = raw_perms
+        elif hasattr(raw_perms, "model_dump"):
+            pos_perms = raw_perms.model_dump()
+        else:
+            pos_perms = dict(raw_perms)
 
     if membership is None:
         membership = OrganizationMembership(

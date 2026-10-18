@@ -20449,6 +20449,52 @@
         "title": "DynamicKHQRResponse",
         "description": "Dynamic KHQR together with the payment attempt that tracks it."
       },
+      "ExpiringTrialOrg": {
+        "properties": {
+          "organization_id": {
+            "type": "string",
+            "title": "Organization Id",
+            "description": "Organization UUID"
+          },
+          "organization_name": {
+            "type": "string",
+            "title": "Organization Name",
+            "description": "Organization display name"
+          },
+          "organization_slug": {
+            "type": "string",
+            "title": "Organization Slug",
+            "description": "Organization URL slug"
+          },
+          "plan_name": {
+            "type": "string",
+            "title": "Plan Name",
+            "description": "Subscribed plan tier name"
+          },
+          "trial_ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Trial Ends At",
+            "description": "Trial expiration timestamp"
+          },
+          "days_remaining": {
+            "type": "integer",
+            "title": "Days Remaining",
+            "description": "Days remaining until trial expiration"
+          }
+        },
+        "type": "object",
+        "required": [
+          "organization_id",
+          "organization_name",
+          "organization_slug",
+          "plan_name",
+          "trial_ends_at",
+          "days_remaining"
+        ],
+        "title": "ExpiringTrialOrg",
+        "description": "Summary of a tenant organization whose trial subscription ends soon."
+      },
       "GuestOrderPlacementRequest": {
         "properties": {
           "guest_notes": {
@@ -24363,6 +24409,46 @@
         "title": "ModifierOptionUpdate",
         "description": "Payload for partially updating a modifier option."
       },
+      "MonthlyGrowthMetric": {
+        "properties": {
+          "month_key": {
+            "type": "string",
+            "title": "Month Key",
+            "description": "Month key in YYYY-MM format"
+          },
+          "month_label": {
+            "type": "string",
+            "title": "Month Label",
+            "description": "Display label, e.g. May 2026"
+          },
+          "revenue_usd": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Revenue Usd",
+            "description": "Estimated revenue in USD"
+          },
+          "new_tenants": {
+            "type": "integer",
+            "title": "New Tenants",
+            "description": "New organizations registered that month"
+          },
+          "cumulative_tenants": {
+            "type": "integer",
+            "title": "Cumulative Tenants",
+            "description": "Cumulative total organizations up to that month"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month_key",
+          "month_label",
+          "revenue_usd",
+          "new_tenants",
+          "cumulative_tenants"
+        ],
+        "title": "MonthlyGrowthMetric",
+        "description": "Monthly revenue and tenant growth historical data point."
+      },
       "MyBranchesResponse": {
         "properties": {
           "can_switch_branches": {
@@ -25658,11 +25744,6 @@
             "type": "integer",
             "title": "Total Staff Memberships",
             "description": "Total staff memberships across all tenants"
-          },
-          "active_table_sessions": {
-            "type": "integer",
-            "title": "Active Table Sessions",
-            "description": "Total active dining sessions live right now"
           }
         },
         "type": "object",
@@ -25671,8 +25752,7 @@
           "total_branches",
           "total_active_branches",
           "total_registered_users",
-          "total_staff_memberships",
-          "active_table_sessions"
+          "total_staff_memberships"
         ],
         "title": "PlatformEntityCounters",
         "description": "Platform-wide infrastructure scale counters."
@@ -25704,6 +25784,30 @@
             "type": "array",
             "title": "Subscription Distribution",
             "description": "Breakdown by subscription plan tier"
+          },
+          "monthly_trends": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyGrowthMetric"
+            },
+            "type": "array",
+            "title": "Monthly Trends",
+            "description": "Monthly growth trends for the last 6 months"
+          },
+          "expiring_trials": {
+            "items": {
+              "$ref": "#/components/schemas/ExpiringTrialOrg"
+            },
+            "type": "array",
+            "title": "Expiring Trials",
+            "description": "Tenants with trials expiring in next 7 days"
+          },
+          "recent_audits": {
+            "items": {
+              "$ref": "#/components/schemas/RecentAuditFeedItem"
+            },
+            "type": "array",
+            "title": "Recent Audits",
+            "description": "Recent platform audit trail events"
           }
         },
         "type": "object",
@@ -25745,6 +25849,25 @@
             "type": "number",
             "title": "Active Tenant Churn Rate",
             "description": "Tenant churn percentage based on cancellations"
+          },
+          "total_gmv_usd": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Gmv Usd",
+            "description": "Total Gross Merchandise Value processed across all platform stores in USD",
+            "default": "0.00"
+          },
+          "total_orders_count": {
+            "type": "integer",
+            "title": "Total Orders Count",
+            "description": "Total processed orders across all stores",
+            "default": 0
+          },
+          "trials_expiring_soon_count": {
+            "type": "integer",
+            "title": "Trials Expiring Soon Count",
+            "description": "Organizations with trial ending in the next 7 days",
+            "default": 0
           }
         },
         "type": "object",
@@ -25757,6 +25880,94 @@
         ],
         "title": "PlatformSaaSEconomics",
         "description": "SaaS platform-level subscription economics and tenant growth."
+      },
+      "RecentAuditFeedItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Audit log UUID"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "Action performed"
+          },
+          "resource_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Type",
+            "description": "Resource type"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id",
+            "description": "Resource ID"
+          },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name",
+            "description": "Name of user who performed action"
+          },
+          "actor_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Email",
+            "description": "Email of user who performed action"
+          },
+          "organization_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Name",
+            "description": "Affected organization name if applicable"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At",
+            "description": "Timestamp of the event"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "created_at"
+        ],
+        "title": "RecentAuditFeedItem",
+        "description": "Mini-summary of recent administrative audit event."
       },
       "RefreshTokenRequest": {
         "properties": {

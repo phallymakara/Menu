@@ -5695,6 +5695,43 @@ export interface components {
             expires_at: string;
             status: components["schemas"]["KHQRPaymentAttemptStatus"];
         };
+        /**
+         * ExpiringTrialOrg
+         * @description Summary of a tenant organization whose trial subscription ends soon.
+         */
+        ExpiringTrialOrg: {
+            /**
+             * Organization Id
+             * @description Organization UUID
+             */
+            organization_id: string;
+            /**
+             * Organization Name
+             * @description Organization display name
+             */
+            organization_name: string;
+            /**
+             * Organization Slug
+             * @description Organization URL slug
+             */
+            organization_slug: string;
+            /**
+             * Plan Name
+             * @description Subscribed plan tier name
+             */
+            plan_name: string;
+            /**
+             * Trial Ends At
+             * Format: date-time
+             * @description Trial expiration timestamp
+             */
+            trial_ends_at: string;
+            /**
+             * Days Remaining
+             * @description Days remaining until trial expiration
+             */
+            days_remaining: number;
+        };
         /** GuestOrderPlacementRequest */
         GuestOrderPlacementRequest: {
             /** Guest Notes */
@@ -7349,6 +7386,37 @@ export interface components {
             display_order?: number | null;
         };
         /**
+         * MonthlyGrowthMetric
+         * @description Monthly revenue and tenant growth historical data point.
+         */
+        MonthlyGrowthMetric: {
+            /**
+             * Month Key
+             * @description Month key in YYYY-MM format
+             */
+            month_key: string;
+            /**
+             * Month Label
+             * @description Display label, e.g. May 2026
+             */
+            month_label: string;
+            /**
+             * Revenue Usd
+             * @description Estimated revenue in USD
+             */
+            revenue_usd: string;
+            /**
+             * New Tenants
+             * @description New organizations registered that month
+             */
+            new_tenants: number;
+            /**
+             * Cumulative Tenants
+             * @description Cumulative total organizations up to that month
+             */
+            cumulative_tenants: number;
+        };
+        /**
          * MyBranchesResponse
          * @description List of all branches accessible to the authenticated staff member.
          */
@@ -7914,11 +7982,6 @@ export interface components {
              * @description Total staff memberships across all tenants
              */
             total_staff_memberships: number;
-            /**
-             * Active Table Sessions
-             * @description Total active dining sessions live right now
-             */
-            active_table_sessions: number;
         };
         /**
          * PlatformKPIResponse
@@ -7942,6 +8005,21 @@ export interface components {
              * @description Breakdown by subscription plan tier
              */
             subscription_distribution: components["schemas"]["SubscriptionTierMetric"][];
+            /**
+             * Monthly Trends
+             * @description Monthly growth trends for the last 6 months
+             */
+            monthly_trends?: components["schemas"]["MonthlyGrowthMetric"][];
+            /**
+             * Expiring Trials
+             * @description Tenants with trials expiring in next 7 days
+             */
+            expiring_trials?: components["schemas"]["ExpiringTrialOrg"][];
+            /**
+             * Recent Audits
+             * @description Recent platform audit trail events
+             */
+            recent_audits?: components["schemas"]["RecentAuditFeedItem"][];
         };
         /**
          * PlatformSaaSEconomics
@@ -7973,6 +8051,71 @@ export interface components {
              * @description Tenant churn percentage based on cancellations
              */
             active_tenant_churn_rate: number;
+            /**
+             * Total Gmv Usd
+             * @description Total Gross Merchandise Value processed across all platform stores in USD
+             * @default 0.00
+             */
+            total_gmv_usd?: string;
+            /**
+             * Total Orders Count
+             * @description Total processed orders across all stores
+             * @default 0
+             */
+            total_orders_count?: number;
+            /**
+             * Trials Expiring Soon Count
+             * @description Organizations with trial ending in the next 7 days
+             * @default 0
+             */
+            trials_expiring_soon_count?: number;
+        };
+        /**
+         * RecentAuditFeedItem
+         * @description Mini-summary of recent administrative audit event.
+         */
+        RecentAuditFeedItem: {
+            /**
+             * Id
+             * @description Audit log UUID
+             */
+            id: string;
+            /**
+             * Action
+             * @description Action performed
+             */
+            action: string;
+            /**
+             * Resource Type
+             * @description Resource type
+             */
+            resource_type?: string | null;
+            /**
+             * Resource Id
+             * @description Resource ID
+             */
+            resource_id?: string | null;
+            /**
+             * Actor Name
+             * @description Name of user who performed action
+             */
+            actor_name?: string | null;
+            /**
+             * Actor Email
+             * @description Email of user who performed action
+             */
+            actor_email?: string | null;
+            /**
+             * Organization Name
+             * @description Affected organization name if applicable
+             */
+            organization_name?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description Timestamp of the event
+             */
+            created_at: string;
         };
         /**
          * RefreshTokenRequest

@@ -278,7 +278,6 @@ async def test_super_admin_can_retrieve_platform_kpi_stats():
     assert entities["total_branches"] == 2
     assert entities["total_active_branches"] == 2
     assert entities["total_registered_users"] == 1
-    assert entities["active_table_sessions"] == 1
 
     # Verify SaaS economics
     economics = data["saas_economics"]

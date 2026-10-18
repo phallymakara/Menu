@@ -102,10 +102,11 @@ async def _resolve_financial_settings(
     else:
         tax_pct = Decimal("0.00")
 
-    if branch.is_tax_inclusive is not None:
-        is_tax_inc = branch.is_tax_inclusive
-    else:
-        is_tax_inc = business.is_tax_inclusive
+    is_tax_inc: bool = bool(
+        branch.is_tax_inclusive
+        if branch.is_tax_inclusive is not None
+        else (business.is_tax_inclusive or False)
+    )
 
     # 2. Service Charge percentage (Check Dining Area override first)
     sc_pct = None
@@ -130,10 +131,11 @@ async def _resolve_financial_settings(
         else:
             sc_pct = Decimal("0.00")
 
-    if branch.is_service_charge_inclusive is not None:
-        is_sc_inc = branch.is_service_charge_inclusive
-    else:
-        is_sc_inc = business.is_service_charge_inclusive
+    is_sc_inc: bool = bool(
+        branch.is_service_charge_inclusive
+        if branch.is_service_charge_inclusive is not None
+        else (business.is_service_charge_inclusive or False)
+    )
 
     # 3. Exchange Rate (Branch override -> Business configuration -> 4100.00 default)
     if branch.exchange_rate is not None and branch.exchange_rate > Decimal("0.00"):

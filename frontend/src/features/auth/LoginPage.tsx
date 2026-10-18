@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useLogin } from './hooks/useAuthMutations'
 import { getLoginErrorMessage } from './utils/authErrors'
+import { getRoleBasedRedirectPath } from './utils/roleRedirect'
 
 export const LoginPage: FC = () => {
   const { language, t } = useLanguageStore()
@@ -38,15 +39,8 @@ export const LoginPage: FC = () => {
         identifier: isEmail ? emailOrPhone.trim().toLowerCase() : emailOrPhone.trim(),
         password,
       })
-      const primaryMembership = (result?.me?.memberships?.[0] as any)
-      const role = (primaryMembership?.role || '').toLowerCase()
-      if (role === 'kitchen') {
-        navigate('/kds')
-      } else if (role === 'waiter' || role === 'cashier') {
-        navigate('/pos')
-      } else {
-        navigate('/admin')
-      }
+      const redirectPath = getRoleBasedRedirectPath(result?.me)
+      navigate(redirectPath)
     } catch (err) {
       setErrorMessage(getLoginErrorMessage(err, language === 'km'))
     } finally {

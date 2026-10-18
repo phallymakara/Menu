@@ -1,10 +1,11 @@
 import { useState, type FC } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Upload, Trash2, Store } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
 import { getApiErrorMessage } from '@/lib/api-error'
 import type { components } from '@/types/api'
 import { useBusinesses, useUpdateBusiness } from '../hooks/useTenantQueries'
+import { useUploadMedia } from '../hooks/useMediaQueries'
 import { BranchMenuSettings } from '../components/menu/BranchMenuSettings'
 
 type Business = components['schemas']['BusinessResponse']
@@ -58,6 +59,13 @@ const toFormNumber = (value: string | number | null | undefined) =>
 const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
   const { language } = useLanguageStore()
   const updateBusiness = useUpdateBusiness()
+  const uploadMedia = useUploadMedia(business.id)
+
+  // Store profile & branding
+  const [nameEn, setNameEn] = useState(business.name_en || '')
+  const [nameKm, setNameKm] = useState(business.name_km || '')
+  const [logoUrl, setLogoUrl] = useState<string | null>(business.logo_url || null)
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
 
   // Financial settings, starting from what is saved for this business
   const [baseCurrency, setBaseCurrency] = useState<'USD' | 'KHR'>(
@@ -145,6 +153,9 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
       await updateBusiness.mutateAsync({
         businessId: business.id,
         payload: {
+          name_en: nameEn.trim() || business.name_en,
+          name_km: nameKm.trim() || null,
+          logo_url: logoUrl || null,
           base_currency: baseCurrency,
           exchange_rate: exchangeRate,
           tax_percentage: vatRate || '0',
@@ -156,6 +167,22 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
           bakong_acquiring_bank: accountId ? (bakongAcquiringBank || null) : null,
         },
       })
+      if (nameEn.trim()) localStorage.setItem('emenu_business_name_en', nameEn.trim())
+      if (nameKm.trim()) localStorage.setItem('emenu_business_name_km', nameKm.trim())
+      if (logoUrl) {
+        localStorage.setItem('emenu_business_logo', logoUrl)
+      } else {
+        localStorage.removeItem('emenu_business_logo')
+      }
+      window.dispatchEvent(
+        new CustomEvent('emenu:business-updated', {
+          detail: {
+            name_en: nameEn.trim(),
+            name_km: nameKm.trim(),
+            logo_url: logoUrl,
+          },
+        })
+      )
       setIsSaved(true)
       setTimeout(() => setIsSaved(false), 3000)
     } catch (err) {
@@ -182,10 +209,107 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
 
   return (
     <form onSubmit={handleSave} className="w-full space-y-6">
-      {/* 1. Cambodian Financials & Currency Rules */}
+      {/* 1. Store Identity & Logo */}
       <div className="space-y-2">
         <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
-          {language === 'km' ? '១. រូបិយប័ណ្ណ និងអត្រាប្តូរប្រាក់ (USD / KHR)' : '1. Currency & Exchange Rates'}
+          {language === 'km' ? '១. ព័ត៌មាន និងរូបសញ្ញាហាង (Store Identity & Logo)' : '1. Store Identity & Logo'}
+        </h3>
+        <div className="p-5 sm:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4 shadow-none">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+            <div className="relative group">
+              <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center overflow-hidden shrink-0">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Store logo" className="w-full h-full object-cover" />
+                ) : (
+                  <Store className="w-7 h-7 text-zinc-400" />
+                )}
+              </div>
+            </div>
+            <div className="space-y-1.5 flex-1">
+              <div className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                {language === 'km' ? 'រូបសញ្ញាហាង (Store Logo)' : 'Store Logo'}
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer">
+                  {isUploadingLogo ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  <span>{language === 'km' ? 'បញ្ចូលរូបភាព' : 'Upload Logo'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={isUploadingLogo}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      setIsUploadingLogo(true)
+                      try {
+                        const { url } = await uploadMedia.mutateAsync(file)
+                        setLogoUrl(url)
+                      } catch {
+                        const fallbackUrl = URL.createObjectURL(file)
+                        setLogoUrl(fallbackUrl)
+                      } finally {
+                        setIsUploadingLogo(false)
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </label>
+                {logoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setLogoUrl(null)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{language === 'km' ? 'លុបចេញ' : 'Remove'}</span>
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-zinc-400">
+                {language === 'km'
+                  ? 'ប្រសិនបើមិនទាន់មានរូបសញ្ញា ប្រព័ន្ធនឹងបង្ហាញរូបតំណាងម៉ឺនុយ (Hamburger) ជំនួសវិញ។'
+                  : 'If no logo is uploaded, the header displays the hamburger menu icon instead.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 block">
+                {language === 'km' ? 'ឈ្មោះហាង (ភាសាអង់គ្លេស)' : 'Store Name (English)'}
+              </label>
+              <input
+                type="text"
+                value={nameEn}
+                onChange={(e) => setNameEn(e.target.value)}
+                placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះហាងជាភាសាអង់គ្លេស' : 'Enter store name in English'}
+                className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors shadow-none"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 block">
+                {language === 'km' ? 'ឈ្មោះហាង (ភាសាខ្មែរ)' : 'Store Name (Khmer)'}
+              </label>
+              <input
+                type="text"
+                value={nameKm}
+                onChange={(e) => setNameKm(e.target.value)}
+                placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះហាងជាភាសាខ្មែរ' : 'Enter store name in Khmer'}
+                className="w-full px-4 py-2.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors shadow-none"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Cambodian Financials & Currency Rules */}
+      <div className="space-y-2">
+        <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
+          {language === 'km' ? '២. រូបិយប័ណ្ណ និងអត្រាប្តូរប្រាក់ (USD / KHR)' : '2. Currency & Exchange Rates'}
         </h3>
         <div className="p-5 sm:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4 shadow-none">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -310,10 +434,10 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
       </div>
     </div>
 
-      {/* 2. Bakong KHQR Settlement */}
+      {/* 3. Bakong KHQR Settlement */}
       <div className="space-y-2">
         <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
-          {language === 'km' ? '២. គណនីទូទាត់បាគង KHQR' : '2. Bakong KHQR Settlement Account'}
+          {language === 'km' ? '៣. គណនីទូទាត់បាគង KHQR' : '3. Bakong KHQR Settlement Account'}
         </h3>
         <div className="p-5 sm:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4 shadow-none">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -402,10 +526,10 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
       </div>
     </div>
 
-      {/* 3. Telegram Instant Order & Payment Bot */}
+      {/* 4. Telegram Instant Order & Payment Bot */}
       <div className="space-y-2">
         <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
-          {language === 'km' ? '៣. ប្រព័ន្ធជូនដំណឹង Telegram (Bot Alert)' : '3. Telegram Order & Payment Alert Bot'}
+          {language === 'km' ? '៤. ប្រព័ន្ធជូនដំណឹង Telegram (Bot Alert)' : '4. Telegram Order & Payment Alert Bot'}
         </h3>
         <div className="p-5 sm:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4 shadow-none">
           <div className="space-y-1">

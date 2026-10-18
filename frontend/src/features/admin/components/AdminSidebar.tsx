@@ -103,7 +103,7 @@ export const AdminSidebar: FC<{
   }
 
   return (
-    <aside
+    <nav
       className={`w-full h-full border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between overflow-y-auto overflow-x-hidden shrink-0 transition-[padding] duration-300 ease-in-out motion-reduce:transition-none ${
         isCollapsed ? 'px-2.5 py-3' : 'p-3'
       }`}
@@ -156,6 +156,6 @@ export const AdminSidebar: FC<{
           </div>
         ))}
       </div>
-    </aside>
+    </nav>
   )
 }

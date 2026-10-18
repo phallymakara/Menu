@@ -38,9 +38,6 @@ class PlatformEntityCounters(BaseModel):
     total_staff_memberships: int = Field(
         ..., description="Total staff memberships across all tenants"
     )
-    active_table_sessions: int = Field(
-        ..., description="Total active dining sessions live right now"
-    )
 
 
 class SubscriptionTierMetric(BaseModel):
@@ -83,6 +80,67 @@ class PlatformSaaSEconomics(BaseModel):
     active_tenant_churn_rate: float = Field(
         ..., description="Tenant churn percentage based on cancellations"
     )
+    total_gmv_usd: Decimal = Field(
+        default=Decimal("0.00"),
+        description="Total Gross Merchandise Value processed across all platform stores in USD",
+    )
+    total_orders_count: int = Field(
+        default=0, description="Total processed orders across all stores"
+    )
+    trials_expiring_soon_count: int = Field(
+        default=0,
+        description="Organizations with trial ending in the next 7 days",
+    )
+
+
+class MonthlyGrowthMetric(BaseModel):
+    """Monthly revenue and tenant growth historical data point."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    month_key: str = Field(..., description="Month key in YYYY-MM format")
+    month_label: str = Field(..., description="Display label, e.g. May 2026")
+    revenue_usd: Decimal = Field(..., description="Estimated revenue in USD")
+    new_tenants: int = Field(..., description="New organizations registered that month")
+    cumulative_tenants: int = Field(
+        ..., description="Cumulative total organizations up to that month"
+    )
+
+
+class ExpiringTrialOrg(BaseModel):
+    """Summary of a tenant organization whose trial subscription ends soon."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    organization_id: str = Field(..., description="Organization UUID")
+    organization_name: str = Field(..., description="Organization display name")
+    organization_slug: str = Field(..., description="Organization URL slug")
+    plan_name: str = Field(..., description="Subscribed plan tier name")
+    trial_ends_at: datetime = Field(..., description="Trial expiration timestamp")
+    days_remaining: int = Field(
+        ..., description="Days remaining until trial expiration"
+    )
+
+
+class RecentAuditFeedItem(BaseModel):
+    """Mini-summary of recent administrative audit event."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str = Field(..., description="Audit log UUID")
+    action: str = Field(..., description="Action performed")
+    resource_type: str | None = Field(default=None, description="Resource type")
+    resource_id: str | None = Field(default=None, description="Resource ID")
+    actor_name: str | None = Field(
+        default=None, description="Name of user who performed action"
+    )
+    actor_email: str | None = Field(
+        default=None, description="Email of user who performed action"
+    )
+    organization_name: str | None = Field(
+        default=None, description="Affected organization name if applicable"
+    )
+    created_at: datetime = Field(..., description="Timestamp of the event")
 
 
 class PlatformKPIResponse(BaseModel):
@@ -104,4 +162,16 @@ class PlatformKPIResponse(BaseModel):
     )
     subscription_distribution: list[SubscriptionTierMetric] = Field(
         ..., description="Breakdown by subscription plan tier"
+    )
+    monthly_trends: list[MonthlyGrowthMetric] = Field(
+        default_factory=list,
+        description="Monthly growth trends for the last 6 months",
+    )
+    expiring_trials: list[ExpiringTrialOrg] = Field(
+        default_factory=list,
+        description="Tenants with trials expiring in next 7 days",
+    )
+    recent_audits: list[RecentAuditFeedItem] = Field(
+        default_factory=list,
+        description="Recent platform audit trail events",
     )
