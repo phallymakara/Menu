@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-client'
+import { unwrap } from '@/lib/api-error'
 import type { components } from '@/types/api'
 
 export type MemberResponse = components['schemas']['MemberResponse'] & {
@@ -8,9 +9,12 @@ export type MemberResponse = components['schemas']['MemberResponse'] & {
 export type MemberInvite = components['schemas']['MemberInvite'] & {
   pos_permissions?: Record<string, any> | null
 }
+export type InviteResponse = components['schemas']['InviteResponse']
 export type MemberUpdate = components['schemas']['MemberUpdate'] & {
   pos_permissions?: Record<string, any> | null
 }
+export type ManagerPinVerifyRequest = components['schemas']['ManagerPinVerifyRequest']
+export type ManagerPinVerifyResponse = components['schemas']['ManagerPinVerifyResponse']
 
 export function useCurrentUser() {
   return useQuery({
@@ -61,6 +65,41 @@ export function useInviteStaffMember(orgId: string | null) {
   })
 }
 
+/** Dispatch staff invitation with an assigned role/branch, generating an invitation token. */
+export function useSendStaffInvitation(orgId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: MemberInvite): Promise<InviteResponse> => {
+      if (!orgId) throw new Error('Organization ID is required')
+      return unwrap(
+        await apiFetch.POST('/api/v1/organizations/{org_id}/members/invite', {
+          params: { path: { org_id: orgId } },
+          body: payload,
+        })
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['staff', orgId] })
+    },
+  })
+}
+
+/** Fetch full details of an individual staff member. */
+export function useStaffMemberDetail(orgId: string | null, memberId: string | null) {
+  return useQuery({
+    queryKey: ['staff-detail', orgId, memberId],
+    queryFn: async (): Promise<MemberResponse> => {
+      if (!orgId || !memberId) throw new Error('Organization ID and Member ID are required')
+      return unwrap(
+        await apiFetch.GET('/api/v1/organizations/{org_id}/members/{member_id}', {
+          params: { path: { org_id: orgId, member_id: memberId } },
+        })
+      )
+    },
+    enabled: !!orgId && !!memberId,
+  })
+}
+
 export function useUpdateStaffMember(orgId: string | null) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -104,6 +143,21 @@ export function useRevokeStaffMember(orgId: string | null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['staff', orgId] })
+    },
+  })
+}
+
+/** Verify manager/supervisor PIN for POS override actions (voids, cancellations). */
+export function useVerifyManagerPin(orgId: string | null) {
+  return useMutation({
+    mutationFn: async (payload: ManagerPinVerifyRequest): Promise<ManagerPinVerifyResponse> => {
+      if (!orgId) throw new Error('Organization ID is required')
+      return unwrap(
+        await apiFetch.POST('/api/v1/organizations/{org_id}/members/verify-manager-pin', {
+          params: { path: { org_id: orgId } },
+          body: payload,
+        })
+      )
     },
   })
 }

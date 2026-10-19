@@ -9,6 +9,7 @@ import {
   Loader2,
   Search,
   ShieldCheck,
+  Info,
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -17,12 +18,17 @@ import {
   useCurrentUser,
   useStaffMembers,
   useInviteStaffMember,
+  useSendStaffInvitation,
   useUpdateStaffMember,
   useRevokeStaffMember,
+  type InviteResponse,
 } from '../hooks/useStaffQueries'
+import { StaffMemberDetailModal } from '../components/staff/StaffMemberDetailModal'
+import { StaffInvitationSuccessModal } from '../components/staff/StaffInvitationSuccessModal'
 import { useUploadMedia } from '../hooks/useMediaQueries'
 import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
 import type { StaffMember, StaffPosPermissions } from '../types/admin.types'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import type { components } from '@/types/api'
 import { isUuid } from '@/lib/utils'
 
@@ -55,6 +61,9 @@ export const StaffManagementTab: FC = () => {
   const [errorMessage] = useState<string | null>(null)
 
   const [isAddStaffModalOpen, setIsAddStaffModalOpen] = useState(false)
+  const [creationMode, setCreationMode] = useState<'invite_link' | 'direct'>('invite_link')
+  const [createdInvite, setCreatedInvite] = useState<InviteResponse | null>(null)
+  const [selectedDetailMemberId, setSelectedDetailMemberId] = useState<string | null>(null)
   const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({})
   const [selectedStaffIdForPhoto, setSelectedStaffIdForPhoto] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -108,6 +117,7 @@ export const StaffManagementTab: FC = () => {
   )
   const revokeStaffMutation = useRevokeStaffMember(orgId)
   const inviteStaffMutation = useInviteStaffMember(orgId)
+  const sendInviteMutation = useSendStaffInvitation(orgId)
   const updateStaffMutation = useUpdateStaffMember(orgId)
   const uploadMedia = useUploadMedia(isUuid(businessId) ? businessId : null)
 
@@ -232,7 +242,7 @@ export const StaffManagementTab: FC = () => {
     if (newStaff.pin_code && newStaff.pin_code.length !== 4) {
       errs.pin_code = language === 'km' ? 'លេខកូដ PIN ត្រូវតែមាន ៤ ខ្ទង់' : 'PIN code must be exactly 4 digits'
     }
-    if (newStaff.password.length < 8) {
+    if (creationMode === 'direct' && newStaff.password.length < 8) {
       errs.password =
         language === 'km'
           ? 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងហោចណាស់ ៨ តួអក្សរ'
@@ -260,16 +270,29 @@ export const StaffManagementTab: FC = () => {
         (isUuid(localStorage.getItem('emenu_branch_id')) ? localStorage.getItem('emenu_branch_id') : null) ||
         (branches.length > 0 ? branches[0].id : null)
 
-      await inviteStaffMutation.mutateAsync({
-        full_name: newStaff.full_name.trim(),
-        phone: newStaff.phone.trim() || null,
-        email: newStaff.email.trim() || null,
-        role: toStaffRole(newStaff.role),
-        branch_id: assignedBranch,
-        pos_pin: newStaff.pin_code.trim() || null,
-        avatar_url: newStaff.avatar_url || null,
-        password: newStaff.password,
-      })
+      if (creationMode === 'invite_link') {
+        const inviteResult = await sendInviteMutation.mutateAsync({
+          full_name: newStaff.full_name.trim(),
+          phone: newStaff.phone.trim() || null,
+          email: newStaff.email.trim() || null,
+          role: toStaffRole(newStaff.role),
+          branch_id: assignedBranch,
+          pos_pin: newStaff.pin_code.trim() || null,
+          avatar_url: newStaff.avatar_url || null,
+        })
+        setCreatedInvite(inviteResult)
+      } else {
+        await inviteStaffMutation.mutateAsync({
+          full_name: newStaff.full_name.trim(),
+          phone: newStaff.phone.trim() || null,
+          email: newStaff.email.trim() || null,
+          role: toStaffRole(newStaff.role),
+          branch_id: assignedBranch,
+          pos_pin: newStaff.pin_code.trim() || null,
+          avatar_url: newStaff.avatar_url || null,
+          password: newStaff.password,
+        })
+      }
 
       queryClient.invalidateQueries({ queryKey: ['staff', orgId] })
 
@@ -412,11 +435,11 @@ export const StaffManagementTab: FC = () => {
 
       {/* Single Column Row List */}
       {isLoading ? (
-        <div className="h-64 flex flex-col items-center justify-center gap-2 text-zinc-500">
-          <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-          <p className="text-xs">
-            {language === 'km' ? 'កំពុងទាញយកទិន្នន័យបុគ្គលិក...' : 'Loading staff members...'}
-          </p>
+        <div className="h-64 flex flex-col items-center justify-center">
+          <EmenuLoader
+            size="md"
+            message={language === 'km' ? 'កំពុងទាញយកទិន្នន័យបុគ្គលិក...' : 'Loading staff members...'}
+          />
         </div>
       ) : staffList.length === 0 ? (
         <div className="min-h-[50vh] flex flex-col items-center justify-center text-center py-16">
@@ -529,8 +552,16 @@ export const StaffManagementTab: FC = () => {
                   </button>
                 </div>
 
-                {/* 6. Action: Permissions Shield & Delete Buttons */}
+                {/* 6. Action: Details, Permissions Shield & Delete Buttons */}
                 <div className="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDetailMemberId(staff.id)}
+                    className="p-1.5 text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors rounded-full hover:bg-emerald-50 dark:hover:bg-emerald-950/30 cursor-pointer shadow-none"
+                    title={language === 'km' ? 'មើលព័ត៌មានលម្អិត' : 'View Profile Details'}
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -585,6 +616,32 @@ export const StaffManagementTab: FC = () => {
                 className="p-2 rounded-full text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
               >
                 <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Mode Selector */}
+            <div className="flex p-1 rounded-xl bg-zinc-100 dark:bg-zinc-800">
+              <button
+                type="button"
+                onClick={() => setCreationMode('invite_link')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+                  creationMode === 'invite_link'
+                    ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                }`}
+              >
+                {language === 'km' ? 'តំណអញ្ជើញ (Link)' : 'Invitation Link'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreationMode('direct')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all ${
+                  creationMode === 'direct'
+                    ? 'bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                    : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'
+                }`}
+              >
+                {language === 'km' ? 'បង្កើតផ្ទាល់ (Password)' : 'Direct Password'}
               </button>
             </div>
 
@@ -741,25 +798,33 @@ export const StaffManagementTab: FC = () => {
                 </div>
               </div>
 
-              {/* Password for web admin login */}
-              <div>
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
-                  {language === 'km' ? 'ពាក្យសម្ងាត់ចូលប្រើប្រព័ន្ធ' : 'Web Login Password'}
-                </label>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  placeholder={language === 'km' ? 'បញ្ចូលពាក្យសម្ងាត់' : 'Enter password'}
-                  value={newStaff.password}
-                  required
-                  minLength={8}
-                  onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600 transition-all"
-                />
-                {formErrors.password && (
-                  <p className="text-xs text-red-500 mt-1">{formErrors.password}</p>
-                )}
-              </div>
+              {/* Password for web admin login (only if direct creation mode) */}
+              {creationMode === 'direct' ? (
+                <div>
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-1">
+                    {language === 'km' ? 'ពាក្យសម្ងាត់ចូលប្រើប្រព័ន្ធ' : 'Web Login Password'}
+                  </label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    placeholder={language === 'km' ? 'បញ្ចូលពាក្យសម្ងាត់' : 'Enter password'}
+                    value={newStaff.password}
+                    required
+                    minLength={8}
+                    onChange={(e) => setNewStaff({ ...newStaff, password: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-full border border-zinc-200 dark:border-zinc-700 bg-transparent text-sm focus:outline-none focus:border-emerald-600 transition-all"
+                  />
+                  {formErrors.password && (
+                    <p className="text-xs text-red-500 mt-1">{formErrors.password}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 text-[11px] text-emerald-800 dark:text-emerald-300">
+                  {language === 'km'
+                    ? 'តំណអញ្ជើញនឹងត្រូវបង្កើតឡើង។ បុគ្គលិកអាចចុចលើតំណដើម្បីកំណត់ពាក្យសម្ងាត់ដោយខ្លួនឯង។'
+                    : 'A secure invitation link will be created. The staff member will use it to set their password.'}
+                </div>
+              )}
 
               <div className="pt-3 flex items-center justify-end gap-2">
                 <Button
@@ -927,6 +992,25 @@ export const StaffManagementTab: FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal: Staff Member Details (GET /members/{id}) */}
+      {selectedDetailMemberId && (
+        <StaffMemberDetailModal
+          orgId={orgId}
+          memberId={selectedDetailMemberId}
+          branchName={branches.find((b) => b.id === activeBranchId)?.name_en}
+          onClose={() => setSelectedDetailMemberId(null)}
+        />
+      )}
+
+      {/* Modal: Invitation Link Created (POST /members/invite result) */}
+      {createdInvite && (
+        <StaffInvitationSuccessModal
+          invite={createdInvite}
+          branchName={branches.find((b) => b.id === createdInvite.organization_id)?.name_en}
+          onClose={() => setCreatedInvite(null)}
+        />
       )}
     </div>
   )

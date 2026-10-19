@@ -6,6 +6,8 @@ export type InventoryItemResponse = components['schemas']['InventoryItemResponse
 export type BranchStockResponse = components['schemas']['BranchStockResponse']
 export type InventoryItemCreate = components['schemas']['InventoryItemCreate']
 export type BranchStockAdjustRequest = components['schemas']['BranchStockAdjustRequest']
+export type LowStockAlertResponse = components['schemas']['LowStockAlertResponse']
+export type LowStockAlertItem = components['schemas']['LowStockAlertItem']
 
 export function useInventoryItems(businessId: string | null) {
   return useQuery({
@@ -43,6 +45,27 @@ export function useBranchStock(businessId: string | null, branchId: string | nul
   })
 }
 
+export function useLowStockAlerts(businessId: string | null, branchId?: string | null) {
+  return useQuery({
+    queryKey: ['inventory', 'alerts', 'low-stock', businessId, branchId ?? 'all'],
+    queryFn: async () => {
+      if (!businessId) return null
+      const { data, error } = await apiFetch.GET(
+        '/api/v1/businesses/{business_id}/inventory/alerts/low-stock',
+        {
+          params: {
+            path: { business_id: businessId },
+            query: branchId ? { branch_id: branchId } : undefined,
+          },
+        }
+      )
+      if (error) throw error
+      return data
+    },
+    enabled: !!businessId,
+  })
+}
+
 export function useCreateInventoryItem(businessId: string | null) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -60,6 +83,7 @@ export function useCreateInventoryItem(businessId: string | null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['inventory', 'items', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'alerts', 'low-stock', businessId] })
     },
   })
 }
@@ -80,7 +104,8 @@ export function useAdjustStock(businessId: string | null, branchId: string | nul
       return data
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['inventory', 'stock', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'stock', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['inventory', 'alerts', 'low-stock', businessId] })
     },
   })
 }

@@ -1,6 +1,7 @@
 import { type FC } from 'react'
-import { Printer, Loader2 } from 'lucide-react'
+import { Printer } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useSessionPrecheckReceipt, usePaymentReceipt } from '../hooks/useReceiptQueries'
 
@@ -81,11 +82,11 @@ export const POSReceiptModal: FC<POSReceiptModalProps> = ({
     >
       <div className="space-y-4 pb-2">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center p-8 gap-2">
-            <Loader2 className="w-6 h-6 animate-spin text-zinc-400" />
-            <span className="text-xs text-zinc-500">
-              {isKm ? 'កំពុងបង្កើតវិក្កយបត្រ...' : 'Generating receipt slip...'}
-            </span>
+          <div className="py-8 flex flex-col items-center justify-center">
+            <EmenuLoader
+              size="sm"
+              message={isKm ? 'កំពុងបង្កើតវិក្កយបត្រ...' : 'Generating receipt slip...'}
+            />
           </div>
         ) : serverHtml ? (
           /* Server-Rendered Thermal Receipt (Zero Shadows, Clean Border) */

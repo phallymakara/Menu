@@ -12,6 +12,7 @@ export type CategoryCreate = components['schemas']['CategoryCreate']
 export type CategoryUpdate = components['schemas']['CategoryUpdate']
 export type CategoryReorderRequest = components['schemas']['CategoryReorderRequest']
 export type ModifierGroupDetailResponse = components['schemas']['ModifierGroupDetailResponse']
+export type ModifierGroupUpdate = components['schemas']['ModifierGroupUpdate']
 export type ModifierOptionResponse = components['schemas']['ModifierOptionResponse']
 export type ModifierOptionUpdate = components['schemas']['ModifierOptionUpdate']
 
@@ -51,6 +52,42 @@ export function useMenuItems(businessId: string | null) {
       return page?.items ?? []
     },
     enabled: !!businessId,
+  })
+}
+
+export function useMenuCategory(businessId: string | null, categoryId: string | null) {
+  return useQuery({
+    queryKey: ['category', businessId, categoryId],
+    queryFn: async (): Promise<CategoryResponse> =>
+      unwrap(
+        await apiFetch.GET('/api/v1/businesses/{business_id}/categories/{category_id}', {
+          params: {
+            path: {
+              business_id: requireBusinessId(businessId),
+              category_id: categoryId!,
+            },
+          },
+        })
+      ),
+    enabled: !!businessId && !!categoryId,
+  })
+}
+
+export function useMenuItem(businessId: string | null, itemId: string | null) {
+  return useQuery({
+    queryKey: ['menu-item', businessId, itemId],
+    queryFn: async (): Promise<MenuItemResponse> =>
+      unwrap(
+        await apiFetch.GET('/api/v1/businesses/{business_id}/items/{item_id}', {
+          params: {
+            path: {
+              business_id: requireBusinessId(businessId),
+              item_id: itemId!,
+            },
+          },
+        })
+      ),
+    enabled: !!businessId && !!itemId,
   })
 }
 
@@ -338,3 +375,91 @@ export function useDeleteModifierOption(businessId: string | null) {
     },
   })
 }
+
+/** List reusable modifier groups with options for a business. */
+export function useBusinessModifierGroups(businessId: string | null) {
+  return useQuery({
+    queryKey: ['modifier-groups-library', businessId],
+    queryFn: async (): Promise<ModifierGroupDetailResponse[]> =>
+      unwrap(
+        await apiFetch.GET('/api/v1/businesses/{business_id}/modifier-groups', {
+          params: { path: { business_id: requireBusinessId(businessId) } },
+        })
+      ),
+    enabled: !!businessId,
+  })
+}
+
+/** Get a single modifier group by ID. */
+export function useModifierGroupDetail(businessId: string | null, groupId: string | null) {
+  return useQuery({
+    queryKey: ['modifier-group-detail', businessId, groupId],
+    queryFn: async (): Promise<ModifierGroupDetailResponse> =>
+      unwrap(
+        await apiFetch.GET('/api/v1/businesses/{business_id}/modifier-groups/{group_id}', {
+          params: {
+            path: {
+              business_id: requireBusinessId(businessId),
+              group_id: groupId || '',
+            },
+          },
+        })
+      ),
+    enabled: !!businessId && !!groupId,
+  })
+}
+
+/** Update an existing modifier group. */
+export function useUpdateModifierGroup(businessId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      payload,
+    }: {
+      groupId: string
+      payload: ModifierGroupUpdate
+    }): Promise<ModifierGroupDetailResponse> =>
+      unwrap(
+        await apiFetch.PATCH('/api/v1/businesses/{business_id}/modifier-groups/{group_id}', {
+          params: {
+            path: {
+              business_id: requireBusinessId(businessId),
+              group_id: groupId,
+            },
+          },
+          body: payload,
+        })
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modifier-groups-library', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['modifier-groups', businessId] })
+    },
+  })
+}
+
+/** Delete a modifier group and its options. */
+export function useDeleteModifierGroup(businessId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (groupId: string): Promise<void> => {
+      const { error } = await apiFetch.DELETE(
+        '/api/v1/businesses/{business_id}/modifier-groups/{group_id}',
+        {
+          params: {
+            path: {
+              business_id: requireBusinessId(businessId),
+              group_id: groupId,
+            },
+          },
+        }
+      )
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['modifier-groups-library', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['modifier-groups', businessId] })
+    },
+  })
+}
+

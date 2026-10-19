@@ -1164,48 +1164,6 @@
         }
       }
     },
-    "/api/v1/auth/register-owner": {
-      "post": {
-        "tags": [
-          "Authentication"
-        ],
-        "summary": "Register Owner Endpoint",
-        "description": "HTTP POST endpoint to register a new tenant owner and their organization workspace.\n\nThis endpoint:\n- Applies the per-IP registration rate limit.\n- Initiates owner and organization registration using auth_service.\n- Starts a login session (access and refresh token).\n- Commits the transaction if successful.\n- Handles conflict errors and database integrity errors, mapping them to\n  appropriate HTTP 409 responses.\n\nArgs:\n    payload: The request payload containing tenant owner registration details.\n    session: The SQLAlchemy async database session dependency.\n\nReturns:\n    OwnerRegistrationResponse: The details of the created resources\n    with a success message.\n\nRaises:\n    HTTPException: 409 Conflict if email, phone, or organization slug\n    is already in use; 429 when the client IP made too many attempts.",
-        "operationId": "register_owner_endpoint_api_v1_auth_register_owner_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OwnerRegistrationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OwnerRegistrationResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/auth/register": {
       "post": {
         "tags": [

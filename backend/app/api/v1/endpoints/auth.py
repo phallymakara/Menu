@@ -97,11 +97,6 @@ def _too_many_requests(exc: RateLimitExceededError) -> HTTPException:
     response_model=OwnerRegistrationResponse,
     status_code=status.HTTP_201_CREATED,
 )
-@router.post(
-    "/register-owner",
-    response_model=OwnerRegistrationResponse,
-    status_code=status.HTTP_201_CREATED,
-)
 async def register_owner_endpoint(
     payload: OwnerRegistrationRequest,
     request: Request,

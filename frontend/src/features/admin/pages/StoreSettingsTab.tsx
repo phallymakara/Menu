@@ -4,9 +4,12 @@ import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
 import { getApiErrorMessage } from '@/lib/api-error'
 import type { components } from '@/types/api'
-import { useBusinesses, useUpdateBusiness } from '../hooks/useTenantQueries'
+import { useBusinesses, useBusiness, useBranch, useUpdateBusiness } from '../hooks/useTenantQueries'
 import { useUploadMedia } from '../hooks/useMediaQueries'
 import { BranchMenuSettings } from '../components/menu/BranchMenuSettings'
+import { TenantSubscriptionCard } from '../components/settings/TenantSubscriptionCard'
+import { TenantAuditLogsCard } from '../components/settings/TenantAuditLogsCard'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 
 type Business = components['schemas']['BusinessResponse']
 
@@ -20,12 +23,21 @@ export const StoreSettingsTab: FC = () => {
   const { language } = useLanguageStore()
   const { data: businesses = [], isLoading, isError } = useBusinesses()
   const storedBusinessId = localStorage.getItem('emenu_business_id')
+  const storedBranchId = localStorage.getItem('emenu_branch_id')
   const business = businesses.find((b) => b.id === storedBusinessId) ?? businesses[0]
+  const orgId =
+    localStorage.getItem('emenu_tenant_id') || localStorage.getItem('emenu_organization_id')
+
+  const { data: directBusiness } = useBusiness(business?.id ?? null)
+  const { data: directBranch } = useBranch(business?.id ?? null, storedBranchId)
 
   if (isLoading) {
     return (
-      <div className="h-64 flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+      <div className="h-64 flex flex-col items-center justify-center">
+        <EmenuLoader
+          size="md"
+          message={language === 'km' ? 'កំពុងផ្ទុកការកំណត់...' : 'Loading store settings...'}
+        />
       </div>
     )
   }
@@ -40,7 +52,25 @@ export const StoreSettingsTab: FC = () => {
   return (
     <div className="max-w-4xl mx-auto w-full py-2 space-y-6">
       {/* 1. Store & KHQR Setup Containers */}
-      <StoreSettingsForm key={business.id} business={business} />
+      <StoreSettingsForm key={(directBusiness ?? business).id} business={directBusiness ?? business} />
+
+      {/* Active Branch Overview */}
+      {directBranch && (
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-600 dark:text-zinc-400">
+          <div className="flex items-center gap-2">
+            <Store className="w-4 h-4 text-emerald-600" />
+            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+              {language === 'km' ? directBranch.name_km || directBranch.name_en : directBranch.name_en}
+            </span>
+            {directBranch.code && (
+              <span className="font-mono text-zinc-400">({directBranch.code})</span>
+            )}
+          </div>
+          {directBranch.address && (
+            <span className="truncate max-w-xs">{directBranch.address}</span>
+          )}
+        </div>
+      )}
 
       {/* 2. Branch Menus & Overrides Container */}
       <div className="space-y-2">
@@ -48,6 +78,22 @@ export const StoreSettingsTab: FC = () => {
           {language === 'km' ? 'ការកែប្រែទិន្នន័យមុខម្ហូបតាមសាខា' : 'Branch Menu Overrides'}
         </h3>
         <BranchMenuSettings />
+      </div>
+
+      {/* 3. Tenant Subscription & Resource Limits */}
+      <div className="space-y-2">
+        <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
+          {language === 'km' ? 'គម្រោងសេវាកម្ម និងកម្រិតធនធាន' : 'Subscription & Resource Limits'}
+        </h3>
+        <TenantSubscriptionCard orgId={orgId} />
+      </div>
+
+      {/* 4. Organization Audit Trail */}
+      <div className="space-y-2">
+        <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
+          {language === 'km' ? 'កំណត់ត្រាសវនកម្មប្រតិបត្តិការ' : 'Operational Audit Trail'}
+        </h3>
+        <TenantAuditLogsCard orgId={orgId} />
       </div>
     </div>
   )

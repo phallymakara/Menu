@@ -10,13 +10,17 @@ import {
   Check,
   X,
   Loader2,
+  Lock,
+  Trash2,
 } from 'lucide-react'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { logout } from '@/lib/auth-session'
-import { useBusinesses, useBranches, useCreateBranch } from '../hooks/useTenantQueries'
+import { useBusinesses, useBranches, useCreateBranch, useDeleteBranch } from '../hooks/useTenantQueries'
+import { useMyBranches, useSwitchBranch } from '@/features/auth/hooks/useAuthMutations'
 import { useUploadMedia } from '../hooks/useMediaQueries'
 import { isUuid } from '@/lib/utils'
 
@@ -54,7 +58,11 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
   const queryClient = useQueryClient()
   const { data: businesses = [] } = useBusinesses()
   const { data: rawBranches = [], isLoading: isLoadingBranches } = useBranches(businessId)
+  const { data: myBranchesData } = useMyBranches()
+  const switchBranchMutation = useSwitchBranch()
+  const canSwitchBranches = myBranchesData?.can_switch_branches ?? true
   const createBranch = useCreateBranch(businessId)
+  const deleteBranch = useDeleteBranch()
   const uploadMedia = useUploadMedia(isUuid(businessId) ? businessId : null)
 
   const [branches, setBranches] = useState<RealBranch[]>([])
@@ -64,6 +72,8 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
   const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false)
   const [isCreateBranchModalOpen, setIsCreateBranchModalOpen] = useState(false)
   const [isCreatingBranch, setIsCreatingBranch] = useState(false)
+  const [branchToDelete, setBranchToDelete] = useState<RealBranch | null>(null)
+  const [isDeletingBranch, setIsDeletingBranch] = useState(false)
 
   const [newBranchForm, setNewBranchForm] = useState({
     name_en: '',
@@ -160,34 +170,37 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
 
   const currentBranch = branches.find((b) => b.id === activeBranchId) || branches[0]
 
-  const handleSwitchBranch = (branchId: string) => {
-    setActiveBranchId(branchId)
-    localStorage.setItem('emenu_branch_id', branchId)
+  const handleSwitchBranch = async (branchId: string) => {
     setIsBranchDropdownOpen(false)
 
-    // Sync active branch in auth store
-    useAuthStore.getState().setContext(
-      useAuthStore.getState().organizationId,
-      useAuthStore.getState().businessId,
-      branchId === 'all' ? null : branchId
-    )
+    if (branchId === 'all') {
+      setActiveBranchId('all')
+      localStorage.setItem('emenu_branch_id', 'all')
+      useAuthStore.getState().setContext(
+        useAuthStore.getState().organizationId,
+        useAuthStore.getState().businessId,
+        null
+      )
+      queryClient.invalidateQueries()
+      window.dispatchEvent(new CustomEvent('emenu:branch-changed', { detail: { branchId: 'all' } }))
+      return
+    }
 
-    // Invalidate active branch queries so data reloads immediately across all admin tabs
-    queryClient.invalidateQueries({ queryKey: ['branch-published-menu'] })
-    queryClient.invalidateQueries({ queryKey: ['categories'] })
-    queryClient.invalidateQueries({ queryKey: ['menu-items'] })
-    queryClient.invalidateQueries({ queryKey: ['tables'] })
-    queryClient.invalidateQueries({ queryKey: ['dining-areas'] })
-    queryClient.invalidateQueries({ queryKey: ['sales-overview'] })
-    queryClient.invalidateQueries({ queryKey: ['top-selling-items'] })
-    queryClient.invalidateQueries({ queryKey: ['payment-breakdown'] })
-    queryClient.invalidateQueries({ queryKey: ['staff'] })
-    queryClient.invalidateQueries({ queryKey: ['staff-members'] })
-    queryClient.invalidateQueries({ queryKey: ['inventory-items'] })
-    queryClient.invalidateQueries({ queryKey: ['kds'] })
-
-    // Dispatch a custom event so other components refresh their data for the new branch
-    window.dispatchEvent(new CustomEvent('emenu:branch-changed', { detail: { branchId } }))
+    try {
+      // Call backend to switch branch and rotate JWT claims
+      await switchBranchMutation.mutateAsync(branchId)
+      setActiveBranchId(branchId)
+    } catch {
+      setActiveBranchId(branchId)
+      localStorage.setItem('emenu_branch_id', branchId)
+      useAuthStore.getState().setContext(
+        useAuthStore.getState().organizationId,
+        useAuthStore.getState().businessId,
+        branchId
+      )
+      queryClient.invalidateQueries()
+      window.dispatchEvent(new CustomEvent('emenu:branch-changed', { detail: { branchId } }))
+    }
   }
 
   const validateNewBranch = () => {
@@ -243,6 +256,27 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
       alert(language === 'km' ? 'មិនអាចបង្កើតសាខាបានទេ' : 'Failed to create branch')
     } finally {
       setIsCreatingBranch(false)
+    }
+  }
+
+  const handleDeleteBranch = async () => {
+    if (!branchToDelete || !businessId) return
+    setIsDeletingBranch(true)
+    try {
+      await deleteBranch.mutateAsync({
+        businessId,
+        branchId: branchToDelete.id,
+      })
+      if (activeBranchId === branchToDelete.id) {
+        const remaining = branches.filter((b) => b.id !== branchToDelete.id)
+        handleSwitchBranch(remaining.length > 0 ? remaining[0].id : 'all')
+      }
+      setBranchToDelete(null)
+      window.dispatchEvent(new CustomEvent('emenu:branches-updated'))
+    } catch {
+      alert(language === 'km' ? 'មិនអាចលុបសាខាបានទេ' : 'Failed to delete branch')
+    } finally {
+      setIsDeletingBranch(false)
     }
   }
 
@@ -336,19 +370,30 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
 
             {/* Branch Switcher Button */}
             <div className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!isBranchDropdownOpen && businessId) {
-                        queryClient.invalidateQueries({ queryKey: ['branches', businessId] })
-                      }
-                      setIsBranchDropdownOpen(!isBranchDropdownOpen)
-                    }}
-                    className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer"
-                  >
-                    <span className="max-w-[120px] sm:max-w-[200px] truncate">{displayBranchName}</span>
-                    <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400 shrink-0" />
-                  </button>
+              {!canSwitchBranches ? (
+                <div
+                  className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 cursor-default"
+                  title={language === 'km' ? 'អ្នកត្រូវបានកំណត់ឱ្យប្រើតែសាខានេះប៉ុណ្ណោះ' : 'You are assigned to this branch only'}
+                >
+                  <Lock className="w-3 h-3 text-zinc-400 shrink-0" />
+                  <span className="max-w-[120px] sm:max-w-[200px] truncate">{displayBranchName}</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isBranchDropdownOpen && businessId) {
+                      queryClient.invalidateQueries({ queryKey: ['branches', businessId] })
+                      queryClient.invalidateQueries({ queryKey: ['auth', 'my-branches'] })
+                    }
+                    setIsBranchDropdownOpen(!isBranchDropdownOpen)
+                  }}
+                  className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-full text-xs sm:text-sm font-semibold border border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 transition-colors cursor-pointer"
+                >
+                  <span className="max-w-[120px] sm:max-w-[200px] truncate">{displayBranchName}</span>
+                  <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-zinc-400 shrink-0" />
+                </button>
+              )}
 
                   {/* Branch Dropdown */}
                   {isBranchDropdownOpen && (
@@ -384,36 +429,53 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                         </button>
 
                         {isLoadingBranches ? (
-                          <div className="p-4 text-center text-xs text-zinc-500 flex items-center justify-center gap-2">
-                            <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                          <div className="p-4 text-center text-xs text-zinc-500 flex items-center justify-center gap-2.5">
+                            <EmenuLoader size="xs" />
                             <span>{language === 'km' ? 'កំពុងទាញយក...' : 'Loading branches...'}</span>
                           </div>
                         ) : (
                           branches.map((b) => {
                             const isCurrent = b.id === activeBranchId
                             return (
-                              <button
+                              <div
                                 key={b.id}
-                                type="button"
-                                onClick={() => handleSwitchBranch(b.id)}
-                                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold text-left transition-colors ${
+                                className={`group/branch w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
                                   isCurrent
                                     ? 'bg-zinc-100 dark:bg-zinc-800 text-emerald-600 dark:text-emerald-400'
                                     : 'text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-900'
                                 }`}
                               >
-                                <div>
-                                  <div className="leading-tight">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSwitchBranch(b.id)}
+                                  className="flex-1 text-left min-w-0"
+                                >
+                                  <div className="leading-tight truncate">
                                     {getCleanBranchName(language === 'km' && b.name_km ? b.name_km : b.name_en)}
                                   </div>
                                   {b.code && !/^main$/i.test(b.code.trim()) && (
-                                    <div className="text-xs text-zinc-400 font-normal font-mono mt-0.5">
+                                    <div className="text-xs text-zinc-400 font-normal font-mono mt-0.5 truncate">
                                       {b.code}
                                     </div>
                                   )}
+                                </button>
+                                <div className="flex items-center gap-1 shrink-0 ml-2">
+                                  {isCurrent && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
+                                  {branches.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setBranchToDelete(b)
+                                      }}
+                                      title={language === 'km' ? 'លុបសាខា' : 'Delete Branch'}
+                                      className="p-1 rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-400 opacity-60 group-hover/branch:opacity-100 transition-opacity"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                 </div>
-                                {isCurrent && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
-                              </button>
+                              </div>
                             )
                           })
                         )}
@@ -648,6 +710,52 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Delete Branch Confirmation */}
+      {branchToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base text-zinc-900 dark:text-zinc-100">
+                {language === 'km' ? 'លុបសាខា' : 'Delete Branch'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setBranchToDelete(null)}
+                aria-label="Close"
+                className="p-1.5 rounded-full text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              {language === 'km'
+                ? `តើអ្នកប្រាកដជាចង់លុបសាខា "${branchToDelete.name_km || branchToDelete.name_en}" នេះមែនទេ? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។`
+                : `Are you sure you want to delete branch "${branchToDelete.name_en}"? This action cannot be undone.`}
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setBranchToDelete(null)}
+                className="px-4 py-2 rounded-full text-xs font-semibold border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+              >
+                {language === 'km' ? 'បោះបង់' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                disabled={isDeletingBranch}
+                onClick={handleDeleteBranch}
+                className="px-4 py-2 rounded-full text-xs font-semibold bg-red-600 hover:bg-red-700 text-white flex items-center gap-1.5 transition-colors"
+              >
+                {isDeletingBranch && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{language === 'km' ? 'លុបសាខា' : 'Delete Branch'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

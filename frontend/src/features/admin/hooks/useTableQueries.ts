@@ -5,8 +5,12 @@ import { isUuid } from '@/lib/utils'
 import type { components } from '@/types/api'
 
 export type TableResponse = components['schemas']['RestaurantTableResponse']
+export type TableCreate = components['schemas']['RestaurantTableCreate']
+export type TableUpdate = components['schemas']['RestaurantTableUpdate']
 export type DiningAreaResponse = components['schemas']['DiningAreaResponse']
 export type DiningAreaCreate = components['schemas']['DiningAreaCreate']
+export type DiningAreaUpdate = components['schemas']['DiningAreaUpdate']
+export type DiningAreaReorderRequest = components['schemas']['DiningAreaReorderRequest']
 export type BatchTableCreate = components['schemas']['RestaurantTableBatchCreate']
 export type TableQrDetail = components['schemas']['TableQRDetailResponse']
 
@@ -40,6 +44,128 @@ export function useDiningAreas(businessId: string | null, branchId: string | nul
     },
     enabled: isValid,
     retry: false,
+  })
+}
+
+export function useDiningArea(
+  businessId: string | null,
+  branchId: string | null,
+  areaId: string | null
+) {
+  const isValid = isUuid(businessId) && isUuid(branchId) && isUuid(areaId)
+  return useQuery({
+    queryKey: ['dining-area', businessId, branchId, areaId],
+    queryFn: async () => {
+      if (!isValid) return null
+      return unwrap(
+        await apiFetch.GET(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/areas/{area_id}',
+          {
+            params: {
+              path: {
+                business_id: businessId!,
+                branch_id: branchId!,
+                area_id: areaId!,
+              },
+            },
+          }
+        )
+      )
+    },
+    enabled: isValid,
+    retry: false,
+  })
+}
+
+export function useCreateDiningArea(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: DiningAreaCreate) => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      return unwrap(
+        await apiFetch.POST(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/areas',
+          {
+            params: { path: { business_id: businessId, branch_id: branchId } },
+            body: payload,
+          }
+        )
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dining-areas', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables-dashboard', businessId, branchId] })
+    },
+  })
+}
+
+export function useUpdateDiningArea(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ areaId, payload }: { areaId: string; payload: DiningAreaUpdate }) => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      return unwrap(
+        await apiFetch.PATCH(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/areas/{area_id}',
+          {
+            params: { path: { business_id: businessId, branch_id: branchId, area_id: areaId } },
+            body: payload,
+          }
+        )
+      )
+    },
+    onSuccess: (_, { areaId }) => {
+      queryClient.invalidateQueries({ queryKey: ['dining-areas', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['dining-area', businessId, branchId, areaId] })
+      queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables-dashboard', businessId, branchId] })
+    },
+  })
+}
+
+export function useDeleteDiningArea(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (areaId: string) => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      return unwrap(
+        await apiFetch.DELETE(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/areas/{area_id}',
+          {
+            params: { path: { business_id: businessId, branch_id: branchId, area_id: areaId } },
+          }
+        )
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dining-areas', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables-dashboard', businessId, branchId] })
+    },
+  })
+}
+
+export function useReorderDiningAreas(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: DiningAreaReorderRequest) => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      return unwrap(
+        await apiFetch.PUT(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/areas/reorder',
+          {
+            params: { path: { business_id: businessId, branch_id: branchId } },
+            body: payload,
+          }
+        )
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dining-areas', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables-dashboard', businessId, branchId] })
+    },
   })
 }
 
@@ -98,6 +224,93 @@ export function useBatchCreateTables(businessId: string | null, branchId: string
       )
       if (error) throw error
       return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['table-qr-codes', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables-dashboard', businessId, branchId] })
+    },
+  })
+}
+
+export function useCreateTable(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: TableCreate) => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      return unwrap(
+        await apiFetch.POST(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/tables',
+          {
+            params: { path: { business_id: businessId, branch_id: branchId } },
+            body: payload,
+          }
+        )
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['table-qr-codes', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables-dashboard', businessId, branchId] })
+    },
+  })
+}
+
+export function useTableDetail(
+  businessId: string | null,
+  branchId: string | null,
+  tableId: string | null
+) {
+  const isValid = isUuid(businessId) && isUuid(branchId) && isUuid(tableId)
+  return useQuery({
+    queryKey: ['table-detail', businessId, branchId, tableId],
+    queryFn: async (): Promise<TableResponse> => {
+      if (!isValid) throw new Error('Valid IDs are required')
+      return unwrap(
+        await apiFetch.GET(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/tables/{table_id}',
+          {
+            params: {
+              path: {
+                business_id: businessId!,
+                branch_id: branchId!,
+                table_id: tableId!,
+              },
+            },
+          }
+        )
+      )
+    },
+    enabled: isValid,
+  })
+}
+
+export function useUpdateTable(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      tableId,
+      payload,
+    }: {
+      tableId: string
+      payload: TableUpdate
+    }) => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      return unwrap(
+        await apiFetch.PATCH(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/tables/{table_id}',
+          {
+            params: {
+              path: {
+                business_id: businessId,
+                branch_id: branchId,
+                table_id: tableId,
+              },
+            },
+            body: payload,
+          }
+        )
+      )
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
@@ -170,5 +383,65 @@ export function useTableQrCodes(businessId: string | null, branchId: string | nu
     },
     enabled: isValid,
     retry: false,
+  })
+}
+
+/** Download or fetch a single table's QR image (PNG or SVG) as a Blob. */
+export function useSingleTableQr(businessId: string | null, branchId: string | null) {
+  return useMutation({
+    mutationFn: async ({
+      tableId,
+      format = 'png',
+      download = true,
+    }: {
+      tableId: string
+      format?: 'png' | 'svg'
+      download?: boolean
+    }): Promise<Blob> => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      const blob = unwrap(
+        await apiFetch.GET(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/tables/{table_id}/qr',
+          {
+            params: {
+              path: { business_id: businessId, branch_id: branchId, table_id: tableId },
+              query: {
+                format,
+                download,
+                base_url: orderingBaseUrl(),
+              },
+            },
+            parseAs: 'blob',
+          }
+        )
+      )
+      return new Blob([blob], {
+        type: format === 'svg' ? 'image/svg+xml' : 'image/png',
+      })
+    },
+  })
+}
+
+/** Regenerate / rotate a table's cryptographic verification token. */
+export function useRegenerateTableQr(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (tableId: string): Promise<TableQrDetail> => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      return unwrap(
+        await apiFetch.POST(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/tables/{table_id}/regenerate-qr',
+          {
+            params: { path: { business_id: businessId, branch_id: branchId, table_id: tableId } },
+            query: { base_url: orderingBaseUrl() },
+          }
+        )
+      ) as TableQrDetail
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['table-qr-codes', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables-dashboard', businessId, branchId] })
+    },
   })
 }

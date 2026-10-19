@@ -49,6 +49,40 @@ export function useBranches(businessId: string | null) {
   })
 }
 
+export function useBusiness(businessId: string | null) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null
+  return useQuery({
+    queryKey: ['business', businessId],
+    queryFn: async (): Promise<BusinessResponse> => {
+      if (!businessId) throw new Error('Business ID is required')
+      return unwrap(
+        await apiFetch.GET('/api/v1/businesses/{business_id}', {
+          params: { path: { business_id: businessId } },
+        })
+      )
+    },
+    enabled: !!businessId && !!token,
+    retry: false,
+  })
+}
+
+export function useBranch(businessId: string | null, branchId: string | null) {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null
+  return useQuery({
+    queryKey: ['branch', businessId, branchId],
+    queryFn: async (): Promise<BranchResponse> => {
+      if (!businessId || !branchId) throw new Error('Business ID and Branch ID are required')
+      return unwrap(
+        await apiFetch.GET('/api/v1/businesses/{business_id}/branches/{branch_id}', {
+          params: { path: { business_id: businessId, branch_id: branchId } },
+        })
+      )
+    },
+    enabled: !!businessId && !!branchId && branchId !== 'all' && !!token,
+    retry: false,
+  })
+}
+
 export function useUpdateBusiness() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -106,3 +140,30 @@ export function useUpdateBranch() {
     },
   })
 }
+
+export function useDeleteBranch() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      businessId,
+      branchId,
+    }: {
+      businessId: string
+      branchId: string
+    }) => {
+      const { error } = await apiFetch.DELETE(
+        '/api/v1/businesses/{business_id}/branches/{branch_id}',
+        {
+          params: { path: { business_id: businessId, branch_id: branchId } },
+        }
+      )
+      if (error) throw error
+    },
+    onSuccess: (_, { businessId }) => {
+      queryClient.invalidateQueries({ queryKey: ['branches', businessId] })
+      queryClient.invalidateQueries({ queryKey: ['auth', 'my-branches'] })
+      queryClient.invalidateQueries({ queryKey: ['businesses'] })
+    },
+  })
+}
+

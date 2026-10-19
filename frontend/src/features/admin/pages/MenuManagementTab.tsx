@@ -1,9 +1,10 @@
 import { useEffect, useState, type FC, type FormEvent } from 'react'
-import { Loader2, Plus } from 'lucide-react'
+import { Plus, Layers } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
 import { getApiErrorStatus } from '@/lib/api-error'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import { isUuid } from '@/lib/utils'
 import { useBusinesses } from '../hooks/useTenantQueries'
 import { useUploadMedia } from '../hooks/useMediaQueries'
@@ -15,6 +16,8 @@ import {
   useDeleteCategory,
   useDeleteMenuItem,
   useMenuItems,
+  useMenuCategory,
+  useMenuItem,
   useReorderCategories,
   useSaveItemOptions,
   useUpdateCategory,
@@ -46,6 +49,7 @@ import { CategoryFilterBar } from '../components/menu/CategoryFilterBar'
 import { CategoryFormModal } from '../components/menu/CategoryFormModal'
 import { MenuItemCard } from '../components/menu/MenuItemCard'
 import { MenuItemFormModal } from '../components/menu/MenuItemFormModal'
+import { ModifierGroupsLibraryModal } from '../components/menu/ModifierGroupsLibraryModal'
 
 /**
  * Menu catalog admin: categories, items, and Master Brand Catalog editing.
@@ -93,6 +97,7 @@ export const MenuManagementTab: FC = () => {
   // Modals state
   const [isItemModalOpen, setIsItemModalOpen] = useState(false)
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
+  const [isModifierLibraryOpen, setIsModifierLibraryOpen] = useState(false)
 
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
@@ -122,6 +127,34 @@ export const MenuManagementTab: FC = () => {
   // Master catalog queries
   const { data: rawCategories = [], isLoading: isCategoriesLoading } = useCategories(businessId)
   const { data: rawItems = [], isLoading: isItemsLoading } = useMenuItems(businessId)
+  const { data: directCategoryDetail } = useMenuCategory(
+    businessId,
+    editingCategory?.id ?? null
+  )
+  const { data: directItemDetail } = useMenuItem(
+    businessId,
+    editingItem?.id ?? null
+  )
+
+  useEffect(() => {
+    if (directCategoryDetail && isCategoryModalOpen && editingCategory?.id === directCategoryDetail.id) {
+      setCategoryForm((prev) => ({
+        ...prev,
+        name_en: prev.name_en || directCategoryDetail.name_en,
+        name_km: prev.name_km || directCategoryDetail.name_km || '',
+      }))
+    }
+  }, [directCategoryDetail, isCategoryModalOpen, editingCategory])
+
+  useEffect(() => {
+    if (directItemDetail && isItemModalOpen && editingItem?.id === directItemDetail.id) {
+      setItemForm((prev) => ({
+        ...prev,
+        name_en: prev.name_en || directItemDetail.name_en,
+        name_km: prev.name_km || directItemDetail.name_km || '',
+      }))
+    }
+  }, [directItemDetail, isItemModalOpen, editingItem])
 
   // Branch published catalog query (active when a branch is selected)
   const {
@@ -611,6 +644,17 @@ export const MenuManagementTab: FC = () => {
           <Plus className="w-3.5 h-3.5 mr-1.5" />
           {language === 'km' ? 'បន្ថែមមុខម្ហូបថ្មី' : 'Add Menu Item'}
         </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setIsModifierLibraryOpen(true)}
+          className="text-xs sm:text-sm font-semibold px-3.5 py-1.5 rounded-full border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300"
+        >
+          <Layers className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
+          {language === 'km' ? 'បណ្ណាល័យជម្រើស (Modifiers)' : 'Modifier Library'}
+        </Button>
       </div>
 
       {/* Error Message: plain text only, no container */}
@@ -633,8 +677,8 @@ export const MenuManagementTab: FC = () => {
       {/* Lazy Loading Skeleton Grid when switching branch or loading */}
       {isLoading && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 text-xs text-zinc-500 font-medium">
-            <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600" />
+          <div className="flex items-center gap-2.5 text-xs text-zinc-500 font-medium py-1">
+            <EmenuLoader size="xs" />
             <span>
               {language === 'km'
                 ? 'កំពុងផ្ទុកទិន្នន័យពីសាខា...'
@@ -752,6 +796,13 @@ export const MenuManagementTab: FC = () => {
             setIsCategoryModalOpen(false)
           }}
           onClose={() => setIsCategoryModalOpen(false)}
+        />
+      )}
+
+      {isModifierLibraryOpen && (
+        <ModifierGroupsLibraryModal
+          businessId={businessId}
+          onClose={() => setIsModifierLibraryOpen(false)}
         />
       )}
     </div>

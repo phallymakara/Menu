@@ -19,6 +19,9 @@ const RegisterPage = lazy(() =>
 const ResetPasswordPage = lazy(() =>
   import('@/features/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage }))
 )
+const StaffInvitationPage = lazy(() =>
+  import('@/features/auth/StaffInvitationPage').then((m) => ({ default: m.StaffInvitationPage }))
+)
 const OnboardingWizardPage = lazy(() =>
   import('@/features/onboarding/OnboardingWizardPage').then((m) => ({
     default: m.OnboardingWizardPage,
@@ -124,6 +127,11 @@ export const router = createBrowserRouter([
   {
     path: '/reset-password',
     element: withSuspense(<ResetPasswordPage />),
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: '/invite/:token',
+    element: withSuspense(<StaffInvitationPage />),
     errorElement: <RouteErrorBoundary />,
   },
   {

@@ -109,7 +109,7 @@ async def test_owner_registration_auto_provisions_trial():
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             # 1. Register owner
             reg_resp = await client.post(
-                "/api/v1/auth/register-owner",
+                "/api/v1/auth/register",
                 json={
                     "email": "freshowner@example.com",
                     "password": "Password123!",

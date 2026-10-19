@@ -249,3 +249,33 @@ export function useSettleOrderCash(businessId: string | null, branchId: string |
     },
   })
 }
+
+/**
+ * Inspect completed payment transaction receipt details.
+ */
+export function usePaymentDetail(
+  businessId: string | null,
+  branchId: string | null,
+  paymentId: string | null
+) {
+  return useQuery({
+    queryKey: ['pos', 'payment-detail', businessId, branchId, paymentId],
+    queryFn: async (): Promise<PaymentResponse> => {
+      if (!businessId || !branchId || !paymentId) throw new Error('Valid IDs are required')
+      return unwrap(
+        await apiFetch.GET(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/payments/{payment_id}',
+          {
+            params: {
+              path: {
+                ...requireIds(businessId, branchId),
+                payment_id: paymentId,
+              },
+            },
+          }
+        )
+      )
+    },
+    enabled: !!businessId && !!branchId && !!paymentId,
+  })
+}

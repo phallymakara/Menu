@@ -1,7 +1,7 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api-client'
 import { unwrap } from '@/lib/api-error'
-import { useAuthStore, type AuthUser } from '@/stores/useAuthStore'
+import { useAuthStore, type AuthUser, ACCESS_TOKEN_KEY } from '@/stores/useAuthStore'
 import { useOnboardingStore } from '@/features/onboarding/stores/useOnboardingStore'
 import type { components } from '@/types/api'
 
@@ -9,6 +9,12 @@ export type LoginRequest = components['schemas']['LoginRequest']
 export type OwnerRegistrationRequest = components['schemas']['OwnerRegistrationRequest']
 export type PasswordResetRequestPayload = components['schemas']['PasswordResetRequest']
 export type PasswordResetConfirmPayload = components['schemas']['PasswordResetConfirmRequest']
+export type MyBranchesResponse = components['schemas']['MyBranchesResponse']
+export type AccessibleBranchInfo = components['schemas']['AccessibleBranchInfo']
+export type SwitchBranchResponse = components['schemas']['SwitchBranchResponse']
+export type InviteAccept = components['schemas']['InviteAccept']
+export type InviteAcceptExisting = components['schemas']['InviteAcceptExisting']
+export type MemberResponse = components['schemas']['MemberResponse']
 type CurrentUserResponse = components['schemas']['CurrentUserResponse']
 
 function storeOrganizationId(orgId: string) {
@@ -130,3 +136,94 @@ export function useConfirmPasswordReset() {
       unwrap(await apiFetch.POST('/api/v1/auth/password-reset/confirm', { body: payload })),
   })
 }
+
+/** Query all branches accessible to the authenticated staff member. */
+export function useMyBranches() {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(ACCESS_TOKEN_KEY) : null
+  return useQuery({
+    queryKey: ['auth', 'my-branches'],
+    queryFn: async (): Promise<MyBranchesResponse> =>
+      unwrap(await apiFetch.GET('/api/v1/auth/my-branches')),
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** Switch active working branch on the server and update JWT claims. */
+export function useSwitchBranch() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (branchId: string): Promise<SwitchBranchResponse> =>
+      unwrap(
+        await apiFetch.POST('/api/v1/auth/switch-branch', {
+          body: { branch_id: branchId },
+        })
+      ),
+    onSuccess: (data) => {
+      // 1. Persist rotated access token bearing the new active_branch_id claim
+      localStorage.setItem(ACCESS_TOKEN_KEY, data.access_token)
+      const currentRefreshToken = localStorage.getItem('emenu_refresh_token')
+      if (currentRefreshToken) {
+        useAuthStore.getState().setTokens(data.access_token, currentRefreshToken)
+      }
+
+      // 2. Persist active branch context
+      localStorage.setItem('emenu_branch_id', data.active_branch_id)
+      useAuthStore.getState().setContext(
+        useAuthStore.getState().organizationId,
+        useAuthStore.getState().businessId,
+        data.active_branch_id
+      )
+
+      // 3. Invalidate branch-scoped queries and broadcast event
+      queryClient.invalidateQueries({ queryKey: ['auth', 'my-branches'] })
+      queryClient.invalidateQueries({ queryKey: ['tables'] })
+      queryClient.invalidateQueries({ queryKey: ['tables-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['categories'] })
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+      queryClient.invalidateQueries({ queryKey: ['kds'] })
+      queryClient.invalidateQueries({ queryKey: ['branch-published-menu'] })
+
+      window.dispatchEvent(
+        new CustomEvent('emenu:branch-changed', { detail: { branchId: data.active_branch_id } })
+      )
+    },
+  })
+}
+
+/** Accept staff invitation as a new user by setting account password. */
+export function useAcceptStaffInvitation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: InviteAccept): Promise<MemberResponse> => {
+      return unwrap(
+        await apiFetch.POST('/api/v1/auth/invitations/accept', {
+          body: payload,
+        })
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auth'] })
+      queryClient.invalidateQueries({ queryKey: ['staff'] })
+    },
+  })
+}
+
+/** Accept staff invitation for an existing signed-in account. */
+export function useAcceptStaffInvitationExisting() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: InviteAcceptExisting): Promise<MemberResponse> => {
+      return unwrap(
+        await apiFetch.POST('/api/v1/auth/invitations/accept-existing', {
+          body: payload,
+        })
+      )
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['auth'] })
+      queryClient.invalidateQueries({ queryKey: ['staff'] })
+    },
+  })
+}
+

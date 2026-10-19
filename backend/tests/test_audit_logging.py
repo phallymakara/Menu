@@ -110,7 +110,7 @@ async def test_registration_and_login_generate_audit_logs():
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             # 1. Register owner
             reg_resp = await client.post(
-                "/api/v1/auth/register-owner",
+                "/api/v1/auth/register",
                 json={
                     "email": "audit_reg@example.com",
                     "password": "Password123!",

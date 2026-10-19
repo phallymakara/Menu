@@ -1,11 +1,7 @@
-import { useState, type FC } from 'react'
+import { useState, useEffect, type FC } from 'react'
 import {
   Building2,
   Search,
-  Filter,
-  CheckCircle2,
-  Ban,
-  Archive,
   CreditCard,
   ChevronLeft,
   ChevronRight,
@@ -18,6 +14,8 @@ import {
   Store,
   AlertTriangle,
   ShieldAlert,
+  MoreHorizontal,
+  Sparkles,
 } from 'lucide-react'
 import {
   usePlatformOrganizations,
@@ -31,15 +29,14 @@ import {
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { formatUSD } from '@/lib/currency'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 
 export const PlatformOrganizationsTab: FC = () => {
   const { language } = useLanguageStore()
   const isKm = language === 'km'
 
-  // Filter & Pagination States
+  // Search & Pagination States
   const [searchInput, setSearchInput] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState<OrganizationStatus | 'all'>('all')
-  const [selectedPlanCode, setSelectedPlanCode] = useState<string>('all')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
 
@@ -47,6 +44,7 @@ export const PlatformOrganizationsTab: FC = () => {
   const [detailOrgId, setDetailOrgId] = useState<string | null>(null)
   const [statusModalOrg, setStatusModalOrg] = useState<AdminOrganizationListItem | null>(null)
   const [subModalOrg, setSubModalOrg] = useState<AdminOrganizationListItem | null>(null)
+  const [showLoaderPreview, setShowLoaderPreview] = useState(false)
 
   // Form states for Status Change
   const [newStatus, setNewStatus] = useState<OrganizationStatus>('active')
@@ -67,8 +65,6 @@ export const PlatformOrganizationsTab: FC = () => {
     isLoading: isLoadingOrgs,
   } = usePlatformOrganizations({
     search: searchInput.trim() || undefined,
-    status: selectedStatus === 'all' ? undefined : selectedStatus,
-    plan_code: selectedPlanCode === 'all' ? undefined : selectedPlanCode,
     page,
     pageSize,
   })
@@ -154,28 +150,38 @@ export const PlatformOrganizationsTab: FC = () => {
     }
   }
 
+  // Active Action Menu State
+  const [activeMenuOrgId, setActiveMenuOrgId] = useState<string | null>(null)
+
+  // Close action menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest('.org-action-menu')) return
+      setActiveMenuOrgId(null)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   // Render Status Badge
   const renderStatusBadge = (status: OrganizationStatus) => {
     switch (status) {
       case 'active':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>{isKm ? 'ដំណើរការ' : 'Active'}</span>
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-900/50">
+            {isKm ? 'ដំណើរការ' : 'Active'}
           </span>
         )
       case 'suspended':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50">
-            <Ban className="w-3.5 h-3.5" />
-            <span>{isKm ? 'បានផ្អាក' : 'Suspended'}</span>
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200/80 dark:border-amber-900/50">
+            {isKm ? 'បានផ្អាក' : 'Suspended'}
           </span>
         )
       case 'archived':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800">
-            <Archive className="w-3.5 h-3.5" />
-            <span>{isKm ? 'ប័ណ្ណសារ' : 'Archived'}</span>
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800">
+            {isKm ? 'ប័ណ្ណសារ' : 'Archived'}
           </span>
         )
       default:
@@ -185,102 +191,51 @@ export const PlatformOrganizationsTab: FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Filter & Search Toolbar */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 shadow-xs space-y-3">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
-          {/* Search Box */}
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => {
-                setSearchInput(e.target.value)
-                setPage(1)
-              }}
-              placeholder={isKm ? 'ស្វែងរកតាមឈ្មោះហាង, slug, ឬអ៊ីមែលម្ចាស់...' : 'Search by organization name, slug, or owner email...'}
-              className="w-full pl-10 pr-4 py-2 rounded-2xl text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#167e61]/30 transition-all placeholder:text-zinc-400"
-            />
-            {searchInput && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchInput('')
-                  setPage(1)
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Plan Tier Selector */}
-          <div className="flex items-center gap-2 shrink-0">
-            <Filter className="w-3.5 h-3.5 text-zinc-400" />
-            <select
-              value={selectedPlanCode}
-              onChange={(e) => {
-                setSelectedPlanCode(e.target.value)
-                setPage(1)
-              }}
-              className="px-3 py-2 rounded-2xl text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#167e61]/30"
-            >
-              <option value="all">{isKm ? 'គ្រប់គម្រោងទាំងអស់' : 'All Subscription Plans'}</option>
-              {plansData.map((plan) => (
-                <option key={plan.id} value={plan.code}>
-                  {plan.name} ({plan.code})
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Status Pills */}
-        <div className="flex items-center gap-2 pt-1 overflow-x-auto text-xs">
-          <span className="text-[11px] font-semibold text-zinc-400 mr-1 shrink-0">
-            {isKm ? 'ស្ថានភាព:' : 'Status:'}
-          </span>
-          {(['all', 'active', 'suspended', 'archived'] as const).map((st) => (
+      {/* Search & Actions Toolbar */}
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="relative w-full max-w-sm sm:max-w-md">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => {
+              setSearchInput(e.target.value)
+              setPage(1)
+            }}
+            placeholder={isKm ? 'ស្វែងរកតាមឈ្មោះហាង, slug, ឬអ៊ីមែលម្ចាស់...' : 'Search by organization name, slug, or owner email...'}
+            className="w-full pl-10 pr-4 py-2 rounded-2xl text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#167e61]/30 transition-all placeholder:text-zinc-400"
+          />
+          {searchInput && (
             <button
-              key={st}
               type="button"
               onClick={() => {
-                setSelectedStatus(st)
+                setSearchInput('')
                 setPage(1)
               }}
-              className={`px-3 py-1.5 rounded-2xl font-medium transition-all shrink-0 capitalize ${
-                selectedStatus === st
-                  ? 'bg-[#167e61] text-white shadow-xs font-semibold'
-                  : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700/60'
-              }`}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
             >
-              {st === 'all'
-                ? isKm
-                  ? 'ទាំងអស់'
-                  : 'All'
-                : st === 'active'
-                ? isKm
-                  ? 'ដំណើរការ'
-                  : 'Active'
-                : st === 'suspended'
-                ? isKm
-                  ? 'បានផ្អាក'
-                  : 'Suspended'
-                : isKm
-                ? 'ប័ណ្ណសារ'
-                : 'Archived'}
+              <X className="w-3.5 h-3.5" />
             </button>
-          ))}
+          )}
         </div>
+
+        {/* Live Loader Preview Button */}
+        <button
+          type="button"
+          onClick={() => setShowLoaderPreview(true)}
+          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#167e61]/10 text-[#167e61] dark:text-[#22ab84] hover:bg-[#167e61]/20 border border-[#167e61]/25 transition-all cursor-pointer shrink-0"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-[#167e61] dark:text-[#22ab84]" />
+          <span>{isKm ? 'មើលគំរូ E-Menu Loading' : 'Preview Logo Animation'}</span>
+        </button>
       </div>
 
       {/* Main Organizations Table */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl shadow-xs overflow-visible min-h-[300px]">
+        <div className="overflow-x-auto min-h-[260px]">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-800/40 text-[11px] uppercase tracking-wider font-semibold text-zinc-500 dark:text-zinc-400">
+              <tr className="border-b border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-800/40 text-[11px] uppercase tracking-wider font-semibold text-zinc-500 dark:text-zinc-400">
                 <th className="py-3.5 px-4">{isKm ? 'ហាង / អាជីវកម្ម' : 'Organization'}</th>
                 <th className="py-3.5 px-4">{isKm ? 'ម្ចាស់គណនី' : 'Owner'}</th>
                 <th className="py-3.5 px-4 text-center">{isKm ? 'ទំហំ & ហេដ្ឋារចនាសម្ព័ន្ធ' : 'Footprint'}</th>
@@ -294,33 +249,28 @@ export const PlatformOrganizationsTab: FC = () => {
             <tbody className="divide-y divide-zinc-200/80 dark:divide-zinc-800/60 text-sm">
               {isLoadingOrgs ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-zinc-400">
-                    <div className="flex items-center justify-center gap-2">
-                      <Loader2 className="w-5 h-5 animate-spin text-[#167e61]" />
-                      <span>{isKm ? 'កំពុងទាញយកទិន្នន័យហាង...' : 'Loading organizations...'}</span>
-                    </div>
+                  <td colSpan={7} className="py-16 text-center">
+                    <EmenuLoader
+                      size="sm"
+                      message={isKm ? 'កំពុងទាញយកទិន្នន័យហាង...' : 'Loading organizations...'}
+                    />
                   </td>
                 </tr>
               ) : orgsData?.items && orgsData.items.length > 0 ? (
-                orgsData.items.map((org) => (
+                orgsData.items.map((org, index) => (
                   <tr
                     key={org.id}
                     className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors group"
                   >
-                    {/* Organization Name & Slug */}
+                    {/* Organization Name */}
                     <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-2xl bg-[#167e61]/10 text-[#167e61] dark:text-[#22ab84] flex items-center justify-center font-bold text-xs shrink-0 border border-[#167e61]/20 dark:border-[#167e61]/30">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-[#167e61]/10 text-[#167e61] dark:text-[#22ab84] flex items-center justify-center font-bold text-xs shrink-0 border border-[#167e61]/20 dark:border-[#167e61]/30 shadow-xs">
                           {org.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <div className="font-semibold text-zinc-950 dark:text-zinc-50 text-sm">
-                            {org.name}
-                          </div>
-                          <div className="text-[11px] text-zinc-400 font-mono">
-                            /{org.slug}
-                          </div>
-                        </div>
+                        <span className="font-semibold text-zinc-950 dark:text-zinc-50 text-sm tracking-tight">
+                          {org.name}
+                        </span>
                       </div>
                     </td>
 
@@ -342,7 +292,7 @@ export const PlatformOrganizationsTab: FC = () => {
 
                     {/* Infrastructure Footprint */}
                     <td className="py-3.5 px-4 text-center">
-                      <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200/60 dark:border-zinc-700/60 text-xs">
+                      <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-zinc-100/80 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/60 text-xs">
                         <span title={isKm ? 'ចំនួនសាខា' : 'Branches'} className="font-semibold text-zinc-800 dark:text-zinc-200">
                           {org.branches_count ?? 0} {isKm ? 'សាខា' : 'br'}
                         </span>
@@ -359,9 +309,8 @@ export const PlatformOrganizationsTab: FC = () => {
 
                     {/* Subscription Plan */}
                     <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
-                        <CreditCard className="w-3.5 h-3.5 text-zinc-500" />
-                        <span>{org.plan_name || org.plan_code || 'Free Tier'}</span>
+                      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                        {org.plan_name || org.plan_code || 'Free Tier'}
                       </span>
                     </td>
 
@@ -375,38 +324,75 @@ export const PlatformOrganizationsTab: FC = () => {
                       {formatDate(org.created_at)}
                     </td>
 
-                    {/* Action Buttons */}
+                    {/* Action Dropdown Menu */}
                     <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {/* Inspect Drawer */}
+                      <div className="org-action-menu relative inline-block text-left">
                         <button
                           type="button"
-                          onClick={() => setDetailOrgId(org.id)}
-                          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                          title={isKm ? 'មើលព័ត៌មានលម្អិត' : 'Inspect Organization Details'}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActiveMenuOrgId(activeMenuOrgId === org.id ? null : org.id)
+                          }}
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                            activeMenuOrgId === org.id
+                              ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700'
+                              : 'text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/80 border-transparent'
+                          }`}
+                          title={isKm ? 'សកម្មភាព' : 'Actions'}
+                          aria-expanded={activeMenuOrgId === org.id}
                         >
-                          <Eye className="w-4 h-4" />
+                          <MoreHorizontal className="w-4 h-4" />
                         </button>
 
-                        {/* Change Status */}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenStatusModal(org)}
-                          className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
-                          title={isKm ? 'ប្តូរស្ថានភាពហាង' : 'Update Lifecycle Status'}
-                        >
-                          <ShieldAlert className="w-4 h-4" />
-                        </button>
+                        {activeMenuOrgId === org.id && (
+                          <div
+                            className={`absolute right-0 ${
+                              index >= orgsData.items.length - 2 && orgsData.items.length > 2
+                                ? 'bottom-full mb-1.5 origin-bottom-right'
+                                : 'top-full mt-1.5 origin-top-right'
+                            } w-48 py-1 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-100 text-left`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {/* Inspect Drawer */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveMenuOrgId(null)
+                                setDetailOrgId(org.id)
+                              }}
+                              className="w-full px-3 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/70 hover:text-zinc-950 dark:hover:text-zinc-100 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-zinc-400" />
+                              <span>{isKm ? 'មើលព័ត៌មានលម្អិត' : 'Inspect Details'}</span>
+                            </button>
 
-                        {/* Override Subscription */}
-                        <button
-                          type="button"
-                          onClick={() => handleOpenSubModal(org)}
-                          className="p-1.5 rounded-xl text-zinc-500 hover:text-[#167e61] hover:bg-[#167e61]/10 transition-colors"
-                          title={isKm ? 'កែប្រែគម្រោង Subscription' : 'Override Subscription Plan'}
-                        >
-                          <CreditCard className="w-4 h-4" />
-                        </button>
+                            {/* Change Status */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveMenuOrgId(null)
+                                handleOpenStatusModal(org)
+                              }}
+                              className="w-full px-3 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/70 hover:text-amber-600 dark:hover:text-amber-400 flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
+                              <span>{isKm ? 'ប្តូរស្ថានភាពហាង' : 'Update Status'}</span>
+                            </button>
+
+                            {/* Override Subscription */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveMenuOrgId(null)
+                                handleOpenSubModal(org)
+                              }}
+                              className="w-full px-3 py-2 text-left text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/70 hover:text-[#167e61] dark:hover:text-[#22ab84] flex items-center gap-2.5 transition-colors cursor-pointer"
+                            >
+                              <CreditCard className="w-3.5 h-3.5 text-[#167e61] dark:text-[#22ab84]" />
+                              <span>{isKm ? 'កែប្រែគម្រោង' : 'Override Subscription'}</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -510,9 +496,11 @@ export const PlatformOrganizationsTab: FC = () => {
             </div>
 
             {isLoadingDetail ? (
-              <div className="py-20 text-center text-zinc-400">
-                <Loader2 className="w-6 h-6 animate-spin text-[#167e61] mx-auto mb-2" />
-                <p className="text-xs">{isKm ? 'កំពុងទាញយកព័ត៌មានលម្អិត...' : 'Loading organization profile...'}</p>
+              <div className="py-20 flex flex-col items-center justify-center">
+                <EmenuLoader
+                  size="sm"
+                  message={isKm ? 'កំពុងទាញយកព័ត៌មានលម្អិត...' : 'Loading organization profile...'}
+                />
               </div>
             ) : detailData ? (
               <div className="space-y-6 text-xs">
@@ -886,6 +874,109 @@ export const PlatformOrganizationsTab: FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive E-Menu Logo Animation Preview Modal */}
+      {showLoaderPreview && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200"
+          onClick={() => setShowLoaderPreview(false)}
+        >
+          <div
+            className="w-full max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6 space-y-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#167e61]/10 text-[#167e61] dark:text-[#22ab84] flex items-center justify-center">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-zinc-950 dark:text-zinc-50">
+                    {isKm ? 'គំរូ E-Menu Logo Writing Loading Animation' : 'E-Menu Logo Stroke-Drawing Animation'}
+                  </h3>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {isKm ? 'ចលនាសរសេរតាមបន្ទាត់ Logo (គ្មាន background)' : 'Handwriting / stroke write-on effect without background'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLoaderPreview(false)}
+                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Showcase Grid (Dark vs Light backgrounds, no container background behind logo) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Dark canvas preview */}
+              <div className="rounded-2xl bg-zinc-950 border border-zinc-800 p-6 flex flex-col items-center justify-center min-h-[220px]">
+                <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 mb-4">
+                  Dark Background (Transparent)
+                </span>
+                <EmenuLoader
+                  size="md"
+                  message={isKm ? 'កំពុងផ្ទុកទិន្នន័យ...' : 'Loading data...'}
+                  showBrandText
+                />
+              </div>
+
+              {/* Light canvas preview */}
+              <div className="rounded-2xl bg-zinc-50 border border-zinc-200/80 p-6 flex flex-col items-center justify-center min-h-[220px]">
+                <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-400 mb-4">
+                  Light Background (Transparent)
+                </span>
+                <EmenuLoader
+                  size="md"
+                  message={isKm ? 'កំពុងដំណើរការ...' : 'Processing...'}
+                  showBrandText
+                />
+              </div>
+            </div>
+
+            {/* Size Variants Showcase */}
+            <div className="p-4 rounded-2xl bg-zinc-50/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60">
+              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-4">
+                {isKm ? 'ទំហំផ្សេងៗ (Size Variants)' : 'Different Size Scales'}
+              </span>
+              <div className="flex items-end justify-around gap-4 py-2">
+                <div className="text-center">
+                  <EmenuLoader size="xs" />
+                  <span className="text-[10px] font-mono text-zinc-400 block mt-2">XS</span>
+                </div>
+                <div className="text-center">
+                  <EmenuLoader size="sm" />
+                  <span className="text-[10px] font-mono text-zinc-400 block mt-2">SM</span>
+                </div>
+                <div className="text-center">
+                  <EmenuLoader size="md" />
+                  <span className="text-[10px] font-mono text-zinc-400 block mt-2">MD</span>
+                </div>
+                <div className="text-center">
+                  <EmenuLoader size="lg" />
+                  <span className="text-[10px] font-mono text-zinc-400 block mt-2">LG</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-xs text-zinc-400">
+                {isKm ? 'បានអនុវត្តទៅលើ PageLoader និងតារាងរួចរាល់' : 'Applied to PageLoader and active table loading'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowLoaderPreview(false)}
+                className="px-4 py-2 rounded-2xl text-xs font-semibold bg-[#167e61] text-white hover:bg-[#12674f] transition-colors cursor-pointer"
+              >
+                {isKm ? 'យល់ព្រម' : 'Done'}
+              </button>
+            </div>
           </div>
         </div>
       )}

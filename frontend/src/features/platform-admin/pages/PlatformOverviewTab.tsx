@@ -1,43 +1,54 @@
-import { useMemo, useState, type FC } from 'react'
+import { useMemo, useState, useRef, useEffect, type FC } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
-  Loader2,
   TrendingUp,
   Clock,
-  ShieldAlert,
   ArrowRight,
   ShieldCheck,
-  Activity,
+  ChevronDown,
+  ChevronRight,
+  ArrowLeft,
+  Check,
+  X,
 } from 'lucide-react'
 import { usePlatformKPIStats } from '../hooks'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { formatUSD } from '@/lib/currency'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 
-// Predefined color palette for plan tiers in the distribution bar using #167e61 brand tones
-const TIER_COLOR_PALETTE = [
-  'bg-[#167e61]',
-  'bg-[#1a9573]',
-  'bg-[#22ab84]',
-  'bg-[#2dc498]',
+// Constant radius 40 on 100x100 viewBox gives 2 * PI * 40 = 251.327
+const CIRCUMFERENCE = 251.327
+
+// Palette for subscription plan tiers: brand emerald, sky, purple, amber, pink
+const TIER_STROKE_COLORS = [
+  '#167e61',
+  '#0ea5e9',
+  '#8b5cf6',
+  '#f59e0b',
+  '#ec4899',
 ]
 
-function formatActionBadge(action: string): string {
-  const act = action.toLowerCase()
-  if (act.includes('create')) return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/40'
-  if (act.includes('suspend') || act.includes('archive') || act.includes('delete')) return 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/40'
-  if (act.includes('override') || act.includes('update')) return 'bg-[#167e61]/10 text-[#167e61] dark:text-[#22ab84] border-[#167e61]/20'
-  return 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-700'
+export type TimeRange = 'today' | 'week' | 'month' | 'year' | 'custom'
+
+export interface ChartBarData {
+  key: string
+  label: string
+  fullLabel: string
+  revenue: number
+  tenants: number
+  newTenants?: number
 }
 
-function formatLogTime(isoDate: string): string {
-  try {
-    const d = new Date(isoDate)
-    return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-  } catch {
-    return isoDate
-  }
+const getLocalDateString = (d: Date = new Date()) => {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
+
+const KM_MONTHS = ['មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា', 'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ']
+const EN_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export const PlatformOverviewTab: FC = () => {
   const { language } = useLanguageStore()
@@ -47,21 +58,376 @@ export const PlatformOverviewTab: FC = () => {
   // Real-time live polling every 5 seconds
   const { data, isLoading, isError } = usePlatformKPIStats()
 
-  // Hover state for monthly chart
-  const [hoveredMonthIndex, setHoveredMonthIndex] = useState<number | null>(null)
+  // Time Filter & Modal States
+  const [timeRange, setTimeRange] = useState<TimeRange>('year')
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+  const [isCustomRangeModalOpen, setIsCustomRangeModalOpen] = useState(false)
+  const dateDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Calculate tier distribution percentage from subscription_distribution
-  const distribution = useMemo(() => {
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dateDropdownRef.current && !dateDropdownRef.current.contains(event.target as Node)) {
+        setIsFilterModalOpen(false)
+        setIsCustomRangeModalOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    return getLocalDateString(d)
+  })
+  const [customEndDate, setCustomEndDate] = useState<string>(() => getLocalDateString())
+  const [tempStartDate, setTempStartDate] = useState<string>(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    return getLocalDateString(d)
+  })
+  const [tempEndDate, setTempEndDate] = useState<string>(() => getLocalDateString())
+  const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null)
+
+  // 1. Subscription Donut Segments
+  const totalTierOrgs = useMemo(() => {
+    const rawTiers = data?.subscription_distribution || []
+    return rawTiers.reduce((acc, t) => acc + (t.organization_count || 0), 0)
+  }, [data?.subscription_distribution])
+
+  const subscriptionSegments = useMemo(() => {
     const rawTiers = data?.subscription_distribution || []
     if (rawTiers.length === 0) return []
-    return rawTiers.map((t, idx) => ({
-      plan_code: t.plan_code,
-      label: t.plan_name || t.plan_code.toUpperCase(),
-      count: t.organization_count,
-      pct: t.percentage_of_total || 0,
-      bg: TIER_COLOR_PALETTE[idx % TIER_COLOR_PALETTE.length],
-    }))
-  }, [data?.subscription_distribution])
+    let currentOffset = 0
+    return rawTiers.map((t, idx) => {
+      const count = t.organization_count || 0
+      const dashLength = totalTierOrgs > 0 ? (count / totalTierOrgs) * CIRCUMFERENCE : 0
+      const seg = {
+        key: t.plan_code,
+        label: t.plan_name || t.plan_code.toUpperCase(),
+        count,
+        pct: t.percentage_of_total
+          ? Math.round(t.percentage_of_total)
+          : (totalTierOrgs > 0 ? Math.round((count / totalTierOrgs) * 100) : 0),
+        stroke: TIER_STROKE_COLORS[idx % TIER_STROKE_COLORS.length],
+        dasharray: `${dashLength.toFixed(1)} ${(CIRCUMFERENCE - dashLength).toFixed(1)}`,
+        dashoffset: -currentOffset,
+      }
+      currentOffset += dashLength
+      return seg
+    })
+  }, [data?.subscription_distribution, totalTierOrgs])
+
+  // 2. Tenant Lifecycle Donut Segments
+  const orgs = data?.organizations
+  const totalLifecycle =
+    (orgs?.active_organizations ?? 0) +
+    (orgs?.suspended_organizations ?? 0) +
+    (orgs?.archived_organizations ?? 0)
+
+  const lifecycleSegments = useMemo(() => {
+    const items = [
+      {
+        key: 'active',
+        label: isKm ? 'សកម្ម' : 'Active',
+        count: orgs?.active_organizations ?? 0,
+        stroke: '#167e61',
+        pct: totalLifecycle > 0 ? Math.round(((orgs?.active_organizations ?? 0) / totalLifecycle) * 100) : 0,
+      },
+      {
+        key: 'suspended',
+        label: isKm ? 'បានផ្អាក' : 'Suspended',
+        count: orgs?.suspended_organizations ?? 0,
+        stroke: '#f59e0b',
+        pct: totalLifecycle > 0 ? Math.round(((orgs?.suspended_organizations ?? 0) / totalLifecycle) * 100) : 0,
+      },
+      {
+        key: 'archived',
+        label: isKm ? 'ប័ណ្ណសារ' : 'Archived',
+        count: orgs?.archived_organizations ?? 0,
+        stroke: '#71717a',
+        pct: totalLifecycle > 0 ? Math.round(((orgs?.archived_organizations ?? 0) / totalLifecycle) * 100) : 0,
+      },
+    ]
+
+    let currentOffset = 0
+    return items.map((item) => {
+      const dashLength = totalLifecycle > 0 ? (item.count / totalLifecycle) * CIRCUMFERENCE : 0
+      const seg = {
+        ...item,
+        dasharray: `${dashLength.toFixed(1)} ${(CIRCUMFERENCE - dashLength).toFixed(1)}`,
+        dashoffset: -currentOffset,
+      }
+      currentOffset += dashLength
+      return seg
+    })
+  }, [orgs?.active_organizations, orgs?.suspended_organizations, orgs?.archived_organizations, totalLifecycle, isKm])
+
+  // 3. Subscription Billing & Trial Donut Segments
+  const trialCount = orgs?.trial_organizations ?? 0
+  const activeCount = orgs?.active_organizations ?? 0
+  const suspendedCount = orgs?.suspended_organizations ?? 0
+  const paidCount = Math.max(0, activeCount - trialCount)
+  const totalBilling = paidCount + trialCount + suspendedCount
+
+  const billingSegments = useMemo(() => {
+    const items = [
+      {
+        key: 'paid',
+        label: isKm ? 'បង់ថ្លៃរួច' : 'Paid Active',
+        count: paidCount,
+        stroke: '#167e61',
+        pct: totalBilling > 0 ? Math.round((paidCount / totalBilling) * 100) : 0,
+      },
+      {
+        key: 'trial',
+        label: isKm ? 'សាកល្បង' : 'Free Trial',
+        count: trialCount,
+        stroke: '#0ea5e9',
+        pct: totalBilling > 0 ? Math.round((trialCount / totalBilling) * 100) : 0,
+      },
+      {
+        key: 'suspended',
+        label: isKm ? 'បានផ្អាក' : 'Suspended',
+        count: suspendedCount,
+        stroke: '#f43f5e',
+        pct: totalBilling > 0 ? Math.round((suspendedCount / totalBilling) * 100) : 0,
+      },
+    ]
+
+    let currentOffset = 0
+    return items.map((item) => {
+      const dashLength = totalBilling > 0 ? (item.count / totalBilling) * CIRCUMFERENCE : 0
+      const seg = {
+        ...item,
+        dasharray: `${dashLength.toFixed(1)} ${(CIRCUMFERENCE - dashLength).toFixed(1)}`,
+        dashoffset: -currentOffset,
+      }
+      currentOffset += dashLength
+      return seg
+    })
+  }, [paidCount, trialCount, suspendedCount, totalBilling, isKm])
+
+  // 4. Time Range & Metrics Calculations
+  const economics = data?.saas_economics
+  const entities = data?.entities
+  const monthlyTrends = useMemo(() => data?.monthly_trends || [], [data?.monthly_trends])
+  const mrrVal = Number(economics?.estimated_mrr_usd || 0)
+  const expiringTrialsCount = economics?.trials_expiring_soon_count ?? 0
+
+  // Chart Bars generation matching normal admin filter options
+  const chartBars = useMemo<ChartBarData[]>(() => {
+    const activeOrgs = orgs?.active_organizations ?? 0
+
+    // 1. Today: Hourly bar graph (24 hours: 00:00 to 23:00)
+    if (timeRange === 'today') {
+      const bars: ChartBarData[] = []
+      const todayStr = getLocalDateString()
+      const currentHour = new Date().getHours()
+
+      for (let h = 0; h < 24; h++) {
+        const hourStr = String(h).padStart(2, '0')
+        const nextHourStr = String((h + 1) % 24).padStart(2, '0')
+        const isPastOrCurrent = h <= currentHour
+
+        bars.push({
+          key: `hour-${h}`,
+          label: `${hourStr}:00`,
+          fullLabel: `${hourStr}:00 - ${nextHourStr}:00 (${todayStr})`,
+          revenue: 0,
+          tenants: isPastOrCurrent ? activeOrgs : 0,
+        })
+      }
+      return bars
+    }
+
+    // 2. Week: Day bar graph (7 days)
+    if (timeRange === 'week') {
+      const bars: ChartBarData[] = []
+      const now = new Date()
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date()
+        d.setDate(now.getDate() - i)
+        const dateStr = getLocalDateString(d)
+        const dayName = isKm
+          ? ['អាទិត្យ', 'ច័ន្ទ', 'អង្គារ', 'ពុធ', 'ព្រហ', 'សុក្រ', 'សៅរ៍'][d.getDay()]
+          : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]
+        const monthShort = isKm ? KM_MONTHS[d.getMonth()] : EN_MONTHS[d.getMonth()]
+
+        bars.push({
+          key: `week-${dateStr}`,
+          label: dayName,
+          fullLabel: `${dayName}, ${d.getDate()} ${monthShort}`,
+          revenue: 0,
+          tenants: activeOrgs,
+        })
+      }
+      return bars
+    }
+
+    // 3. Month: Day bar graph (Days 1 to 31)
+    if (timeRange === 'month') {
+      const now = new Date()
+      const year = now.getFullYear()
+      const monthIdx = now.getMonth()
+      const daysInMonth = new Date(year, monthIdx + 1, 0).getDate()
+      const currentDay = now.getDate()
+      const monthLabel = isKm ? KM_MONTHS[monthIdx] : EN_MONTHS[monthIdx]
+
+      const bars: ChartBarData[] = []
+      for (let d = 1; d <= daysInMonth; d++) {
+        const isPastOrCurrent = d <= currentDay
+        const dayStr = String(d).padStart(2, '0')
+
+        bars.push({
+          key: `day-${d}`,
+          label: `${dayStr}`,
+          fullLabel: `${dayStr} ${monthLabel} ${year}`,
+          revenue: 0,
+          tenants: isPastOrCurrent ? activeOrgs : 0,
+        })
+      }
+      return bars
+    }
+
+    // 4. Year: Month bar graph (12 Months: Jan to Dec)
+    if (timeRange === 'year') {
+      const now = new Date()
+      const currentYear = now.getFullYear()
+      const currentMonthIdx = now.getMonth()
+      const bars: ChartBarData[] = []
+
+      EN_MONTHS.forEach((mName, idx) => {
+        const monthNum = String(idx + 1).padStart(2, '0')
+        const monthKey = `${currentYear}-${monthNum}`
+        const monthLabel = isKm ? KM_MONTHS[idx] : mName
+
+        const backendMetric = monthlyTrends.find(
+          (mt) => mt.month_key === monthKey || mt.month_label.toLowerCase() === mName.toLowerCase()
+        )
+
+        if (backendMetric) {
+          bars.push({
+            key: `month-${monthKey}`,
+            label: monthLabel,
+            fullLabel: `${monthLabel} ${currentYear}`,
+            revenue: Number(backendMetric.revenue_usd || 0),
+            tenants: backendMetric.cumulative_tenants,
+            newTenants: backendMetric.new_tenants,
+          })
+        } else {
+          const isPastOrCurrent = idx <= currentMonthIdx
+          bars.push({
+            key: `month-${monthKey}`,
+            label: monthLabel,
+            fullLabel: `${monthLabel} ${currentYear}`,
+            revenue: 0,
+            tenants: isPastOrCurrent && idx === currentMonthIdx ? activeOrgs : 0,
+          })
+        }
+      })
+      return bars
+    }
+
+    // 5. Custom Date Range
+    const s = new Date(customStartDate)
+    const e = new Date(customEndDate)
+    const diffDays = Math.max(0, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)))
+
+    // 1 single day -> Hourly bar graph
+    if (customStartDate === customEndDate || diffDays === 0) {
+      const bars: ChartBarData[] = []
+      const todayStr = getLocalDateString()
+      const isToday = customStartDate === todayStr
+      const currentHour = new Date().getHours()
+
+      for (let h = 0; h < 24; h++) {
+        const hourStr = String(h).padStart(2, '0')
+        const nextHourStr = String((h + 1) % 24).padStart(2, '0')
+        const isPastOrCurrent = !isToday || h <= currentHour
+
+        bars.push({
+          key: `custom-hour-${h}`,
+          label: `${hourStr}:00`,
+          fullLabel: `${hourStr}:00 - ${nextHourStr}:00 (${customStartDate})`,
+          revenue: 0,
+          tenants: isPastOrCurrent ? activeOrgs : 0,
+        })
+      }
+      return bars
+    }
+
+    // <= 31 days -> Daily bar graph
+    if (diffDays <= 31) {
+      const bars: ChartBarData[] = []
+      const cur = new Date(s)
+      const now = new Date()
+
+      while (cur <= e) {
+        const dateStr = getLocalDateString(cur)
+        const isPastOrCurrent = cur <= now
+        const monthName = isKm ? KM_MONTHS[cur.getMonth()] : EN_MONTHS[cur.getMonth()]
+        const dayNum = cur.getDate()
+
+        bars.push({
+          key: `custom-day-${dateStr}`,
+          label: `${monthName} ${dayNum}`,
+          fullLabel: dateStr,
+          revenue: 0,
+          tenants: isPastOrCurrent ? activeOrgs : 0,
+        })
+        cur.setDate(cur.getDate() + 1)
+      }
+      return bars
+    }
+
+    // > 31 days -> Monthly bar graph
+    const bars: ChartBarData[] = []
+    const cur = new Date(s.getFullYear(), s.getMonth(), 1)
+
+    while (cur <= e) {
+      const idx = cur.getMonth()
+      const mName = isKm ? KM_MONTHS[idx] : EN_MONTHS[idx]
+      const yNum = cur.getFullYear()
+      const monthKey = `${yNum}-${String(idx + 1).padStart(2, '0')}`
+
+      const backendMetric = monthlyTrends.find(
+        (mt) => mt.month_key === monthKey || mt.month_label.toLowerCase() === EN_MONTHS[idx].toLowerCase()
+      )
+
+      bars.push({
+        key: `custom-month-${monthKey}`,
+        label: `${mName}`,
+        fullLabel: `${mName} ${yNum}`,
+        revenue: backendMetric ? Number(backendMetric.revenue_usd || 0) : 0,
+        tenants: backendMetric ? backendMetric.cumulative_tenants : activeOrgs,
+        newTenants: backendMetric?.new_tenants,
+      })
+
+      cur.setMonth(cur.getMonth() + 1)
+    }
+    return bars
+  }, [timeRange, customStartDate, customEndDate, monthlyTrends, orgs?.active_organizations, isKm])
+
+  // Current Range Display Label for trigger button
+  const currentRangeLabel = useMemo(() => {
+    if (timeRange === 'today') return isKm ? 'ថ្ងៃនេះ' : 'Today'
+    if (timeRange === 'week') return isKm ? 'សប្តាហ៍នេះ' : 'This Week'
+    if (timeRange === 'month') return isKm ? 'ខែនេះ' : 'This Month'
+    if (timeRange === 'year') return isKm ? 'ឆ្នាំនេះ' : 'This Year'
+    if (timeRange === 'custom') {
+      if (customStartDate === customEndDate) return customStartDate
+      return `${customStartDate} → ${customEndDate}`
+    }
+    return isKm ? 'ឆ្នាំនេះ' : 'This Year'
+  }, [timeRange, customStartDate, customEndDate, isKm])
+
+  // Scale max revenue
+  const maxRevenue = useMemo(() => {
+    const revs = chartBars.map((b) => b.revenue)
+    return Math.max(...revs, mrrVal || 100, 10)
+  }, [chartBars, mrrVal])
 
   // Error Banner
   if (isError) {
@@ -84,41 +450,24 @@ export const PlatformOverviewTab: FC = () => {
 
   if (isLoading && !data) {
     return (
-      <div className="h-96 flex flex-col items-center justify-center gap-2 text-zinc-500">
-        <Loader2 className="w-6 h-6 animate-spin text-[#167e61]" />
-        <p className="text-xs">
-          {isKm ? 'កំពុងទាញយកទិន្នន័យផ្ទាល់...' : 'Loading live metrics...'}
-        </p>
+      <div className="h-96 flex flex-col items-center justify-center">
+        <EmenuLoader
+          size="lg"
+          message={isKm ? 'កំពុងទាញយកទិន្នន័យផ្ទាល់...' : 'Loading live metrics...'}
+          showBrandText
+        />
       </div>
     )
   }
 
-  const economics = data?.saas_economics
-  const entities = data?.entities
-  const orgs = data?.organizations
-  const monthlyTrends = data?.monthly_trends || []
   const expiringTrials = data?.expiring_trials || []
-  const recentAudits = data?.recent_audits || []
-
-  const mrrVal = Number(economics?.estimated_mrr_usd || 0)
-  const arrVal = Number(economics?.estimated_arr_usd || 0)
-  const gmvVal = Number(economics?.total_gmv_usd || 0)
-  const totalOrders = economics?.total_orders_count ?? 0
-  const expiringTrialsCount = economics?.trials_expiring_soon_count ?? 0
-
-  // Chart max value calculation for scaling
-  const maxRevenue = Math.max(
-    ...monthlyTrends.map((m) => Number(m.revenue_usd || 0)),
-    mrrVal || 100
-  )
-
 
   return (
     <div className="space-y-2 animate-in fade-in duration-200 pb-8">
       {/* ─────────────────────────────────────────────────────────────
-          1. Top KPI Cards (8 Cards - Executive Overview)
+          1. Top KPI Cards (6 Cards - Executive Overview)
       ───────────────────────────────────────────────────────────── */}
-      <div className="w-full grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5">
+      <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5">
         {/* MRR */}
         <div className="p-3 sm:p-3.5 min-h-[96px] sm:min-h-[104px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
           <span className="text-xs font-medium text-zinc-500 block truncate">
@@ -129,32 +478,6 @@ export const PlatformOverviewTab: FC = () => {
           </div>
           <span className="text-[10px] text-zinc-400">
             {isKm ? 'ពីថ្លៃគម្រោងជាវ' : 'from active subs'}
-          </span>
-        </div>
-
-        {/* ARR */}
-        <div className="p-3 sm:p-3.5 min-h-[96px] sm:min-h-[104px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
-          <span className="text-xs font-medium text-zinc-500 block truncate">
-            {isKm ? 'ចំណូលប្រចាំឆ្នាំ (ARR)' : 'Annual Run Rate'}
-          </span>
-          <div className="text-lg sm:text-xl font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight mt-1 truncate">
-            {formatUSD(arrVal)}
-          </div>
-          <span className="text-[10px] text-zinc-400">
-            {isKm ? 'ប៉ាន់ស្មាន 12 ខែ' : 'annualized run rate'}
-          </span>
-        </div>
-
-        {/* Platform GMV */}
-        <div className="p-3 sm:p-3.5 min-h-[96px] sm:min-h-[104px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
-          <span className="text-xs font-medium text-zinc-500 block truncate">
-            {isKm ? 'តម្លៃលក់សរុប (GMV)' : 'Platform GMV'}
-          </span>
-          <div className="text-lg sm:text-xl font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight mt-1 truncate">
-            {formatUSD(gmvVal)}
-          </div>
-          <span className="text-[10px] text-zinc-400 truncate">
-            {totalOrders.toLocaleString()} {isKm ? 'ការបញ្ជាទិញ' : 'orders processed'}
           </span>
         </div>
 
@@ -237,137 +560,286 @@ export const PlatformOverviewTab: FC = () => {
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          2. Middle Row: Subscription Distribution & Tenant Lifecycle
+          2. Middle Row: Subscription Distribution & Tenant Lifecycle (Donut Charts)
       ───────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-1.5">
-        {/* Subscription Plan Distribution (6 cols) */}
-        <div className="md:col-span-12 lg:col-span-6 p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 min-w-0 flex flex-col justify-between min-h-[210px] sm:min-h-[225px]">
+      {/* ─────────────────────────────────────────────────────────────
+          2. Middle Row: 3 Analytics Containers (Donut Charts)
+      ───────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5">
+        {/* Container 1: Subscription Plan Distribution (Donut Chart) */}
+        <div className="p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 min-w-0 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <div>
-                <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
+              <div className="min-w-0 pr-1">
+                <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50 truncate">
                   {isKm ? 'ការចែកចាយគម្រោង Subscription' : 'Subscription Tier Distribution'}
                 </h3>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-zinc-500 truncate">
                   {isKm ? 'សមាមាត្រអ្នកជាវតាមប្រភេទគម្រោង' : 'Distribution of active subscriptions by plan tier'}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => navigate('/superadmin/plans')}
-                className="text-xs font-semibold text-[#167e61] dark:text-[#22ab84] hover:underline"
+                className="text-xs font-semibold text-[#167e61] dark:text-[#22ab84] hover:underline shrink-0"
               >
                 {isKm ? 'គ្រប់គ្រងគម្រោង' : 'Manage Plans'}
               </button>
             </div>
 
-            {/* Distribution Visual Bar */}
-            <div className="h-2.5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex overflow-hidden p-0.5 border border-zinc-200 dark:border-zinc-700 mt-2.5">
-              {distribution.map((d) => {
-                if (d.count === 0) return null
-                return (
-                  <div
-                    key={d.plan_code}
-                    style={{ width: `${d.pct}%` }}
-                    className={`${d.bg} h-full first:rounded-l-full last:rounded-r-full transition-all`}
-                    title={`${d.label}: ${d.count} (${d.pct.toFixed(1)}%)`}
+            {/* Donut Chart and Legend */}
+            <div className="flex flex-col items-center gap-4 pt-3 pb-1">
+              {/* Donut Graphic */}
+              <div className="relative w-28 h-28 sm:w-32 sm:h-32 shrink-0 flex items-center justify-center my-1">
+                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="transparent"
+                    stroke="currentColor"
+                    className="text-zinc-100 dark:text-zinc-800/80"
+                    strokeWidth="12"
                   />
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Tier Legend Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1">
-            {distribution.map((d) => (
-              <div
-                key={d.plan_code}
-                className="p-3 sm:p-3.5 rounded-xl bg-zinc-50/60 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 min-h-[84px] sm:min-h-[92px] flex flex-col justify-between min-w-0"
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="text-xs font-medium text-zinc-500 block truncate">
-                    {d.label}
+                  {subscriptionSegments.map((seg) => (
+                    seg.count > 0 && (
+                      <circle
+                        key={seg.key}
+                        cx="50"
+                        cy="50"
+                        r="40"
+                        fill="transparent"
+                        stroke={seg.stroke}
+                        strokeWidth="12"
+                        strokeDasharray={seg.dasharray}
+                        strokeDashoffset={seg.dashoffset}
+                        className="transition-all duration-500 ease-out"
+                      />
+                    )
+                  ))}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                  <span className="text-xl sm:text-2xl font-bold text-zinc-950 dark:text-zinc-50 leading-none">
+                    {totalTierOrgs}
                   </span>
-                  <span className="text-[10px] text-zinc-400 font-medium shrink-0">
-                    {d.pct.toFixed(0)}%
+                  <span className="text-[10px] text-zinc-400 mt-1 font-medium">
+                    {isKm ? 'ហាងសរុប' : 'Total Brands'}
                   </span>
-                </div>
-                <div className="text-lg sm:text-xl lg:text-2xl font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight mt-1 truncate">
-                  {d.count}
                 </div>
               </div>
-            ))}
+
+              {/* Tiers Legend List */}
+              <div className="w-full space-y-1.5 min-w-0">
+                {subscriptionSegments.map((d) => (
+                  <div
+                    key={d.key}
+                    className="flex items-center justify-between p-2 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
+                        style={{ backgroundColor: d.stroke }}
+                      />
+                      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                        {d.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-xs font-bold text-zinc-950 dark:text-zinc-50">
+                        {d.count}
+                      </span>
+                      <span className="text-[11px] text-zinc-400 font-medium">
+                        ({d.pct}%)
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Tenant Lifecycle Breakdown (6 cols) */}
-        <div className="md:col-span-12 lg:col-span-6 p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 min-w-0 flex flex-col justify-between min-h-[210px] sm:min-h-[225px]">
+        {/* Container 2: Tenant Lifecycle Breakdown (Donut Chart) */}
+        <div className="p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 min-w-0 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <div>
-                <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
-                  {isKm ? 'វដ្តជីវិតអាជីវកម្ម' : 'Tenant Organization Lifecycle'}
+              <div className="min-w-0 pr-1">
+                <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50 truncate">
+                  {isKm ? 'វដ្តជីវិតអាជីវកម្ម' : 'Tenant Lifecycle'}
                 </h3>
-                <p className="text-xs text-zinc-500">
-                  {isKm ? 'ស្ថានភាពសកម្ម ផ្អាក និងទុកក្នុងប័ណ្ណសារ' : 'Active, suspended, and archived tenant status'}
+                <p className="text-xs text-zinc-500 truncate">
+                  {isKm ? 'ស្ថានភាពសកម្ម ផ្អាក និងទុកក្នុងប័ណ្ណសារ' : 'Active, suspended, and archived status'}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => navigate('/superadmin/organizations')}
-                className="text-xs font-semibold text-[#167e61] dark:text-[#22ab84] hover:underline"
+                className="text-xs font-semibold text-[#167e61] dark:text-[#22ab84] hover:underline shrink-0"
               >
                 {isKm ? 'ពិនិត្យបញ្ជីហាង' : 'View Organizations'}
               </button>
             </div>
 
-            {/* Visual ratio bar */}
-            <div className="h-2.5 rounded-full bg-zinc-100 dark:bg-zinc-800 flex overflow-hidden p-0.5 border border-zinc-200 dark:border-zinc-700 mt-2.5">
-              <div
-                style={{
-                  width: `${
-                    (orgs?.active_organizations ?? 0) + (orgs?.suspended_organizations ?? 0) + (orgs?.archived_organizations ?? 0) > 0
-                      ? (((orgs?.active_organizations ?? 0) /
-                          ((orgs?.active_organizations ?? 0) + (orgs?.suspended_organizations ?? 0) + (orgs?.archived_organizations ?? 0))) *
-                        100)
-                      : 0
-                  }%`,
-                }}
-                className="bg-[#167e61] dark:bg-[#167e61] h-full rounded-full transition-all"
-                title={`Active: ${orgs?.active_organizations ?? 0}`}
-              />
+            {/* Donut Chart and Legend */}
+            <div className="flex flex-col items-center gap-4 pt-3 pb-1">
+              {/* Donut Graphic */}
+              <div className="relative w-28 h-28 sm:w-32 sm:h-32 shrink-0 flex items-center justify-center my-1">
+                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="transparent"
+                    stroke="currentColor"
+                    className="text-zinc-100 dark:text-zinc-800/80"
+                    strokeWidth="12"
+                  />
+                  {lifecycleSegments.map((seg) => (
+                    seg.count > 0 && (
+                      <circle
+                        key={seg.key}
+                        cx="50"
+                        cy="50"
+                        r="40"
+                        fill="transparent"
+                        stroke={seg.stroke}
+                        strokeWidth="12"
+                        strokeDasharray={seg.dasharray}
+                        strokeDashoffset={seg.dashoffset}
+                        className="transition-all duration-500 ease-out"
+                      />
+                    )
+                  ))}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                  <span className="text-xl sm:text-2xl font-bold text-zinc-950 dark:text-zinc-50 leading-none">
+                    {totalLifecycle}
+                  </span>
+                  <span className="text-[10px] text-zinc-400 mt-1 font-medium">
+                    {isKm ? 'ហាងទាំងអស់' : 'All Tenants'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Status Breakdown Legend List */}
+              <div className="w-full space-y-1.5 min-w-0">
+                {lifecycleSegments.map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-between p-2 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
+                        style={{ backgroundColor: item.stroke }}
+                      />
+                      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                        {item.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-xs font-bold text-zinc-950 dark:text-zinc-50">
+                        {item.count}
+                      </span>
+                      <span className="text-[11px] text-zinc-400 font-medium">
+                        ({item.pct}%)
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* Status Breakdown Grid */}
-          <div className="grid grid-cols-3 gap-1.5 pt-1">
-            {/* Active */}
-            <div className="p-3 sm:p-3.5 rounded-xl bg-zinc-50/60 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 min-h-[84px] sm:min-h-[92px] flex flex-col justify-between">
-              <span className="text-xs font-medium text-zinc-500 block truncate">
-                {isKm ? 'សកម្ម' : 'Active'}
-              </span>
-              <div className="text-lg sm:text-xl lg:text-2xl font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight mt-1 truncate">
-                {(orgs?.active_organizations ?? 0).toLocaleString()}
+        {/* Container 3: Subscription & Trial Conversion (Donut Chart) */}
+        <div className="p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 min-w-0 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="min-w-0 pr-1">
+                <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50 truncate">
+                  {isKm ? 'ស្ថានភាពគម្រោង & សាកល្បង' : 'Subscription & Trial Status'}
+                </h3>
+                <p className="text-xs text-zinc-500 truncate">
+                  {isKm ? 'សមាមាត្របង់ប្រាក់ សាកល្បង និងផ្អាក' : 'Paid active vs free trial & suspended'}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => navigate('/superadmin/organizations')}
+                className="text-xs font-semibold text-[#167e61] dark:text-[#22ab84] hover:underline shrink-0"
+              >
+                {isKm ? 'ពិនិត្យការជាវ' : 'Billing Status'}
+              </button>
             </div>
 
-            {/* Suspended */}
-            <div className="p-3 sm:p-3.5 rounded-xl bg-zinc-50/60 dark:bg-zinc-900/60 border border-zinc-200 dark:border-zinc-800 min-h-[84px] sm:min-h-[92px] flex flex-col justify-between">
-              <span className="text-xs font-medium text-zinc-500 block truncate">
-                {isKm ? 'បានផ្អាក' : 'Suspended'}
-              </span>
-              <div className="text-lg sm:text-xl lg:text-2xl font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight mt-1 truncate">
-                {(orgs?.suspended_organizations ?? 0).toLocaleString()}
+            {/* Donut Chart and Legend */}
+            <div className="flex flex-col items-center gap-4 pt-3 pb-1">
+              {/* Donut Graphic */}
+              <div className="relative w-28 h-28 sm:w-32 sm:h-32 shrink-0 flex items-center justify-center my-1">
+                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="transparent"
+                    stroke="currentColor"
+                    className="text-zinc-100 dark:text-zinc-800/80"
+                    strokeWidth="12"
+                  />
+                  {billingSegments.map((seg) => (
+                    seg.count > 0 && (
+                      <circle
+                        key={seg.key}
+                        cx="50"
+                        cy="50"
+                        r="40"
+                        fill="transparent"
+                        stroke={seg.stroke}
+                        strokeWidth="12"
+                        strokeDasharray={seg.dasharray}
+                        strokeDashoffset={seg.dashoffset}
+                        className="transition-all duration-500 ease-out"
+                      />
+                    )
+                  ))}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                  <span className="text-xl sm:text-2xl font-bold text-zinc-950 dark:text-zinc-50 leading-none">
+                    {totalBilling}
+                  </span>
+                  <span className="text-[10px] text-zinc-400 mt-1 font-medium">
+                    {isKm ? 'ហាងជាវ' : 'Total Accounts'}
+                  </span>
+                </div>
               </div>
-            </div>
 
-            {/* Archived */}
-            <div className="p-3 sm:p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-900/60 min-h-[84px] sm:min-h-[92px] flex flex-col justify-between">
-              <span className="text-xs font-medium text-zinc-500 block truncate">
-                {isKm ? 'ប័ណ្ណសារ' : 'Archived'}
-              </span>
-              <div className="text-lg sm:text-xl lg:text-2xl font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight mt-1 truncate">
-                {(orgs?.archived_organizations ?? 0).toLocaleString()}
+              {/* Status Breakdown Legend List */}
+              <div className="w-full space-y-1.5 min-w-0">
+                {billingSegments.map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-between p-2 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/60 border border-zinc-200/60 dark:border-zinc-800/60 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs"
+                        style={{ backgroundColor: item.stroke }}
+                      />
+                      <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate">
+                        {item.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-xs font-bold text-zinc-950 dark:text-zinc-50">
+                        {item.count}
+                      </span>
+                      <span className="text-[11px] text-zinc-400 font-medium">
+                        ({item.pct}%)
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -375,253 +847,455 @@ export const PlatformOverviewTab: FC = () => {
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          3. Monthly Revenue & Tenant Growth Historical Chart (6 Months)
+          3. Multi-Granularity Adaptive Historical Trend Chart
       ───────────────────────────────────────────────────────────── */}
-      <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div className="p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3.5 min-w-0">
+        {/* Header Row: Title & Single Time Filter Trigger Modal Button */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800/80 pb-3">
           <div>
             <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
-              {isKm ? 'និន្នាការចំណូល & កំណើនហាង (៦ ខែចុងក្រោយ)' : 'Monthly Revenue & Tenant Growth (Last 6 Months)'}
+              {timeRange === 'today'
+                ? (isKm ? 'និន្នាការតាមម៉ោង (ថ្ងៃនេះ)' : 'Hourly Revenue & Tenant Trend (Today)')
+                : timeRange === 'week'
+                ? (isKm ? 'និន្នាការប្រចាំថ្ងៃ (សប្តាហ៍នេះ)' : 'Daily Revenue & Tenant Trend (This Week)')
+                : timeRange === 'month'
+                ? (isKm ? 'និន្នាការប្រចាំថ្ងៃ (ខែនេះ)' : 'Daily Revenue & Tenant Trend (This Month)')
+                : timeRange === 'year'
+                ? (isKm ? 'និន្នាការប្រចាំខែ (ឆ្នាំនេះ)' : 'Monthly Revenue & Tenant Trend (This Year)')
+                : (isKm ? `និន្នាការកាលបរិច្ឆេទផ្ទាល់ខ្លួន (${currentRangeLabel})` : `Custom Trend (${currentRangeLabel})`)}
             </h3>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-zinc-500 mt-0.5">
               {isKm
                 ? 'ប្រាក់ចំណូលជាវគម្រោងប្រចាំខែ និងចំនួនភោជនីយដ្ឋានសរុបដែលបានចុះឈ្មោះ'
                 : 'Historical subscription recurring revenue and cumulative registered tenant organizations'}
             </p>
           </div>
 
-          <div className="flex items-center gap-4 text-xs font-medium">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-[#167e61]" />
-              <span className="text-zinc-600 dark:text-zinc-400">
-                {isKm ? 'ចំណូល ($)' : 'Monthly Revenue ($)'}
-              </span>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Filter Trigger Button & Dropdown Modal positioned near button */}
+            <div className="relative inline-block" ref={dateDropdownRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFilterModalOpen((prev) => !prev)
+                  setIsCustomRangeModalOpen(false)
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              >
+                <span>{currentRangeLabel}</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 ${
+                    isFilterModalOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {/* Modal appearing right near button */}
+              {isFilterModalOpen && (
+                <div
+                  className="absolute right-0 top-full mt-2 w-84 sm:w-96 max-w-[calc(100vw-2rem)] rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 p-4 shadow-xl z-50 space-y-3 animate-in fade-in zoom-in-95 duration-150"
+                  role="dialog"
+                >
+                  {!isCustomRangeModalOpen ? (
+                    /* View 1: Presets (Two-Column Grid) */
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                        <div>
+                          <h4 className="text-xs font-bold text-zinc-950 dark:text-zinc-50">
+                            {isKm ? 'ជ្រើសរើសចន្លោះកាលបរិច្ឆេទ' : 'Select Timeframe'}
+                          </h4>
+                          <p className="text-[11px] text-zinc-400">
+                            {isKm ? 'ជ្រើសរើសកាលវិភាគដើម្បីមើលក្រាហ្វ' : 'Choose time window for analytics'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsFilterModalOpen(false)}
+                          className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* 2-Column Grid for the 4 presets */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          {
+                            key: 'today' as const,
+                            label: isKm ? 'ថ្ងៃនេះ' : 'Today',
+                            sub: isKm ? 'ក្រាហ្វតាមម៉ោង (២៤ ម៉ោង)' : 'Hourly breakdown (24h)',
+                          },
+                          {
+                            key: 'week' as const,
+                            label: isKm ? 'សប្តាហ៍នេះ' : 'This Week',
+                            sub: isKm ? 'ក្រាហ្វតាមថ្ងៃ (៧ ថ្ងៃចុងក្រោយ)' : 'Daily breakdown (last 7d)',
+                          },
+                          {
+                            key: 'month' as const,
+                            label: isKm ? 'ខែនេះ' : 'This Month',
+                            sub: isKm ? 'ក្រាហ្វតាមថ្ងៃ (១ ដល់ ៣១ ថ្ងៃ)' : 'Daily breakdown (1-31)',
+                          },
+                          {
+                            key: 'year' as const,
+                            label: isKm ? 'ឆ្នាំនេះ' : 'This Year',
+                            sub: isKm ? 'ក្រាហ្វតាមខែ (១២ ខែ)' : 'Monthly breakdown (12m)',
+                          },
+                        ].map((item) => {
+                          const isSelected = timeRange === item.key
+                          return (
+                            <button
+                              key={item.key}
+                              type="button"
+                              onClick={() => {
+                                setTimeRange(item.key)
+                                setIsFilterModalOpen(false)
+                              }}
+                              className={`flex flex-col justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'border-[#167e61] bg-[#167e61]/5 text-zinc-950 dark:text-zinc-50 shadow-xs'
+                                  : 'border-zinc-100 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/40 text-zinc-700 dark:text-zinc-300'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between w-full">
+                                <span className="text-xs font-bold">{item.label}</span>
+                                {isSelected && (
+                                  <div className="w-4 h-4 rounded-full bg-[#167e61] text-white flex items-center justify-center shrink-0">
+                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                  </div>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-zinc-400 mt-1 leading-snug">{item.sub}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {/* Custom Date Range Trigger */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempStartDate(customStartDate)
+                          setTempEndDate(customEndDate)
+                          setIsCustomRangeModalOpen(true)
+                        }}
+                        className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          timeRange === 'custom'
+                            ? 'border-[#167e61] bg-[#167e61]/5 text-zinc-950 dark:text-zinc-50 shadow-xs'
+                            : 'border-zinc-100 dark:border-zinc-800/80 hover:border-zinc-300 dark:hover:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-900/40 text-zinc-700 dark:text-zinc-300'
+                        }`}
+                      >
+                        <div>
+                          <div className="text-xs font-bold">
+                            {isKm ? 'កំណត់កាលបរិច្ឆេទផ្ទាល់ខ្លួន' : 'Custom Date Range'}
+                          </div>
+                          <div className="text-[10px] text-zinc-400">
+                            {timeRange === 'custom'
+                              ? `${customStartDate} → ${customEndDate}`
+                              : isKm
+                              ? 'ជ្រើសរើសចន្លោះថ្ងៃចាប់ផ្តើម និងបញ្ចប់'
+                              : 'Choose specific start and end dates'}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-zinc-400">
+                          {timeRange === 'custom' && (
+                            <div className="w-4 h-4 rounded-full bg-[#167e61] text-white flex items-center justify-center mr-1">
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </div>
+                          )}
+                          <ChevronRight className="w-4 h-4 text-zinc-400" />
+                        </div>
+                      </button>
+                    </div>
+                  ) : (
+                    /* View 2: Custom Date Range Picker */
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-zinc-100 dark:border-zinc-800">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setIsCustomRangeModalOpen(false)}
+                            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                            title={isKm ? 'ត្រឡប់ក្រោយ' : 'Back'}
+                          >
+                            <ArrowLeft className="w-3.5 h-3.5" />
+                          </button>
+                          <div>
+                            <h4 className="text-xs font-bold text-zinc-950 dark:text-zinc-50">
+                              {isKm ? 'កំណត់ចន្លោះកាលបរិច្ឆេទ' : 'Custom Date Range'}
+                            </h4>
+                            <p className="text-[10px] text-zinc-400">
+                              {isKm ? 'ជ្រើសរើសថ្ងៃចាប់ផ្តើម និងបញ្ចប់' : 'Select start and end dates'}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsFilterModalOpen(false)
+                            setIsCustomRangeModalOpen(false)
+                          }}
+                          className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                              {isKm ? 'ចាប់ពីថ្ងៃ:' : 'From:'}
+                            </label>
+                            <input
+                              type="date"
+                              value={tempStartDate}
+                              onChange={(e) => setTempStartDate(e.target.value)}
+                              className="w-full px-2.5 py-1.5 rounded-xl text-xs font-medium border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-[#167e61]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                              {isKm ? 'ដល់ថ្ងៃ:' : 'To:'}
+                            </label>
+                            <input
+                              type="date"
+                              value={tempEndDate}
+                              min={tempStartDate}
+                              onChange={(e) => setTempEndDate(e.target.value)}
+                              className="w-full px-2.5 py-1.5 rounded-xl text-xs font-medium border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-[#167e61]"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Dynamic Preview Indicator */}
+                        {(() => {
+                          if (!tempStartDate || !tempEndDate) return null
+                          const s = new Date(tempStartDate)
+                          const e = new Date(tempEndDate)
+                          const diffDays = Math.max(0, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)))
+                          const isSingleDay = tempStartDate === tempEndDate || diffDays === 0
+
+                          return (
+                            <div className="p-2 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/70 dark:border-zinc-800 text-[10px] text-zinc-600 dark:text-zinc-400 space-y-0.5">
+                              <div className="font-semibold text-zinc-900 dark:text-zinc-200 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#167e61]" />
+                                {isSingleDay
+                                  ? (isKm ? 'បង្ហាញក្រាហ្វតាមម៉ោង (២៤ ម៉ោង)' : 'Hourly graph (24h)')
+                                  : diffDays <= 31
+                                  ? (isKm ? `បង្ហាញក្រាហ្វតាមថ្ងៃ (${diffDays + 1} ថ្ងៃ)` : `Daily graph (${diffDays + 1} days)`)
+                                  : (isKm ? 'បង្ហាញក្រាហ្វតាមខែ' : 'Monthly graph')}
+                              </div>
+                            </div>
+                          )
+                        })()}
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                        <button
+                          type="button"
+                          onClick={() => setIsCustomRangeModalOpen(false)}
+                          className="px-2.5 py-1 rounded-xl text-xs font-semibold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                        >
+                          {isKm ? 'បោះបង់' : 'Cancel'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (tempStartDate && tempEndDate) {
+                              setCustomStartDate(tempStartDate)
+                              setCustomEndDate(tempEndDate)
+                              setTimeRange('custom')
+                              setIsFilterModalOpen(false)
+                              setIsCustomRangeModalOpen(false)
+                            }
+                          }}
+                          disabled={!tempStartDate || !tempEndDate || tempStartDate > tempEndDate}
+                          className="px-3 py-1 rounded-xl text-xs font-semibold bg-[#167e61] text-white hover:bg-[#126850] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-xs cursor-pointer"
+                        >
+                          {isKm ? 'អនុវត្ត' : 'Apply'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 bg-emerald-500" />
-              <span className="text-zinc-600 dark:text-zinc-400">
-                {isKm ? 'ចំនួនហាងសរុប' : 'Total Tenants'}
-              </span>
+
+            {/* Legend */}
+            <div className="flex items-center gap-3 text-xs font-medium pl-1">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded bg-[#167e61]" />
+                <span className="text-zinc-600 dark:text-zinc-400">
+                  {isKm ? 'ចំណូល ($)' : 'Revenue ($)'}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-0.5 bg-emerald-500" />
+                <span className="text-zinc-600 dark:text-zinc-400">
+                  {isKm ? 'ចំនួនហាងសរុប' : 'Total Tenants'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Visual Bar / Chart Grid */}
-        <div className="pt-4 pb-2">
-          <div className="grid grid-cols-6 gap-2 sm:gap-4 items-end h-44 sm:h-48 border-b border-zinc-200 dark:border-zinc-800 px-2 pb-2">
-            {monthlyTrends.map((metric, idx) => {
-              const revNum = Number(metric.revenue_usd || 0)
-              const heightPercent = maxRevenue > 0 ? Math.min(100, Math.max(12, Math.round((revNum / maxRevenue) * 100))) : 12
-              const isHovered = hoveredMonthIndex === idx
+        {/* Visual Bar / Chart Grid (Responsive & Smooth Horizontal Scroll) */}
+        <div className="pt-2 pb-1">
+          <div className="overflow-x-auto pb-2 scrollbar-thin">
+            <div
+              className={`min-w-full flex items-end h-44 sm:h-48 border-b border-zinc-200 dark:border-zinc-800 px-2 pb-2 gap-1.5 sm:gap-2 ${
+                chartBars.length > 15 ? 'min-w-[720px]' : ''
+              }`}
+            >
+              {chartBars.map((bar, idx) => {
+                const revNum = Number(bar.revenue || 0)
+                const heightPercent =
+                  revNum > 0 && maxRevenue > 0
+                    ? Math.min(100, Math.max(8, Math.round((revNum / maxRevenue) * 100)))
+                    : 3
+                const isHovered = hoveredBarIndex === idx
+                const barWidthClass =
+                  chartBars.length > 20
+                    ? 'w-1 sm:w-1.5'
+                    : chartBars.length > 10
+                    ? 'w-1.5 sm:w-2'
+                    : 'w-2.5 sm:w-3'
 
-              return (
-                <div
-                  key={metric.month_key}
-                  onMouseEnter={() => setHoveredMonthIndex(idx)}
-                  onMouseLeave={() => setHoveredMonthIndex(null)}
-                  className="relative flex flex-col items-center h-full justify-end group cursor-pointer"
-                >
-                  {/* Tooltip on Hover */}
-                  {isHovered && (
-                    <div className="absolute -top-12 z-30 px-2.5 py-1.5 rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 text-[11px] font-semibold whitespace-nowrap shadow-lg animate-in fade-in zoom-in-95 pointer-events-none">
-                      <div>{formatUSD(revNum)}</div>
-                      <div className="text-[10px] text-zinc-400 dark:text-zinc-500 font-normal">
-                        {metric.cumulative_tenants} {isKm ? 'ហាងសរុប' : 'tenants'} (+{metric.new_tenants})
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Revenue Bar */}
+                return (
                   <div
-                    style={{ height: `${heightPercent}%` }}
-                    className={`w-full max-w-[48px] rounded-t-xl transition-all duration-300 relative ${
-                      isHovered
-                        ? 'bg-[#12674f]'
-                        : 'bg-[#167e61]/80 hover:bg-[#167e61]'
-                    }`}
+                    key={bar.key}
+                    onMouseEnter={() => setHoveredBarIndex(idx)}
+                    onMouseLeave={() => setHoveredBarIndex(null)}
+                    className="relative flex-1 min-w-[12px] sm:min-w-[16px] flex flex-col items-center h-full justify-end group cursor-pointer"
                   >
-                    <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-semibold text-zinc-600 dark:text-zinc-400">
-                      {formatUSD(revNum).replace('.00', '')}
+                    {/* Revenue Bar - sleek and small */}
+                    <div
+                      style={{ height: revNum > 0 ? `${heightPercent}%` : '4px' }}
+                      className={`${barWidthClass} rounded-full transition-all duration-300 relative ${
+                        revNum > 0
+                          ? isHovered
+                            ? 'bg-[#12674f]'
+                            : 'bg-[#167e61]'
+                          : isHovered
+                          ? 'bg-zinc-400 dark:bg-zinc-600'
+                          : 'bg-zinc-200 dark:bg-zinc-800'
+                      }`}
+                    >
+                      {/* Top label: show amount only if revNum > 0 */}
+                      {revNum > 0 && (
+                        <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] sm:text-[10px] font-semibold text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
+                          {formatUSD(revNum).replace('.00', '')}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
 
-          {/* X-Axis Month Labels */}
-          <div className="grid grid-cols-6 gap-2 sm:gap-4 pt-2 px-2 text-center">
-            {monthlyTrends.map((metric, idx) => (
-              <div key={metric.month_key}>
-                <span className={`text-xs font-semibold block transition-colors ${
-                  hoveredMonthIndex === idx
-                    ? 'text-[#167e61] dark:text-[#22ab84]'
-                    : 'text-zinc-600 dark:text-zinc-400'
-                }`}>
-                  {metric.month_label}
-                </span>
-                <span className="text-[10px] text-zinc-400 block mt-0.5">
-                  {metric.cumulative_tenants} {isKm ? 'ហាង' : 'orgs'}
-                </span>
-              </div>
-            ))}
+            {/* X-Axis Labels */}
+            <div
+              className={`min-w-full flex items-start pt-2 px-2 text-center gap-1.5 sm:gap-2 ${
+                chartBars.length > 15 ? 'min-w-[720px]' : ''
+              }`}
+            >
+              {chartBars.map((bar, idx) => (
+                <div key={bar.key} className="flex-1 min-w-[14px] sm:min-w-[18px]">
+                  <span
+                    className={`text-[10px] sm:text-xs font-semibold block transition-colors truncate ${
+                      hoveredBarIndex === idx
+                        ? 'text-[#167e61] dark:text-[#22ab84]'
+                        : 'text-zinc-600 dark:text-zinc-400'
+                    }`}
+                  >
+                    {bar.label}
+                  </span>
+                  <span className="text-[9px] sm:text-[10px] text-zinc-400 block mt-0.5 truncate">
+                    {bar.tenants} {isKm ? 'ហាង' : 'orgs'}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          4. Operational Action & Risk Feeds (Level 3)
+          4. Operational Expiring Trials Outreach (Level 3)
       ───────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-1.5">
-        {/* Left: Expiring Trials & Action List */}
-        <div className="lg:col-span-6 p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 min-w-0 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-                <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
-                  {isKm ? 'ហាងជិតផុតកំណត់សាកល្បង (Expiring Trials)' : 'Expiring Trials & Renewal Outreach'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/superadmin/organizations')}
-                className="text-xs font-semibold text-[#167e61] dark:text-[#22ab84] hover:underline flex items-center gap-1"
-              >
-                <span>{isKm ? 'គ្រប់គ្រងហាង' : 'Manage All'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+      <div className="p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 min-w-0">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+              <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
+                {isKm ? 'ហាងជិតផុតកំណត់សាកល្បង (Expiring Trials)' : 'Expiring Trials & Renewal Outreach'}
+              </h3>
             </div>
+            <button
+              type="button"
+              onClick={() => navigate('/superadmin/organizations')}
+              className="text-xs font-semibold text-[#167e61] dark:text-[#22ab84] hover:underline flex items-center gap-1"
+            >
+              <span>{isKm ? 'គ្រប់គ្រងហាង' : 'Manage All'}</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
-            <p className="text-xs text-zinc-500 mb-3">
-              {isKm
-                ? 'បញ្ជីហាងដែលជិតផុតកំណត់សាកល្បងក្នុងរយៈពេល ៧ ថ្ងៃខាងមុខ សម្រាប់ក្រុមការងារតាមដាន'
-                : 'Tenant organizations with trials ending within 7 days requiring sales or billing follow-up'}
-            </p>
+          <p className="text-xs text-zinc-500 mb-3">
+            {isKm
+              ? 'បញ្ជីហាងដែលជិតផុតកំណត់សាកល្បងក្នុងរយៈពេល ៧ ថ្ងៃខាងមុខ សម្រាប់ក្រុមការងារតាមដាន'
+              : 'Tenant organizations with trials ending within 7 days requiring sales or billing follow-up'}
+          </p>
 
-            {/* List */}
-            {expiringTrials.length > 0 ? (
-              <div className="space-y-1.5">
-                {expiringTrials.map((org) => (
-                  <div
-                    key={org.organization_id}
-                    className="p-2.5 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800 flex items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
-                        {org.organization_name}
-                      </div>
-                      <div className="text-[11px] text-zinc-400 font-mono truncate">
-                        /{org.organization_slug} • {org.plan_name}
-                      </div>
+          {/* List */}
+          {expiringTrials.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {expiringTrials.map((org) => (
+                <div
+                  key={org.organization_id}
+                  className="p-2.5 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800 flex items-center justify-between gap-2"
+                >
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                      {org.organization_name}
                     </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50">
-                        {org.days_remaining === 0
-                          ? isKm ? 'ផុតថ្ងៃនេះ' : 'ends today'
-                          : isKm ? `នៅសល់ ${org.days_remaining} ថ្ងៃ` : `${org.days_remaining}d left`}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/superadmin/organizations')}
-                        className="px-2.5 py-1 rounded-full text-xs font-semibold text-[#167e61] hover:bg-[#167e61]/10 transition-colors"
-                      >
-                        {isKm ? 'កែប្រែ' : 'Review'}
-                      </button>
+                    <div className="text-[11px] text-zinc-400 font-mono truncate">
+                      /{org.organization_slug} • {org.plan_name}
                     </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-6 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center text-zinc-400 space-y-1">
-                <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto opacity-70" />
-                <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                  {isKm ? 'មិនមានហាងជិតផុតកំណត់ Trial ទេ' : 'No Critical Trial Expirations'}
-                </div>
-                <div className="text-[11px] text-zinc-400">
-                  {isKm
-                    ? 'គ្រប់ហាងទាំងអស់កំពុងដំណើរការជាធម្មតា ឬបានបង់ថ្លៃគម្រោងរួចរាល់'
-                    : 'All restaurant organizations are currently active or on standard billing.'}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* Right: Recent Platform Security & Audit Trail Feed */}
-        <div className="lg:col-span-6 p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 min-w-0 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-[#167e61] shrink-0" />
-                <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
-                  {isKm ? 'កំណត់ត្រាសវនកម្មចុងក្រោយ (Audit Feed)' : 'Recent Security & Audit Trail'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate('/superadmin/audit-logs')}
-                className="text-xs font-semibold text-[#167e61] dark:text-[#22ab84] hover:underline flex items-center gap-1"
-              >
-                <span>{isKm ? 'កំណត់ត្រាទាំងអស់' : 'View Full Log'}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-zinc-500 mb-3">
-              {isKm
-                ? 'សកម្មភាពរដ្ឋបាលចុងក្រោយទូទាំងប្រព័ន្ធ រួមមានការប្តូរគម្រោង ផ្អាកហាង និងកំណត់សិទ្ធិ'
-                : 'Real-time trace of administrative actions across tenants, plans, and permission changes'}
-            </p>
-
-            {/* Audit Log Feed */}
-            {recentAudits.length > 0 ? (
-              <div className="space-y-1.5">
-                {recentAudits.map((item) => (
-                  <div
-                    key={item.id}
-                    className="p-2.5 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800 flex items-center justify-between gap-2"
-                  >
-                    <div className="min-w-0 flex items-center gap-2">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider border shrink-0 ${formatActionBadge(item.action)}`}>
-                        {item.action.replace('action_', '')}
-                      </span>
-                      <div className="truncate">
-                        <div className="text-xs font-medium text-zinc-900 dark:text-zinc-100 truncate">
-                          {item.actor_name || item.actor_email || (isKm ? 'ប្រព័ន្ធ' : 'System')}
-                          {item.organization_name && (
-                            <span className="text-zinc-400 font-normal">
-                              {' '}→ {item.organization_name}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[10px] text-zinc-400 font-mono truncate">
-                          {item.resource_type ? `${item.resource_type}: ` : ''}{item.resource_id || item.id.slice(0, 8)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-[11px] text-zinc-400 shrink-0 font-medium">
-                      {formatLogTime(item.created_at)}
-                    </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50">
+                      {org.days_remaining === 0
+                        ? isKm ? 'ផុតថ្ងៃនេះ' : 'ends today'
+                        : isKm ? `នៅសល់ ${org.days_remaining} ថ្ងៃ` : `${org.days_remaining}d left`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/superadmin/organizations')}
+                      className="px-2.5 py-1 rounded-full text-xs font-semibold text-[#167e61] hover:bg-[#167e61]/10 transition-colors"
+                    >
+                      {isKm ? 'កែប្រែ' : 'Review'}
+                    </button>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="p-6 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center text-zinc-400 space-y-1">
-                <Activity className="w-8 h-8 text-[#167e61] mx-auto opacity-70" />
-                <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                  {isKm ? 'មិនទាន់មានកំណត់ត្រាសវនកម្មថ្មីៗ' : 'No Recent Audit Events'}
                 </div>
-                <div className="text-[11px] text-zinc-400">
-                  {isKm
-                    ? 'រាល់សកម្មភាពរដ្ឋបាលនឹងត្រូវបានកត់ត្រាដោយស្វ័យប្រវត្តិនៅទីនេះ'
-                    : 'System administrative changes and overrides will automatically appear here.'}
-                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-6 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center text-zinc-400 space-y-1">
+              <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto opacity-70" />
+              <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                {isKm ? 'មិនមានហាងជិតផុតកំណត់ Trial ទេ' : 'No Critical Trial Expirations'}
               </div>
-            )}
-          </div>
+              <div className="text-[11px] text-zinc-400">
+                {isKm
+                  ? 'គ្រប់ហាងទាំងអស់កំពុងដំណើរការជាធម្មតា ឬបានបង់ថ្លៃគម្រោងរួចរាល់'
+                  : 'All restaurant organizations are currently active or on standard billing.'}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

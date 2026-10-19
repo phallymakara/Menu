@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { Button } from '@/components/ui/Button'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import type { BranchResponse } from '../../hooks/useTenantQueries'
 import {
   useCatalogComparison,
@@ -244,9 +245,11 @@ export const CatalogComparisonModal: FC<CatalogComparisonModalProps> = ({
         {/* Matrix Table */}
         <div className="flex-1 overflow-auto border border-zinc-200 dark:border-zinc-800 rounded-2xl">
           {isLoading && (
-            <div className="py-16 flex flex-col items-center justify-center space-y-2 text-zinc-400">
-              <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-              <p className="text-xs">{isKm ? 'កំពុងទាញយកទិន្នន័យប្រៀបធៀប...' : 'Loading matrix...'}</p>
+            <div className="py-16 flex flex-col items-center justify-center">
+              <EmenuLoader
+                size="sm"
+                message={isKm ? 'កំពុងទាញយកទិន្នន័យប្រៀបធៀប...' : 'Loading matrix...'}
+              />
             </div>
           )}
 

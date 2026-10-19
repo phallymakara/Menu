@@ -83,16 +83,16 @@ export const PlatformAdminLayout: FC = () => {
 
   return (
     <PlatformAdminGuard>
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex font-sans selection:bg-[#167e61]/20 selection:text-[#167e61]">
+      <div className="h-screen h-[100dvh] overflow-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex font-sans selection:bg-[#167e61]/20 selection:text-[#167e61]">
         {/* =========================================================================
             DESKTOP SIDEBAR
         ========================================================================== */}
         <aside
-          className={`hidden lg:flex flex-col bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 transition-all duration-300 relative z-30 shrink-0 ${
+          className={`hidden lg:flex flex-col h-full bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 transition-all duration-300 relative z-30 shrink-0 ${
             sidebarCollapsed ? 'w-20' : 'w-64'
           }`}
         >
-          {/* Edge Toggle Button (Matching Normal Admin) */}
+          {/* Edge Toggle Button (Highest First Layer z-50, perfectly centered on border) */}
           <button
             type="button"
             onClick={toggleSidebar}
@@ -102,7 +102,7 @@ export const PlatformAdminLayout: FC = () => {
                 : (isKm ? 'បង្រួម Sidebar' : 'Collapse Sidebar')
             }
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="absolute top-5 -right-3.5 z-40 w-7 h-7 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:text-[#167e61] dark:hover:text-[#22ab84] flex items-center justify-center transition-all cursor-pointer shadow-xs hover:scale-110 active:scale-95"
+            className="absolute top-5 -right-3.5 z-50 w-7 h-7 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:text-[#167e61] dark:hover:text-[#22ab84] flex items-center justify-center transition-all cursor-pointer shadow-md hover:scale-110 active:scale-95 ring-1 ring-black/5 dark:ring-white/5"
           >
             {sidebarCollapsed ? (
               <ChevronRight className="w-4 h-4" />
@@ -113,7 +113,7 @@ export const PlatformAdminLayout: FC = () => {
 
           {/* Brand Header */}
           <div
-            className={`h-16 flex items-center border-b border-zinc-200 dark:border-zinc-800 transition-all ${
+            className={`h-16 shrink-0 flex items-center border-b border-zinc-200 dark:border-zinc-800 transition-all ${
               sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-4 gap-3'
             }`}
           >
@@ -159,7 +159,7 @@ export const PlatformAdminLayout: FC = () => {
           </div>
 
           {/* Navigation Links */}
-          <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          <nav className="flex-1 min-h-0 p-3 space-y-1 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon
               return (
@@ -191,7 +191,7 @@ export const PlatformAdminLayout: FC = () => {
           </nav>
 
           {/* Sidebar Footer User Card */}
-          <div className="p-3 border-t border-zinc-200 dark:border-zinc-800">
+          <div className="p-3 shrink-0 border-t border-zinc-200 dark:border-zinc-800">
             {sidebarCollapsed ? (
               <button
                 type="button"
@@ -310,9 +310,9 @@ export const PlatformAdminLayout: FC = () => {
         {/* =========================================================================
             MAIN CONTENT AREA WITH COMPACT TOP BAR
         ========================================================================== */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div className="flex-1 flex flex-col min-h-0 min-w-0 h-full overflow-hidden">
           {/* Top Bar for Mobile Menu, Controls & Theme/Lang */}
-          <header className="h-16 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-4 sm:px-6 flex items-center justify-between gap-4 sticky top-0 z-20">
+          <header className="h-16 shrink-0 bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 px-4 sm:px-6 flex items-center justify-between gap-4 z-20">
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -339,7 +339,7 @@ export const PlatformAdminLayout: FC = () => {
           </header>
 
           {/* Main Outlet */}
-          <main className="flex-1 min-w-0 h-full overflow-y-auto overflow-x-hidden px-2.5 pt-2 pb-6 sm:px-3 sm:pt-2.5 lg:px-3.5 lg:pt-2.5 w-full max-w-full">
+          <main className="flex-1 min-h-0 min-w-0 h-full overflow-y-auto overflow-x-hidden px-2.5 pt-2 pb-6 sm:px-3 sm:pt-2.5 lg:px-3.5 lg:pt-2.5 w-full max-w-full">
             <div className="w-full">
               <Outlet />
             </div>

@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, type FC } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { Bell, Utensils, RefreshCw, AlertCircle } from 'lucide-react'
+import { Bell, Utensils, AlertCircle } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import { Category, MenuItem, PlacedOrderRound, TableContextInfo } from './types/guest.types'
 import { GuestHeader } from './components/GuestHeader'
 import { CategoryTabs } from './components/CategoryTabs'
@@ -624,11 +625,12 @@ export const GuestOrderPage: FC = () => {
   // Loading Screen
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 text-center space-y-3">
-        <RefreshCw className="w-6 h-6 text-zinc-400 animate-spin" />
-        <p className="text-xs text-zinc-500">
-          {language === 'km' ? 'កំពុងភ្ជាប់ទៅកាន់តុ...' : 'Connecting to your table...'}
-        </p>
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
+        <EmenuLoader
+          size="lg"
+          message={language === 'km' ? 'កំពុងភ្ជាប់ទៅកាន់តុ...' : 'Connecting to your table...'}
+          showBrandText
+        />
       </div>
     )
   }

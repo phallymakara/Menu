@@ -1,7 +1,8 @@
 import { useState, type FC } from 'react'
-import { Plus, Trash2, Edit2, Check, X, Layers, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Edit2, Check, X, Layers } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useCategories } from '@/features/admin/hooks/useMenuQueries'
 import {
@@ -201,8 +202,8 @@ export const KitchenStationSettingsModal: FC<KitchenStationSettingsModalProps> =
             </div>
 
             {isStationsLoading ? (
-              <div className="py-8 flex justify-center text-zinc-400">
-                <Loader2 className="w-5 h-5 animate-spin text-emerald-600" />
+              <div className="py-8 flex justify-center">
+                <EmenuLoader size="xs" />
               </div>
             ) : stations.length === 0 ? (
               <div className="py-10 text-center text-xs text-zinc-400 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">

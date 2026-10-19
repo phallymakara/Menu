@@ -11,7 +11,6 @@ import {
   ChevronRight,
   X,
   Eye,
-  Loader2,
   Copy,
   Check,
   Globe,
@@ -26,6 +25,7 @@ import {
   type AdminAuditLogItem,
 } from '../hooks'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 
 function getActionColor(action: string): { bg: string; text: string; border: string } {
   const act = action.toLowerCase()
@@ -259,9 +259,11 @@ export const PlatformAuditLogsTab: FC = () => {
       {/* 3. Audit Logs Data Table */}
       <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-sm overflow-hidden">
         {isLoadingLogs ? (
-          <div className="p-16 flex flex-col items-center justify-center gap-3 text-zinc-400">
-            <Loader2 className="w-8 h-8 animate-spin text-[#167e61]" />
-            <p className="text-sm">{isKm ? 'កំពុងទាញយកកំណត់ត្រាសវនកម្ម...' : 'Loading audit trail events...'}</p>
+          <div className="py-20 flex flex-col items-center justify-center">
+            <EmenuLoader
+              size="md"
+              message={isKm ? 'កំពុងទាញយកកំណត់ត្រាសវនកម្ម...' : 'Loading audit trail events...'}
+            />
           </div>
         ) : logsList.length === 0 ? (
           <div className="p-16 text-center space-y-3">
@@ -477,9 +479,11 @@ export const PlatformAuditLogsTab: FC = () => {
             {/* Drawer Body */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {isLoadingDetail || !logDetail ? (
-                <div className="p-16 flex flex-col items-center justify-center gap-2 text-zinc-400">
-                  <Loader2 className="w-6 h-6 animate-spin text-[#167e61]" />
-                  <p className="text-xs">{isKm ? 'កំពុងទាញយកព័ត៌មានលម្អិត...' : 'Fetching audit record...'}</p>
+                <div className="py-20 flex flex-col items-center justify-center">
+                  <EmenuLoader
+                    size="sm"
+                    message={isKm ? 'កំពុងទាញយកព័ត៌មានលម្អិត...' : 'Fetching audit record...'}
+                  />
                 </div>
               ) : (
                 <>

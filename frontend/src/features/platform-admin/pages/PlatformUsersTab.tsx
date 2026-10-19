@@ -34,6 +34,7 @@ import {
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 
 function generateSecurePassword(length = 16): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*'
@@ -333,9 +334,11 @@ export const PlatformUsersTab: FC = () => {
       {/* 3. Users Table View */}
       <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 shadow-sm overflow-hidden">
         {isLoadingUsers ? (
-          <div className="p-16 flex flex-col items-center justify-center gap-3 text-zinc-400">
-            <Loader2 className="w-8 h-8 animate-spin text-[#167e61]" />
-            <p className="text-sm">{isKm ? 'កំពុងទាញយកបញ្ជីអ្នកប្រើប្រាស់...' : 'Loading platform users...'}</p>
+          <div className="py-20 flex flex-col items-center justify-center">
+            <EmenuLoader
+              size="md"
+              message={isKm ? 'កំពុងទាញយកបញ្ជីអ្នកប្រើប្រាស់...' : 'Loading platform users...'}
+            />
           </div>
         ) : usersList.length === 0 ? (
           <div className="p-16 text-center space-y-3">
@@ -605,9 +608,11 @@ export const PlatformUsersTab: FC = () => {
             {/* Drawer Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {isLoadingDetail || !userDetail ? (
-                <div className="p-16 flex flex-col items-center justify-center gap-2 text-zinc-400">
-                  <Loader2 className="w-6 h-6 animate-spin text-[#167e61]" />
-                  <p className="text-xs">{isKm ? 'កំពុងទាញយកព័ត៌មាន...' : 'Fetching user details...'}</p>
+                <div className="py-20 flex flex-col items-center justify-center">
+                  <EmenuLoader
+                    size="sm"
+                    message={isKm ? 'កំពុងទាញយកព័ត៌មាន...' : 'Fetching user details...'}
+                  />
                 </div>
               ) : (
                 <>

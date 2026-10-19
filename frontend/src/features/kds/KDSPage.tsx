@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, type FC } from 'react'
-import { RefreshCw, AlertCircle } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import {
   KDSTicket,
   KitchenStation,
@@ -329,11 +330,12 @@ export const KDSPage: FC = () => {
       {/* 3. Main Stage: Ticket Grid Viewport */}
       <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
         {isLoading ? (
-          <div className="h-96 flex flex-col items-center justify-center gap-3 text-zinc-400">
-            <RefreshCw className="w-8 h-8 animate-spin text-amber-500" />
-            <p className="text-sm font-medium">
-              {language === 'km' ? 'កំពុងទាញយកសំបុត្រពីផ្ទះបាយ...' : 'Loading kitchen tickets...'}
-            </p>
+          <div className="h-96 flex flex-col items-center justify-center">
+            <EmenuLoader
+              size="lg"
+              message={language === 'km' ? 'កំពុងទាញយកសំបុត្រពីផ្ទះបាយ...' : 'Loading kitchen tickets...'}
+              showBrandText
+            />
           </div>
         ) : loadError ? (
           <div className="h-96 flex flex-col items-center justify-center gap-3 text-center max-w-md mx-auto">

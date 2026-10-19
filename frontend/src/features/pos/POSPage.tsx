@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback, type FC } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { useEffect, useState, useMemo, useCallback, type FC } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import {
   POSDiningZone,
   POSTable,
@@ -9,6 +10,7 @@ import {
 import { POSHeader } from './components/POSHeader'
 import { POSTableGrid } from './components/POSTableGrid'
 import { POSOrderDrawer } from './components/POSOrderDrawer'
+import { POSMenuCatalog } from './components/POSMenuCatalog'
 import { POSCashPaymentModal } from './components/POSCashPaymentModal'
 import { POSSupervisorVoidModal } from './components/POSSupervisorVoidModal'
 import { POSReceiptModal } from './components/POSReceiptModal'
@@ -25,11 +27,18 @@ import {
 import { usePOSStore } from './stores/usePOSStore'
 import {
   sessionRoundsQuery,
+  useOrderDetail,
   useSettleSessionCash,
   useUpdateTableStatus,
   useVoidOrderItem,
   useCancelOrder,
+  useCreateStaffOrder,
+  type StaffOrderPlacementRequest,
 } from './hooks/usePOSQueries'
+import { usePaymentDetail } from './hooks/usePaymentQueries'
+import { useVerifyManagerPin } from '@/features/admin/hooks/useStaffQueries'
+import { useCategories, useMenuItems } from '@/features/admin/hooks/useMenuQueries'
+import { Category, CourseStage } from '@/features/guest/types/guest.types'
 import { useWebSocket } from '@/lib/websocket'
 import { playSuccessSound, playChime } from '@/lib/audio'
 import { useBusinesses, useBranches } from '@/features/admin/hooks/useTenantQueries'
@@ -47,6 +56,7 @@ export const POSPage: FC = () => {
     isKHQRModalOpen,
     isVoidModalOpen,
     isReceiptModalOpen,
+    lastPaymentId,
     targetVoidItem,
     setZones,
     setTables,
@@ -61,6 +71,13 @@ export const POSPage: FC = () => {
     openReceiptModal,
     closeReceiptModal,
     updateTableStatus,
+    activeCart,
+    addToCart,
+    updateCartQuantity,
+    removeFromCart,
+    clearCart,
+    viewMode,
+    setViewMode,
   } = usePOSStore()
   const { language } = useLanguageStore()
 
@@ -73,6 +90,10 @@ export const POSPage: FC = () => {
 
   // Context identifiers
   const queryClient = useQueryClient()
+  const tenantOrgId =
+    localStorage.getItem('emenu_tenant_id') ||
+    localStorage.getItem('emenu_organization_id') ||
+    null
   const [tenantBizId, setTenantBizId] = useState<string | null>(
     localStorage.getItem('emenu_business_id')
   )
@@ -84,7 +105,68 @@ export const POSPage: FC = () => {
   const settleCashMutation = useSettleSessionCash(tenantBizId, tenantBranchId)
   const voidItemMutation = useVoidOrderItem(tenantBizId, tenantBranchId)
   const cancelOrderMutation = useCancelOrder(tenantBizId, tenantBranchId)
+  const createStaffOrderMutation = useCreateStaffOrder(tenantBizId, tenantBranchId)
+  const verifyManagerPinMutation = useVerifyManagerPin(tenantOrgId)
   const accessToken = localStorage.getItem('emenu_access_token') || ''
+
+  // Single entity REST drilldowns for active order and completed payment
+  const primaryOrderId =
+    activeRounds[0]?.id && isUuid(activeRounds[0].id) ? activeRounds[0].id : null
+  const { data: directOrderDetail } = useOrderDetail(tenantBizId, tenantBranchId, primaryOrderId)
+
+  const paymentUuid = lastPaymentId && isUuid(lastPaymentId) ? lastPaymentId : null
+  const { data: directPaymentDetail } = usePaymentDetail(tenantBizId, tenantBranchId, paymentUuid)
+
+  useEffect(() => {
+    if (directOrderDetail && selectedTable) {
+      // Sync active order detail if needed
+    }
+  }, [directOrderDetail, selectedTable])
+
+  useEffect(() => {
+    if (directPaymentDetail && isReceiptModalOpen) {
+      // Sync active payment detail if needed
+    }
+  }, [directPaymentDetail, isReceiptModalOpen])
+
+  // Menu catalog queries for direct POS ordering
+  const { data: rawCategories } = useCategories(tenantBizId)
+  const { data: rawMenuItems } = useMenuItems(tenantBizId)
+
+  const catalogCategories = useMemo<Category[]>(() => {
+    if (!rawCategories || !rawMenuItems) return []
+    const items = rawMenuItems as any[]
+    return rawCategories.map((c) => ({
+      id: c.id,
+      name_en: c.name_en,
+      name_km: c.name_km || c.name_en,
+      display_order: c.display_order ?? 0,
+      items: items
+        .filter((i) => i.category_id === c.id)
+        .map((i) => ({
+          id: i.id,
+          category_id: i.category_id,
+          name_en: i.name_en,
+          name_km: i.name_km || i.name_en,
+          description_en: i.description_en || '',
+          description_km: i.description_km || '',
+          base_price_usd: Number(i.base_price_usd) || 0,
+          image_url: i.image_url || null,
+          is_available: i.is_available ?? true,
+          spicy_level: i.spicy_level,
+          is_popular: i.is_popular,
+          is_vegetarian: i.is_vegetarian,
+          variants: (i.variants || []).map((v: any) => ({
+            id: v.id,
+            name_en: v.name_en,
+            name_km: v.name_km,
+            price_usd: Number(v.price_usd) || 0,
+            is_default: v.is_default ?? false,
+          })),
+          modifier_groups: i.modifier_groups || [],
+        })),
+    }))
+  }, [rawCategories, rawMenuItems])
 
   // 1. Resolve Active Business and Branch IDs dynamically via TanStack Query
   const { data: businesses } = useBusinesses()
@@ -230,28 +312,88 @@ export const POSPage: FC = () => {
   }
 
   // 7. Supervisor PIN Void Handler
-  const handleConfirmSupervisorVoid = async (_pin: string, reason: string) => {
+  const handleConfirmSupervisorVoid = async (pin: string, reason: string) => {
     if (!targetVoidItem) return
 
+    // 1. Verify Manager/Supervisor PIN with backend
+    if (tenantOrgId) {
+      const pinResult = await verifyManagerPinMutation.mutateAsync({
+        pin_code: pin,
+        required_permission: 'can_void_item',
+        branch_id: isUuid(tenantBranchId) ? tenantBranchId : undefined,
+      })
+      if (!pinResult.valid) {
+        throw new Error(
+          language === 'km'
+            ? 'លេខកូដសម្ងាត់អ្នកគ្រប់គ្រងមិនត្រឹមត្រូវ ឬគ្មានសិទ្ធិ។'
+            : 'Invalid supervisor PIN or unauthorized role.'
+        )
+      }
+    }
+
+    // 2. The void route takes the parent order ID; each POS round is one order.
+    const parentOrder = activeRounds.find((r) => r.items.some((i) => i.id === targetVoidItem.id))
+    if (parentOrder && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      await voidItemMutation.mutateAsync({
+        orderId: parentOrder.id,
+        itemId: targetVoidItem.id,
+        reason,
+      })
+    }
+
     playSuccessSound()
-    const updatedRounds = activeRounds.map((r) => ({
-      ...r,
-      items: r.items.filter((i) => i.id !== targetVoidItem.id),
-      subtotal_usd: r.items
-        .filter((i) => i.id !== targetVoidItem.id)
-        .reduce((sum, i) => sum + i.subtotal_usd, 0),
-    })).filter((r) => r.items.length > 0)
+    const updatedRounds = activeRounds
+      .map((r) => ({
+        ...r,
+        items: r.items.filter((i) => i.id !== targetVoidItem.id),
+        subtotal_usd: r.items
+          .filter((i) => i.id !== targetVoidItem.id)
+          .reduce((sum, i) => sum + i.subtotal_usd, 0),
+      }))
+      .filter((r) => r.items.length > 0)
 
     setActiveRounds(updatedRounds)
     closeVoidModal()
+  }
 
-    // The void route takes the parent order ID; each POS round is one order.
-    const parentOrder = activeRounds.find((r) => r.items.some((i) => i.id === targetVoidItem.id))
-    if (parentOrder && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
-      // The backend void endpoint has no supervisor PIN check yet, so the PIN is not sent.
-      await voidItemMutation
-        .mutateAsync({ orderId: parentOrder.id, itemId: targetVoidItem.id, reason })
-        .catch(() => null)
+  // 8. Staff Order Placement Handler
+  const handleSubmitOrder = async (courseStage: CourseStage, guestNotes: string) => {
+    if (!tenantBizId || !tenantBranchId || activeCart.length === 0) return
+
+    const toBackendStage = (stage?: CourseStage | string): 'drinks' | 'starters' | 'mains' | 'desserts' => {
+      const s = String(stage || 'MAINS').toLowerCase()
+      if (s === 'appetizers' || s === 'starters') return 'starters'
+      if (s === 'drinks') return 'drinks'
+      if (s === 'desserts' || s === 'digestifs') return 'desserts'
+      return 'mains'
+    }
+
+    const payload: StaffOrderPlacementRequest = {
+      table_id: selectedTable?.id || undefined,
+      table_session_id: selectedTable?.session_id || undefined,
+      order_type: selectedTable ? 'dine_in' : 'takeaway',
+      guest_notes: guestNotes.trim() || undefined,
+      items: activeCart.map((item) => ({
+        menu_item_id: item.menu_item_id,
+        item_variant_id: item.variant_id || undefined,
+        quantity: item.quantity,
+        course_stage: toBackendStage(item.course_stage || courseStage),
+        special_instructions: item.special_instructions || undefined,
+        modifiers: (item.modifiers || []).map((m) => ({
+          modifier_option_id: m.modifier_option_id,
+          quantity: 1,
+        })),
+      })),
+    }
+
+    await createStaffOrderMutation.mutateAsync(payload)
+    clearCart()
+    setViewMode('floor_map')
+    playSuccessSound()
+    if (selectedTable?.session_id) {
+      queryClient.invalidateQueries({
+        queryKey: ['pos', 'rounds', tenantBizId, tenantBranchId, selectedTable.session_id],
+      })
     }
   }
 
@@ -343,9 +485,12 @@ export const POSPage: FC = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 text-center space-y-3">
-        <RefreshCw className="w-6 h-6 text-zinc-400 animate-spin" />
-        <p className="text-xs text-zinc-500">Loading Floor Map & POS...</p>
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
+        <EmenuLoader
+          size="lg"
+          message={language === 'km' ? 'កំពុងទាញយកប្លង់តុ និង POS...' : 'Loading Floor Map & POS...'}
+          showBrandText
+        />
       </div>
     )
   }
@@ -364,33 +509,90 @@ export const POSPage: FC = () => {
 
         {/* Main Workspace Body */}
         <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
-          {/* Floor Map Grid & Active Table Drawer */}
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
-            <div className="flex-1 w-full">
-              <POSTableGrid
-                tables={tables}
-                selectedZoneId={selectedZoneId}
-                selectedTableId={selectedTable?.id}
-                onSelectTable={handleSelectTable}
-                onMarkCleaned={handleMarkCleaned}
-              />
+          {/* Header / Mode Indicator */}
+          <div className="flex items-center justify-between gap-4 flex-wrap pb-2 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="flex items-center gap-2">
+              {viewMode === 'direct_order' ? (
+                <button
+                  type="button"
+                  onClick={() => setViewMode('floor_map')}
+                  className="px-3.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold flex items-center gap-2 text-zinc-800 dark:text-zinc-200 transition-colors shadow-sm"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>{language === 'km' ? 'ត្រឡប់ទៅប្លង់តុ' : 'Back to Floor Map'}</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                    {language === 'km' ? 'ប្លង់តុភោជនីយដ្ឋាន' : 'Floor Map Overview'}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Side Drawer for Selected Table */}
             {selectedTable && (
-              <POSOrderDrawer
-                table={selectedTable}
-                rounds={activeRounds}
-                onClose={() => setSelectedTable(null)}
-                onOpenCashModal={openCashModal}
-                onOpenKHQRModal={openKHQRModal}
-                onOpenVoidModal={openVoidModal}
-                onCancelRound={handleCancelRound}
-                onPrintPrecheck={() => openReceiptModal('PRECHECK')}
-                onOpenTableActions={() => setIsTableActionsModalOpen(true)}
-              />
+              <div className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                <span className="px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 font-bold text-zinc-900 dark:text-zinc-100">
+                  {language === 'km' ? 'តុ' : 'Table'}: {selectedTable.table_number}
+                </span>
+                {viewMode === 'floor_map' && (
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('direct_order')}
+                    className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors"
+                  >
+                    {language === 'km' ? '+ កុម្ម៉ង់ម្ហូប' : '+ Take Order'}
+                  </button>
+                )}
+              </div>
             )}
           </div>
+
+          {/* View Mode: Floor Map vs Direct Order Menu Catalog */}
+          {viewMode === 'direct_order' ? (
+            <div className="w-full">
+              <POSMenuCatalog
+                categories={catalogCategories}
+                activeCart={activeCart}
+                selectedTable={selectedTable}
+                onAddToCart={addToCart}
+                onUpdateCartQty={updateCartQuantity}
+                onRemoveFromCart={removeFromCart}
+                onClearCart={clearCart}
+                onSubmitOrder={handleSubmitOrder}
+                isSubmitting={createStaffOrderMutation.isPending}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col lg:flex-row gap-6 items-start">
+              <div className="flex-1 w-full">
+                <POSTableGrid
+                  tables={tables}
+                  selectedZoneId={selectedZoneId}
+                  selectedTableId={selectedTable?.id}
+                  onSelectTable={handleSelectTable}
+                  onMarkCleaned={handleMarkCleaned}
+                />
+              </div>
+
+              {/* Side Drawer for Selected Table */}
+              {selectedTable && (
+                <POSOrderDrawer
+                  table={selectedTable}
+                  rounds={activeRounds}
+                  onClose={() => setSelectedTable(null)}
+                  onOpenCashModal={openCashModal}
+                  onOpenKHQRModal={openKHQRModal}
+                  onOpenVoidModal={openVoidModal}
+                  onCancelRound={handleCancelRound}
+                  onPrintPrecheck={() => openReceiptModal('PRECHECK')}
+                  onOpenTableActions={() => setIsTableActionsModalOpen(true)}
+                  onStartDirectOrder={() => setViewMode('direct_order')}
+                />
+              )}
+            </div>
+          )}
         </div>
       </div>
 

@@ -13,10 +13,40 @@ export type TableMergeRequest = components['schemas']['TableMergeRequest']
 export type TableUnmergeRequest = components['schemas']['TableUnmergeRequest']
 export type BillSummaryResponse = components['schemas']['BillSummaryResponse']
 export type TableSessionResponse = components['schemas']['TableSessionResponse']
+export type StaffOrderPlacementRequest = components['schemas']['StaffOrderPlacementRequest']
+export type OrderResponse = components['schemas']['OrderResponse']
 
 function requireIds(businessId: string | null, branchId: string | null) {
   if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
   return { business_id: businessId, branch_id: branchId }
+}
+
+export function useOrderDetail(
+  businessId: string | null,
+  branchId: string | null,
+  orderId: string | null
+) {
+  return useQuery({
+    queryKey: ['pos', 'order-detail', businessId, branchId, orderId],
+    queryFn: async (): Promise<OrderResponse> => {
+      if (!businessId || !branchId || !orderId) throw new Error('Valid IDs are required')
+      return unwrap(
+        await apiFetch.GET(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/orders/{order_id}',
+          {
+            params: {
+              path: {
+                business_id: businessId,
+                branch_id: branchId,
+                order_id: orderId,
+              },
+            },
+          }
+        )
+      )
+    },
+    enabled: !!businessId && !!branchId && !!orderId,
+  })
 }
 
 /** Order rounds placed during a table's active dining session. */
@@ -38,6 +68,29 @@ export function sessionRoundsQuery(
         })
       )
       return toPOSRounds(orders, sessionId)
+    },
+  })
+}
+
+/** Staff waiter or cashier places an order round for a table or takeaway. */
+export function useCreateStaffOrder(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: StaffOrderPlacementRequest) =>
+      unwrap(
+        await apiFetch.POST(
+          '/api/v1/businesses/{business_id}/branches/{branch_id}/orders',
+          {
+            params: { path: requireIds(businessId, branchId) },
+            body: payload,
+          }
+        )
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pos', 'rounds'] })
+      queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['tables-dashboard', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['kds'] })
     },
   })
 }

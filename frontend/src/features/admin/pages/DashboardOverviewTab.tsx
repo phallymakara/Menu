@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef, type FC } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  Loader2,
   ChevronDown,
   Check,
   ArrowLeft,
@@ -12,6 +11,7 @@ import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useBusinesses, useBranches } from '../hooks/useTenantQueries'
 import { useSalesOverview, useTopSellingItems, usePaymentBreakdown } from '../hooks/useAnalyticsQueries'
 import { useTables } from '../hooks/useTableQueries'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 
 export const DashboardOverviewTab: FC = () => {
   const { language } = useLanguageStore()
@@ -424,11 +424,12 @@ export const DashboardOverviewTab: FC = () => {
 
   if (isLoading) {
     return (
-      <div className="h-96 flex flex-col items-center justify-center gap-2 text-zinc-500">
-        <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
-        <p className="text-xs">
-          {isKm ? 'កំពុងទាញយកទិន្នន័យសាខា...' : 'Loading branch analytics...'}
-        </p>
+      <div className="h-96 flex flex-col items-center justify-center">
+        <EmenuLoader
+          size="lg"
+          message={isKm ? 'កំពុងទាញយកទិន្នន័យសាខា...' : 'Loading branch analytics...'}
+          showBrandText
+        />
       </div>
     )
   }

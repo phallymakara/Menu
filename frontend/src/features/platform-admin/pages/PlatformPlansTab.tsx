@@ -27,6 +27,7 @@ import {
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { formatUSD } from '@/lib/currency'
 import { getApiErrorMessage } from '@/lib/api-error'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 
 interface FeatureFlagConfig {
   key: string
@@ -515,9 +516,11 @@ export const PlatformPlansTab: FC = () => {
             </div>
 
             {isLoadingDetail ? (
-              <div className="py-20 text-center text-zinc-400">
-                <Loader2 className="w-6 h-6 animate-spin text-[#167e61] mx-auto mb-2" />
-                <p className="text-xs">{isKm ? 'កំពុងទាញយកបញ្ជីអ្នកជាវ...' : 'Loading subscribers roster...'}</p>
+              <div className="py-20 flex flex-col items-center justify-center">
+                <EmenuLoader
+                  size="sm"
+                  message={isKm ? 'កំពុងទាញយកបញ្ជីអ្នកជាវ...' : 'Loading subscribers roster...'}
+                />
               </div>
             ) : planDetail ? (
               <div className="space-y-6 text-xs">

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, type FC } from 'react'
 import { QrCode, RefreshCw, Check, Loader2 } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import {
   useGenerateSessionKHQR,
@@ -230,11 +231,11 @@ export const POSKHQRModal: FC<POSKHQRModalProps> = ({
         {/* QR Code Presentation Box */}
         <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col items-center justify-center min-h-[280px]">
           {isLoading ? (
-            <div className="flex flex-col items-center gap-2 py-12">
-              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-              <span className="text-xs text-zinc-500">
-                {isKm ? 'កំពុងបង្កើតកូដ KHQR...' : 'Generating dynamic KHQR...'}
-              </span>
+            <div className="py-12 flex flex-col items-center justify-center">
+              <EmenuLoader
+                size="sm"
+                message={isKm ? 'កំពុងបង្កើតកូដ KHQR...' : 'Generating dynamic KHQR...'}
+              />
             </div>
           ) : qrData ? (
             <div className="w-full flex flex-col items-center space-y-3">

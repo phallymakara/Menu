@@ -309,46 +309,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/auth/register-owner": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Register Owner Endpoint
-         * @description HTTP POST endpoint to register a new tenant owner and their organization workspace.
-         *
-         *     This endpoint:
-         *     - Applies the per-IP registration rate limit.
-         *     - Initiates owner and organization registration using auth_service.
-         *     - Starts a login session (access and refresh token).
-         *     - Commits the transaction if successful.
-         *     - Handles conflict errors and database integrity errors, mapping them to
-         *       appropriate HTTP 409 responses.
-         *
-         *     Args:
-         *         payload: The request payload containing tenant owner registration details.
-         *         session: The SQLAlchemy async database session dependency.
-         *
-         *     Returns:
-         *         OwnerRegistrationResponse: The details of the created resources
-         *         with a success message.
-         *
-         *     Raises:
-         *         HTTPException: 409 Conflict if email, phone, or organization slug
-         *         is already in use; 429 when the client IP made too many attempts.
-         */
-        post: operations["register_owner_endpoint_api_v1_auth_register_owner_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/auth/register": {
         parameters: {
             query?: never;
@@ -9738,39 +9698,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminUserDetail"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    register_owner_endpoint_api_v1_auth_register_owner_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OwnerRegistrationRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["OwnerRegistrationResponse"];
                 };
             };
             /** @description Validation Error */
