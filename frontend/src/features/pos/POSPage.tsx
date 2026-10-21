@@ -1,7 +1,9 @@
 import { useEffect, useState, useMemo, useCallback, type FC } from 'react'
+import { Navigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { useUserRoleAccess } from '@/features/auth/hooks/useUserRoleAccess'
 import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import {
   POSDiningZone,
@@ -143,9 +145,13 @@ export const POSPage: FC = () => {
     }))
   }, [rawStaff])
 
-  // Filter staff members who have a valid POS PIN configured
-  const staffWithPin = useMemo(() => {
-    return staffMembersList.filter((m) => !!m.pos_pin && m.pos_pin.trim().length > 0)
+  // Check if user has added staff belonging to POS (cashier) and assigned them a PIN code
+  const hasPOSStaffWithPin = useMemo(() => {
+    return staffMembersList.some((m) => {
+      const role = (m.role || '').toLowerCase()
+      const isPOSRole = role === 'cashier'
+      return isPOSRole && !!m.pos_pin && m.pos_pin.trim().length > 0
+    })
   }, [staffMembersList])
 
   const handleUnlock = useCallback((staff: POSStaffMember) => {
@@ -167,6 +173,7 @@ export const POSPage: FC = () => {
         const res = await verifyStaffPinMutation.mutateAsync({
           pin_code: pin,
           branch_id: tenantBranchId && isUuid(tenantBranchId) ? tenantBranchId : undefined,
+          terminal_type: 'pos',
         })
         if (res.valid && res.full_name) {
           const staffObj: POSStaffMember = {
@@ -560,6 +567,12 @@ export const POSPage: FC = () => {
       .replace(/\s+restaurant$/i, '')
       .trim() || rawStoreName
 
+  const { isKitchenOnly, canAccessAdmin } = useUserRoleAccess()
+
+  if (isKitchenOnly) {
+    return <Navigate to="/kds" replace />
+  }
+
   if (isLoading || (isStaffLoading && staffMembersList.length === 0 && !isUnlocked)) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
@@ -573,14 +586,15 @@ export const POSPage: FC = () => {
   }
 
   // Cashier PIN Lock Check:
-  // If there are staff/cashiers with a PIN configured, and terminal is not yet unlocked in this session:
-  const requiresPinLock = staffWithPin.length > 0 && !isUnlocked
+  // If there are staff/cashiers belonging to POS with a PIN configured, and terminal is not yet unlocked in this session:
+  const requiresPinLock = hasPOSStaffWithPin && !isUnlocked
 
   if (requiresPinLock) {
     return (
       <POSCashierPinScreen
         storeName={resolvedStoreName}
         storeLogo={storeInfo.logoUrl}
+        canAccessAdmin={canAccessAdmin}
         onVerifyPin={handleVerifyBackendPin}
       />
     )
@@ -597,43 +611,46 @@ export const POSPage: FC = () => {
           businessId={tenantBizId}
           branchId={tenantBranchId}
           activeStaff={activeStaff}
-          onLock={handleLock}
+          onLock={hasPOSStaffWithPin ? handleLock : undefined}
+          canAccessAdmin={canAccessAdmin}
         />
 
         {/* Main Workspace Body */}
         <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
-          {/* Header / Mode Indicator */}
-          <div className="flex items-center justify-between gap-4 flex-wrap pb-2 border-b border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-center gap-2">
-              {viewMode === 'direct_order' ? (
-                <button
-                  type="button"
-                  onClick={() => setViewMode('floor_map')}
-                  className="px-3.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold flex items-center gap-2 text-zinc-800 dark:text-zinc-200 transition-colors shadow-sm"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  <span>{language === 'km' ? 'ត្រឡប់ទៅប្លង់តុ' : 'Back to Floor Map'}</span>
-                </button>
-              ) : null}
-            </div>
-
-            {selectedTable && (
-              <div className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                <span className="px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 font-bold text-zinc-900 dark:text-zinc-100">
-                  {language === 'km' ? 'តុ' : 'Table'}: {selectedTable.table_number}
-                </span>
-                {viewMode === 'floor_map' && (
+          {/* Header / Mode Indicator (Only if in order mode or a table is active) */}
+          {(viewMode === 'direct_order' || selectedTable) && (
+            <div className="flex items-center justify-between gap-4 flex-wrap pb-2">
+              <div className="flex items-center gap-2">
+                {viewMode === 'direct_order' ? (
                   <button
                     type="button"
-                    onClick={() => setViewMode('direct_order')}
-                    className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors"
+                    onClick={() => setViewMode('floor_map')}
+                    className="px-3.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold flex items-center gap-2 text-zinc-800 dark:text-zinc-200 transition-colors shadow-sm"
                   >
-                    {language === 'km' ? '+ កុម្ម៉ង់ម្ហូប' : '+ Take Order'}
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>{language === 'km' ? 'ត្រឡប់ទៅប្លង់តុ' : 'Back to Floor Map'}</span>
                   </button>
-                )}
+                ) : null}
               </div>
-            )}
-          </div>
+
+              {selectedTable && (
+                <div className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                  <span className="px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 font-bold text-zinc-900 dark:text-zinc-100">
+                    {language === 'km' ? 'តុ' : 'Table'}: {selectedTable.table_number}
+                  </span>
+                  {viewMode === 'floor_map' && (
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('direct_order')}
+                      className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors"
+                    >
+                      {language === 'km' ? '+ កុម្ម៉ង់ម្ហូប' : '+ Take Order'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* View Mode: Floor Map vs Direct Order Menu Catalog */}
           {viewMode === 'direct_order' ? (

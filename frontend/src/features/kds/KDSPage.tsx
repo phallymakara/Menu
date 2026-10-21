@@ -1,7 +1,9 @@
-import { useEffect, useState, useMemo, type FC } from 'react'
+import { useEffect, useState, useMemo, useCallback, type FC } from 'react'
+import { Navigate } from 'react-router-dom'
 import { AlertCircle } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { EmenuLoader } from '@/components/ui/EmenuLoader'
+import { useUserRoleAccess } from '@/features/auth/hooks/useUserRoleAccess'
 import {
   KDSTicket,
   KitchenStation,
@@ -15,6 +17,8 @@ import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useWebSocket } from '@/lib/websocket'
 import { playChime } from '@/lib/audio'
 import { useBusinesses, useBranches } from '@/features/admin/hooks/useTenantQueries'
+import { useStaffMembers, useVerifyStaffPin } from '@/features/admin/hooks/useStaffQueries'
+import { POSCashierPinScreen, type POSStaffMember } from '@/features/pos/components/POSCashierPinScreen'
 import {
   useKitchenStations,
   useKDSTickets,
@@ -58,6 +62,91 @@ export const KDSPage: FC = () => {
     logoUrl: localStorage.getItem('emenu_business_logo') || null,
   })
   const accessToken = localStorage.getItem('emenu_access_token') || ''
+  const tenantOrgId =
+    localStorage.getItem('emenu_tenant_id') ||
+    localStorage.getItem('emenu_organization_id') ||
+    null
+
+  // Staff & KDS PIN security queries
+  const { data: rawStaff, isLoading: isStaffLoading } = useStaffMembers(
+    tenantOrgId,
+    tenantBranchId && isUuid(tenantBranchId) ? tenantBranchId : undefined
+  )
+  const verifyStaffPinMutation = useVerifyStaffPin(tenantOrgId)
+
+  // Active kitchen staff session - strictly requires PIN each time KDS is entered/visited
+  const [activeStaff, setActiveStaff] = useState<POSStaffMember | null>(null)
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(false)
+
+  // Ensure lock state is reset on mount and on unmount
+  useEffect(() => {
+    sessionStorage.removeItem('emenu_kds_unlocked')
+    sessionStorage.removeItem('emenu_kds_active_staff')
+    return () => {
+      sessionStorage.removeItem('emenu_kds_unlocked')
+      sessionStorage.removeItem('emenu_kds_active_staff')
+    }
+  }, [])
+
+  const staffMembersList = useMemo<POSStaffMember[]>(() => {
+    if (!rawStaff || !Array.isArray(rawStaff)) return []
+    return (rawStaff as any[]).map((m) => ({
+      id: m.id,
+      full_name: m.full_name || 'Staff',
+      role: m.role || 'kitchen',
+      avatar_url: m.avatar_url || null,
+      pos_pin: m.pos_pin || null,
+      is_owner: m.is_owner || false,
+    }))
+  }, [rawStaff])
+
+  // Check if user has added staff belonging to KDS (kitchen / chef) and assigned them a PIN code
+  const hasKDSStaffWithPin = useMemo(() => {
+    return staffMembersList.some((m) => {
+      const role = (m.role || '').toLowerCase()
+      const isKDSRole = role === 'kitchen' || role === 'chef'
+      return isKDSRole && !!m.pos_pin && m.pos_pin.trim().length > 0
+    })
+  }, [staffMembersList])
+
+  const handleUnlock = useCallback((staff: POSStaffMember) => {
+    setActiveStaff(staff)
+    setIsUnlocked(true)
+  }, [])
+
+  const handleLock = useCallback(() => {
+    sessionStorage.removeItem('emenu_kds_unlocked')
+    sessionStorage.removeItem('emenu_kds_active_staff')
+    setActiveStaff(null)
+    setIsUnlocked(false)
+  }, [])
+
+  const handleVerifyBackendPin = useCallback(
+    async (pin: string) => {
+      if (!tenantOrgId) return { valid: false }
+      try {
+        const res = await verifyStaffPinMutation.mutateAsync({
+          pin_code: pin,
+          branch_id: tenantBranchId && isUuid(tenantBranchId) ? tenantBranchId : undefined,
+          terminal_type: 'kds',
+        })
+        if (res.valid && res.full_name) {
+          const staffObj: POSStaffMember = {
+            id: res.member_id || undefined,
+            full_name: res.full_name,
+            role: res.role || 'kitchen',
+            avatar_url: res.avatar_url || null,
+          }
+          handleUnlock(staffObj)
+          return { valid: true }
+        }
+        return { valid: false }
+      } catch {
+        return { valid: false }
+      }
+    },
+    [tenantOrgId, tenantBranchId, verifyStaffPinMutation, handleUnlock]
+  )
 
   // 1. Resolve Active Business and Branch IDs dynamically via TanStack Query
   const { data: businesses } = useBusinesses()
@@ -305,15 +394,60 @@ export const KDSPage: FC = () => {
     queryClient.invalidateQueries({ queryKey: queryTicketsKey })
   }
 
+  const resolvedStoreName =
+    language === 'km'
+      ? storeInfo.nameKm || storeInfo.nameEn || 'ហាងរបស់ខ្ញុំ'
+      : storeInfo.nameEn || storeInfo.nameKm || 'Store'
+
+  const { isCashierOnly, canAccessAdmin } = useUserRoleAccess()
+
+  if (isCashierOnly) {
+    return <Navigate to="/pos" replace />
+  }
+
+  if (isLoading || (isStaffLoading && staffMembersList.length === 0 && !isUnlocked)) {
+    return (
+      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
+        <EmenuLoader
+          size="lg"
+          message={language === 'km' ? 'កំពុងទាញយកទិន្នន័យផ្ទះបាយ KDS...' : 'Loading Kitchen Screen...'}
+          showBrandText
+        />
+      </div>
+    )
+  }
+
+  // KDS PIN Lock Check:
+  // If there are staff belonging to KDS with a PIN configured, and terminal is not yet unlocked in this session:
+  const requiresPinLock = hasKDSStaffWithPin && !isUnlocked
+
+  if (requiresPinLock) {
+    return (
+      <POSCashierPinScreen
+        storeName={resolvedStoreName}
+        storeLogo={storeInfo.logoUrl}
+        titleKm="ចូលប្រើប្រព័ន្ធផ្ទះបាយ KDS"
+        titleEn="Kitchen Display System (KDS)"
+        subtitleKm="សូមបញ្ចូលលេខកូដសម្ងាត់បុគ្គលិក (PIN ៤ ខ្ទង់)"
+        subtitleEn="Enter your 4-digit staff PIN to unlock KDS"
+        canAccessAdmin={canAccessAdmin}
+        onVerifyPin={handleVerifyBackendPin}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col selection:bg-amber-500 selection:text-black">
       {/* 1. Header */}
       <KDSHeader
-        storeName={language === 'km' ? storeInfo.nameKm || storeInfo.nameEn : storeInfo.nameEn || storeInfo.nameKm}
+        storeName={resolvedStoreName}
         storeLogo={storeInfo.logoUrl}
         isConnected={isConnected}
         metrics={stationMetrics}
         activeTicketsCount={tickets.length}
+        activeStaff={activeStaff}
+        onLock={hasKDSStaffWithPin ? handleLock : undefined}
+        canAccessAdmin={canAccessAdmin}
         onOpenRecall={() => setIsRecallOpen(true)}
         onOpenStations={() => setIsStationSettingsOpen(true)}
       />

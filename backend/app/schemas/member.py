@@ -289,7 +289,7 @@ class ManagerPinVerifyResponse(BaseModel):
 
 
 class StaffPinVerifyRequest(BaseModel):
-    """Request schema to verify staff/cashier POS PIN."""
+    """Request schema to verify staff/cashier POS/KDS PIN."""
 
     pin_code: str = Field(
         ..., min_length=4, max_length=10, description="4-6 digit numeric PIN"
@@ -297,6 +297,10 @@ class StaffPinVerifyRequest(BaseModel):
     branch_id: UUID | None = Field(
         default=None,
         description="Optional branch context",
+    )
+    terminal_type: str | None = Field(
+        default=None,
+        description="Optional terminal filter: 'pos' or 'kds'",
     )
 
 

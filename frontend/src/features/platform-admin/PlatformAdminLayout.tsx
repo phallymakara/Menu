@@ -1,5 +1,5 @@
 import { useState, Suspense, type FC } from 'react'
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import {
   BarChart3,
   Building2,
@@ -8,7 +8,6 @@ import {
   FileText,
   Menu,
   X,
-  LogOut,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
@@ -18,13 +17,12 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { PageLoader } from '@/components/ui/PageLoader'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { logout } from '@/lib/auth-session'
+import { LogoutButton } from '@/components/ui/LogoutConfirmModal'
 
 export const PlatformAdminLayout: FC = () => {
   const { language } = useLanguageStore()
   const isKm = language === 'km'
   const user = useAuthStore((s) => s.user)
-  const navigate = useNavigate()
 
   // Sidebar Collapsed / Expanded state (persisted)
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -76,11 +74,6 @@ export const PlatformAdminLayout: FC = () => {
       icon: FileText,
     },
   ]
-
-  const handleLogout = async () => {
-    await logout()
-    navigate('/login')
-  }
 
   return (
     <PlatformAdminGuard>
@@ -194,16 +187,15 @@ export const PlatformAdminLayout: FC = () => {
           {/* Sidebar Footer User Card */}
           <div className="p-3 shrink-0 border-t border-zinc-200 dark:border-zinc-800">
             {sidebarCollapsed ? (
-              <button
-                type="button"
-                onClick={handleLogout}
-                title={isKm ? 'ចាកចេញ' : 'Sign Out'}
+              <LogoutButton
+                align="left"
+                direction="top"
                 className="w-10 h-10 mx-auto flex items-center justify-center transition-all cursor-pointer group"
               >
                 <div className="w-9 h-9 rounded-full bg-[#167e61]/10 text-[#167e61] group-hover:text-rose-600 font-bold text-xs flex items-center justify-center border border-[#167e61]/20">
                   {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'A'}
                 </div>
-              </button>
+              </LogoutButton>
             ) : (
               <div className="flex items-center gap-3 px-1 py-1">
                 <div className="w-9 h-9 rounded-full bg-[#167e61]/10 text-[#167e61] font-bold text-xs flex items-center justify-center shrink-0 border border-[#167e61]/20">
@@ -217,14 +209,11 @@ export const PlatformAdminLayout: FC = () => {
                     {user?.email || 'admin@emenu.com'}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  title={isKm ? 'ចាកចេញ' : 'Sign Out'}
+                <LogoutButton
+                  align="right"
+                  direction="top"
                   className="p-1.5 rounded-full text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors shrink-0"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
+                />
               </div>
             )}
           </div>
@@ -295,14 +284,11 @@ export const PlatformAdminLayout: FC = () => {
                     {user?.full_name || 'Admin'}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleLogout}
+                <LogoutButton
+                  align="right"
+                  direction="top"
                   className="p-2 rounded-full text-zinc-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                  title={isKm ? 'ចាកចេញ' : 'Sign Out'}
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
+                />
               </div>
             </div>
           </div>

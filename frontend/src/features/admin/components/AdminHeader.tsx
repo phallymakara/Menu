@@ -1,8 +1,6 @@
 import { useState, useEffect, type FC } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  LogOut,
   Menu as MenuIcon,
   Camera,
   ChevronDown,
@@ -18,7 +16,7 @@ import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
-import { logout } from '@/lib/auth-session'
+import { LogoutButton } from '@/components/ui/LogoutConfirmModal'
 import { useBusinesses, useBranches, useCreateBranch, useDeleteBranch } from '../hooks/useTenantQueries'
 import { useMyBranches, useSwitchBranch } from '@/features/auth/hooks/useAuthMutations'
 import { useUploadMedia } from '../hooks/useMediaQueries'
@@ -38,7 +36,6 @@ export interface RealBranch {
 export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSidebar }) => {
   const { language } = useLanguageStore()
   const user = useAuthStore((s) => s.user)
-  const navigate = useNavigate()
 
   const [businessId, setBusinessId] = useState<string | null>(
     localStorage.getItem('emenu_business_id')
@@ -278,12 +275,6 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
     } finally {
       setIsDeletingBranch(false)
     }
-  }
-
-  const handleLogout = async () => {
-    // Revokes the session on the server, then clears cached data and tenant keys.
-    await logout()
-    navigate('/login')
   }
 
   const userCustomBranchName =
@@ -554,14 +545,11 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              title={language === 'km' ? 'ចាកចេញ' : 'Sign Out'}
+            <LogoutButton
+              align="right"
+              direction="bottom"
               className="p-1.5 rounded-lg text-zinc-500 hover:text-red-600 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+            />
           </div>
         </div>
       </div>

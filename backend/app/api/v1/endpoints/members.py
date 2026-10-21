@@ -343,6 +343,7 @@ async def verify_pos_staff_pin(
             org_id=org_id,
             pin_code=payload.pin_code,
             branch_id=payload.branch_id,
+            terminal_type=payload.terminal_type,
         )
         if valid and member:
             return StaffPinVerifyResponse(

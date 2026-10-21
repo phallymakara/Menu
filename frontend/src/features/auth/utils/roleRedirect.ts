@@ -16,10 +16,14 @@ export function getRoleBasedRedirectPath(me?: CurrentUserResponse | null): strin
     return '/superadmin'
   }
 
-  const primaryMembership = me?.memberships?.[0] as { role?: string } | undefined
+  const primaryMembership = me?.memberships?.[0] as { role?: string; is_owner?: boolean } | undefined
+  if (primaryMembership?.is_owner) {
+    return '/admin'
+  }
+
   const role = (primaryMembership?.role || '').toLowerCase()
 
-  if (role === 'kitchen') {
+  if (role === 'kitchen' || role === 'chef') {
     return '/kds'
   }
 

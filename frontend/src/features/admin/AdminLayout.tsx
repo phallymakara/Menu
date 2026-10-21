@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect, type FC } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, Navigate } from 'react-router-dom'
 import { AdminHeader } from './components/AdminHeader'
 import { AdminSidebar } from './components/AdminSidebar'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { useUserRoleAccess } from '@/features/auth/hooks/useUserRoleAccess'
+import { PageLoader } from '@/components/ui/PageLoader'
 
 export const AdminLayout: FC = () => {
   const { language } = useLanguageStore()
+  const { isLoading: isRoleLoading, isCashierOnly, isKitchenOnly } = useUserRoleAccess()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('emenu_desktop_sidebar_open')
@@ -91,6 +94,19 @@ export const AdminLayout: FC = () => {
       window.removeEventListener('touchend', onTouchEnd)
     }
   }, [mobileSidebarOpen])
+
+  // Role Protection: Cashier can only see POS; Kitchen can only see KDS
+  if (isRoleLoading) {
+    return <PageLoader />
+  }
+
+  if (isCashierOnly) {
+    return <Navigate to="/pos" replace />
+  }
+
+  if (isKitchenOnly) {
+    return <Navigate to="/kds" replace />
+  }
 
   return (
     <div className="h-screen h-[100dvh] overflow-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 flex flex-col selection:bg-emerald-600 selection:text-white">

@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, type FC } from 'react'
-import { ArrowLeft, Delete } from 'lucide-react'
+import { ArrowLeft, Delete, LogOut } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import { playSuccessSound } from '@/lib/audio'
+import { LogoutButton } from '@/components/ui/LogoutConfirmModal'
 
 export interface POSStaffMember {
   id?: string
@@ -18,12 +19,22 @@ export interface POSStaffMember {
 export interface POSCashierPinScreenProps {
   storeName?: string
   storeLogo?: string | null
+  titleKm?: string
+  titleEn?: string
+  subtitleKm?: string
+  subtitleEn?: string
+  canAccessAdmin?: boolean
   onVerifyPin: (pin: string) => Promise<{ valid: boolean }>
 }
 
 export const POSCashierPinScreen: FC<POSCashierPinScreenProps> = ({
   storeName,
   storeLogo,
+  titleKm,
+  titleEn,
+  subtitleKm,
+  subtitleEn,
+  canAccessAdmin = true,
   onVerifyPin,
 }) => {
   const { language } = useLanguageStore()
@@ -31,6 +42,16 @@ export const POSCashierPinScreen: FC<POSCashierPinScreenProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isShaking, setIsShaking] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
+
+  const resolvedTitle =
+    language === 'km'
+      ? titleKm || 'ចូលប្រើប្រព័ន្ធ POS'
+      : titleEn || 'Terminal Sign-In'
+
+  const resolvedSubtitle =
+    language === 'km'
+      ? subtitleKm || 'សូមបញ្ចូលលេខកូដសម្ងាត់បុគ្គលិក (PIN ៤ ខ្ទង់)'
+      : subtitleEn || 'Enter your 4-digit staff PIN to unlock terminal'
 
   const resolvedStoreName =
     storeName ||
@@ -137,15 +158,28 @@ export const POSCashierPinScreen: FC<POSCashierPinScreenProps> = ({
       {/* Top Header Bar */}
       <header className="px-6 py-4 flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-900/60 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <Link
-            to="/admin"
-            className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition-colors flex items-center gap-1.5 text-xs font-semibold"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="hidden sm:inline">
-              {language === 'km' ? 'ត្រឡប់ទៅផ្ទាំងគ្រប់គ្រង' : 'Dashboard'}
-            </span>
-          </Link>
+          {canAccessAdmin ? (
+            <Link
+              to="/admin"
+              className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition-colors flex items-center gap-1.5 text-xs font-semibold"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">
+                {language === 'km' ? 'ត្រឡប់ទៅផ្ទាំងគ្រប់គ្រង' : 'Dashboard'}
+              </span>
+            </Link>
+          ) : (
+            <LogoutButton
+              align="left"
+              direction="bottom"
+              className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-zinc-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors flex items-center gap-1.5 text-xs font-semibold"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">
+                {language === 'km' ? 'ចាកចេញ' : 'Sign Out'}
+              </span>
+            </LogoutButton>
+          )}
 
           <div className="flex items-center gap-2.5">
             {resolvedLogo ? (
@@ -181,12 +215,10 @@ export const POSCashierPinScreen: FC<POSCashierPinScreenProps> = ({
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 rounded-3xl shadow-2xl p-6 sm:p-8 flex flex-col items-center">
           <h2 className="text-xl font-extrabold text-zinc-950 dark:text-zinc-50 text-center tracking-tight">
-            {language === 'km' ? 'ចូលប្រើប្រព័ន្ធ POS' : 'Cashier Terminal Sign-In'}
+            {resolvedTitle}
           </h2>
           <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 text-center mt-1">
-            {language === 'km'
-              ? 'សូមបញ្ចូលលេខកូដសម្ងាត់បុគ្គលិក (PIN ៤ ខ្ទង់)'
-              : 'Enter your 4-digit staff PIN to unlock terminal'}
+            {resolvedSubtitle}
           </p>
 
           {/* PIN Indicator Dots */}

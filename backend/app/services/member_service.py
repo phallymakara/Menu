@@ -775,9 +775,11 @@ async def verify_staff_pin(
     org_id: UUID,
     pin_code: str,
     branch_id: UUID | None = None,
+    terminal_type: str | None = None,
 ) -> tuple[bool, OrganizationMembership | None]:
     """
     Verifies a staff or cashier 4-digit PIN against active memberships in the database.
+    Optionally filters by terminal_type ('pos' or 'kds').
     Returns (True, OrganizationMembership) on success, or (False, None).
     """
     if tenant.organization_id != org_id:
@@ -801,9 +803,34 @@ async def verify_staff_pin(
             )
         )
 
+    if terminal_type == "pos":
+        query = query.where(
+            or_(
+                OrganizationMembership.role.in_([
+                    StaffRole.CASHIER,
+                    StaffRole.WAITER,
+                    StaffRole.MANAGER,
+                    StaffRole.OWNER,
+                ]),
+                OrganizationMembership.is_owner.is_(True),
+            )
+        )
+    elif terminal_type == "kds":
+        query = query.where(
+            or_(
+                OrganizationMembership.role.in_([
+                    StaffRole.KITCHEN,
+                    StaffRole.MANAGER,
+                    StaffRole.OWNER,
+                ]),
+                OrganizationMembership.is_owner.is_(True),
+            )
+        )
+
     result = await session.execute(query)
     membership = result.scalars().first()
     if membership:
         return True, membership
     return False, None
+
 

@@ -375,7 +375,7 @@ export const StaffManagementTab: FC = () => {
   }
 
   return (
-    <div className="space-y-4 w-full max-w-5xl mx-auto">
+    <div className="space-y-4 w-full max-w-7xl mx-auto">
       {/* Hidden File input for changing photo directly on row */}
       <input
         id="change-staff-avatar-input"
@@ -467,12 +467,12 @@ export const StaffManagementTab: FC = () => {
             return (
               <div
                 key={staff.id}
-                className="w-full px-3 py-1 sm:px-4 sm:py-1 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 grid grid-cols-[minmax(180px,1.4fr)_minmax(150px,1.2fr)_minmax(110px,1fr)_minmax(100px,1fr)_minmax(80px,auto)_72px] items-center gap-1.5 sm:gap-2 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors shadow-none"
+                className="w-full min-w-[920px] px-4 py-1.5 sm:px-6 sm:py-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 grid grid-cols-[minmax(240px,1.5fr)_minmax(220px,1.4fr)_minmax(140px,1.1fr)_minmax(150px,1.1fr)_minmax(90px,auto)_84px] items-center gap-3 sm:gap-4 hover:border-zinc-300 dark:hover:border-zinc-700 transition-colors shadow-none"
               >
                 {/* 1. Identity & Role under Name (Clean text, no badge container) */}
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2.5 min-w-0">
                   <div className="relative group shrink-0">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex items-center justify-center text-zinc-700 dark:text-zinc-200 font-bold text-sm sm:text-base">
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 overflow-hidden flex items-center justify-center text-zinc-700 dark:text-zinc-200 font-normal text-sm sm:text-base">
                       {staff.avatar_url ? (
                         <img
                           src={staff.avatar_url}
@@ -497,11 +497,11 @@ export const StaffManagementTab: FC = () => {
                   </div>
 
                   <div className="min-w-0 flex-1 space-y-0.5">
-                    <div className="font-bold text-base sm:text-lg text-zinc-950 dark:text-zinc-50 truncate leading-tight">
+                    <div className="font-normal text-base sm:text-lg text-zinc-950 dark:text-zinc-50 truncate leading-tight">
                       {staff.full_name}
                     </div>
                     {/* Role directly as clean text without container badge */}
-                    <div className="text-xs sm:text-sm font-semibold text-zinc-500 dark:text-zinc-400 truncate leading-none">
+                    <div className="text-xs sm:text-sm font-normal text-zinc-500 dark:text-zinc-400 truncate leading-none">
                       {staff.is_owner || staff.role?.toUpperCase() === 'OWNER'
                         ? language === 'km'
                           ? 'ម្ចាស់ហាង (Owner)'
@@ -522,29 +522,41 @@ export const StaffManagementTab: FC = () => {
                         ? language === 'km'
                           ? 'ចុងភៅ (Kitchen)'
                           : 'Kitchen'
+                        : staff.role?.toUpperCase() === 'INVENTORY'
+                        ? language === 'km'
+                          ? 'គ្រប់គ្រងស្តុក (Inventory)'
+                          : 'Inventory'
+                        : staff.role?.toUpperCase() === 'MENU_EDITOR'
+                        ? language === 'km'
+                          ? 'រៀបចំម៉ឺនុយ (Menu Editor)'
+                          : 'Menu Editor'
+                        : staff.role?.toUpperCase() === 'REPORT_VIEWER'
+                        ? language === 'km'
+                          ? 'មើលរបាយការណ៍ (Report Viewer)'
+                          : 'Report Viewer'
                         : staff.role}
                     </div>
                   </div>
                 </div>
 
                 {/* 2. Email Column - Clean text, enlarged */}
-                <div className="text-base sm:text-lg text-zinc-800 dark:text-zinc-200 min-w-0 truncate font-medium">
+                <div className="text-base sm:text-lg text-zinc-800 dark:text-zinc-200 min-w-0 truncate font-normal">
                   {staff.email || '—'}
                 </div>
 
                 {/* 3. Phone Column - Clean text, enlarged */}
-                <div className="text-sm sm:text-base text-zinc-800 dark:text-zinc-200 min-w-0 truncate font-mono">
+                <div className="text-sm sm:text-base text-zinc-800 dark:text-zinc-200 min-w-0 truncate font-mono font-normal">
                   {staff.phone || '—'}
                 </div>
 
                 {/* 4. Branch Assignment - Clean text, enlarged */}
-                <div className="text-sm sm:text-base text-zinc-800 dark:text-zinc-200 min-w-0 truncate font-medium">
+                <div className="text-sm sm:text-base text-zinc-800 dark:text-zinc-200 min-w-0 truncate font-normal">
                   {branchObj ? (language === 'km' ? branchObj.name_km : branchObj.name_en) : '—'}
                 </div>
 
                 {/* 5. POS PIN Code with Reveal Toggle - Clean text, enlarged */}
                 <div className="flex items-center gap-2">
-                  <span className="text-base sm:text-lg font-mono font-bold tracking-widest text-zinc-800 dark:text-zinc-200">
+                  <span className="text-base sm:text-lg font-mono font-normal tracking-widest text-zinc-800 dark:text-zinc-200">
                     {isPinVisible ? staff.pos_pin || (language === 'km' ? 'មិនទាន់កំណត់' : 'Not set') : '••••'}
                   </span>
                   <button

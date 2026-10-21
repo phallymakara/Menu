@@ -165,6 +165,7 @@ export function useVerifyManagerPin(orgId: string | null) {
 export interface StaffPinVerifyRequest {
   pin_code: string
   branch_id?: string | null
+  terminal_type?: 'pos' | 'kds' | null
 }
 
 export interface StaffPinVerifyResponse {
