@@ -286,3 +286,28 @@ class ManagerPinVerifyResponse(BaseModel):
     valid: bool
     manager_name: str | None = None
     manager_role: str | None = None
+
+
+class StaffPinVerifyRequest(BaseModel):
+    """Request schema to verify staff/cashier POS PIN."""
+
+    pin_code: str = Field(
+        ..., min_length=4, max_length=10, description="4-6 digit numeric PIN"
+    )
+    branch_id: UUID | None = Field(
+        default=None,
+        description="Optional branch context",
+    )
+
+
+class StaffPinVerifyResponse(BaseModel):
+    """Response returned upon validating a staff PIN for POS terminal sign-in."""
+
+    valid: bool
+    member_id: UUID | None = None
+    user_id: UUID | None = None
+    full_name: str | None = None
+    role: str | None = None
+    avatar_url: str | None = None
+    pos_permissions: StaffPosPermissions | None = None
+

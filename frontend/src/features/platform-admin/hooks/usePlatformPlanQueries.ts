@@ -73,6 +73,7 @@ export function useCreatePlatformPlan() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['platform-admin', 'plans'] })
       queryClient.invalidateQueries({ queryKey: ['platform-admin', 'stats'] })
+      queryClient.invalidateQueries({ queryKey: ['plans', 'public'] })
     },
   })
 }
@@ -102,6 +103,7 @@ export function useUpdatePlatformPlan() {
       queryClient.invalidateQueries({ queryKey: ['platform-admin', 'plans'] })
       queryClient.invalidateQueries({ queryKey: ['platform-admin', 'plans', variables.planId] })
       queryClient.invalidateQueries({ queryKey: ['platform-admin', 'stats'] })
+      queryClient.invalidateQueries({ queryKey: ['plans', 'public'] })
     },
   })
 }
@@ -124,6 +126,7 @@ export function useArchivePlatformPlan() {
       queryClient.invalidateQueries({ queryKey: ['platform-admin', 'plans'] })
       queryClient.invalidateQueries({ queryKey: ['platform-admin', 'plans', planId] })
       queryClient.invalidateQueries({ queryKey: ['platform-admin', 'stats'] })
+      queryClient.invalidateQueries({ queryKey: ['plans', 'public'] })
     },
   })
 }

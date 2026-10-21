@@ -15,7 +15,6 @@ import {
   AlertTriangle,
   ShieldAlert,
   MoreHorizontal,
-  Sparkles,
 } from 'lucide-react'
 import {
   usePlatformOrganizations,
@@ -44,7 +43,6 @@ export const PlatformOrganizationsTab: FC = () => {
   const [detailOrgId, setDetailOrgId] = useState<string | null>(null)
   const [statusModalOrg, setStatusModalOrg] = useState<AdminOrganizationListItem | null>(null)
   const [subModalOrg, setSubModalOrg] = useState<AdminOrganizationListItem | null>(null)
-  const [showLoaderPreview, setShowLoaderPreview] = useState(false)
 
   // Form states for Status Change
   const [newStatus, setNewStatus] = useState<OrganizationStatus>('active')
@@ -168,31 +166,31 @@ export const PlatformOrganizationsTab: FC = () => {
     switch (status) {
       case 'active':
         return (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200/80 dark:border-emerald-900/50">
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-[#167e61] text-white shadow-xs">
             {isKm ? 'ដំណើរការ' : 'Active'}
           </span>
         )
       case 'suspended':
         return (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200/80 dark:border-amber-900/50">
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-amber-500 text-white shadow-xs">
             {isKm ? 'បានផ្អាក' : 'Suspended'}
           </span>
         )
       case 'archived':
         return (
-          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-800">
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs sm:text-sm font-semibold bg-zinc-600 text-white shadow-xs">
             {isKm ? 'ប័ណ្ណសារ' : 'Archived'}
           </span>
         )
       default:
-        return <span className="text-xs text-zinc-400 uppercase">{status}</span>
+        return <span className="text-xs sm:text-sm text-zinc-400 uppercase">{status}</span>
     }
   }
 
   return (
-    <div className="space-y-6">
-      {/* Search & Actions Toolbar */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-3.5 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+    <div className="space-y-2 flex flex-col flex-1 min-h-0 pb-2">
+      {/* Search Toolbar */}
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl p-2.5 sm:p-3 shadow-xs flex items-center justify-between gap-3 shrink-0">
         <div className="relative w-full max-w-sm sm:max-w-md">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
           <input
@@ -203,7 +201,7 @@ export const PlatformOrganizationsTab: FC = () => {
               setPage(1)
             }}
             placeholder={isKm ? 'ស្វែងរកតាមឈ្មោះហាង, slug, ឬអ៊ីមែលម្ចាស់...' : 'Search by organization name, slug, or owner email...'}
-            className="w-full pl-10 pr-4 py-2 rounded-2xl text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#167e61]/30 transition-all placeholder:text-zinc-400"
+            className="w-full pl-10 pr-4 py-1.5 rounded-lg text-sm bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#167e61]/30 transition-all placeholder:text-zinc-400"
           />
           {searchInput && (
             <button
@@ -218,38 +216,29 @@ export const PlatformOrganizationsTab: FC = () => {
             </button>
           )}
         </div>
-
-        {/* Live Loader Preview Button */}
-        <button
-          type="button"
-          onClick={() => setShowLoaderPreview(true)}
-          className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#167e61]/10 text-[#167e61] dark:text-[#22ab84] hover:bg-[#167e61]/20 border border-[#167e61]/25 transition-all cursor-pointer shrink-0"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-[#167e61] dark:text-[#22ab84]" />
-          <span>{isKm ? 'មើលគំរូ E-Menu Loading' : 'Preview Logo Animation'}</span>
-        </button>
       </div>
 
       {/* Main Organizations Table */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-2xl shadow-xs overflow-visible min-h-[300px]">
-        <div className="overflow-x-auto min-h-[260px]">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 rounded-xl shadow-xs overflow-visible flex-1 flex flex-col justify-between min-h-0">
+        <div className="overflow-x-auto flex-1">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-800/40 text-[11px] uppercase tracking-wider font-semibold text-zinc-500 dark:text-zinc-400">
-                <th className="py-3.5 px-4">{isKm ? 'ហាង / អាជីវកម្ម' : 'Organization'}</th>
-                <th className="py-3.5 px-4">{isKm ? 'ម្ចាស់គណនី' : 'Owner'}</th>
-                <th className="py-3.5 px-4 text-center">{isKm ? 'ទំហំ & ហេដ្ឋារចនាសម្ព័ន្ធ' : 'Footprint'}</th>
-                <th className="py-3.5 px-4">{isKm ? 'គម្រោង Subscription' : 'Plan'}</th>
-                <th className="py-3.5 px-4">{isKm ? 'ស្ថានភាព' : 'Status'}</th>
-                <th className="py-3.5 px-4">{isKm ? 'បង្កើតនៅ' : 'Created'}</th>
-                <th className="py-3.5 px-4 text-right">{isKm ? 'សកម្មភាព' : 'Actions'}</th>
+              <tr className="border-b border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-800/40 text-xs sm:text-sm uppercase tracking-wider font-semibold text-zinc-600 dark:text-zinc-400">
+                <th className="py-3 px-3.5">{isKm ? 'ឈ្មោះហាង' : 'Store Name'}</th>
+                <th className="py-3 px-3.5">{isKm ? 'ម្ចាស់គណនី' : 'Owner'}</th>
+                <th className="py-3 px-3.5">{isKm ? 'អុ៊ីមែល' : 'Email'}</th>
+                <th className="py-3 px-3.5 text-center">{isKm ? 'ទំហំ & ហេដ្ឋារចនាសម្ព័ន្ធ' : 'Footprint'}</th>
+                <th className="py-3 px-3.5">{isKm ? 'គម្រោង Subscription' : 'Plan'}</th>
+                <th className="py-3 px-3.5">{isKm ? 'ស្ថានភាព' : 'Status'}</th>
+                <th className="py-3 px-3.5">{isKm ? 'បង្កើតនៅ' : 'Created'}</th>
+                <th className="py-3 px-3.5 text-right">{isKm ? 'សកម្មភាព' : 'Actions'}</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-zinc-200/80 dark:divide-zinc-800/60 text-sm">
               {isLoadingOrgs ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
+                  <td colSpan={8} className="py-16 text-center">
                     <EmenuLoader
                       size="sm"
                       message={isKm ? 'កំពុងទាញយកទិន្នន័យហាង...' : 'Loading organizations...'}
@@ -263,69 +252,67 @@ export const PlatformOrganizationsTab: FC = () => {
                     className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/40 transition-colors group"
                   >
                     {/* Organization Name */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3 px-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-[#167e61]/10 text-[#167e61] dark:text-[#22ab84] flex items-center justify-center font-bold text-xs shrink-0 border border-[#167e61]/20 dark:border-[#167e61]/30 shadow-xs">
+                        <div className="w-10 h-10 rounded-full bg-[#167e61]/10 text-[#167e61] dark:text-[#22ab84] flex items-center justify-center font-bold text-sm shrink-0 border border-[#167e61]/20 dark:border-[#167e61]/30 shadow-xs">
                           {org.name.charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-semibold text-zinc-950 dark:text-zinc-50 text-sm tracking-tight">
+                        <span className="font-bold text-zinc-950 dark:text-zinc-50 text-sm sm:text-base tracking-tight">
                           {org.name}
                         </span>
                       </div>
                     </td>
 
-                    {/* Owner Details */}
-                    <td className="py-3.5 px-4">
-                      {org.owner_name || org.owner_email ? (
-                        <div>
-                          <div className="font-medium text-zinc-900 dark:text-zinc-100 text-sm">
-                            {org.owner_name || '—'}
-                          </div>
-                          <div className="text-xs text-zinc-400">
-                            {org.owner_email || org.owner_phone || '—'}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-zinc-400">—</span>
-                      )}
+                    {/* Owner Name */}
+                    <td className="py-3 px-3.5">
+                      <span className="font-medium text-zinc-900 dark:text-zinc-100 text-sm sm:text-base">
+                        {org.owner_name || '—'}
+                      </span>
+                    </td>
+
+                    {/* Owner Email */}
+                    <td className="py-3 px-3.5">
+                      <span className="text-xs sm:text-sm text-zinc-600 dark:text-zinc-400 font-mono">
+                        {org.owner_email || '—'}
+                      </span>
                     </td>
 
                     {/* Infrastructure Footprint */}
-                    <td className="py-3.5 px-4 text-center">
-                      <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg bg-zinc-100/80 dark:bg-zinc-800/60 border border-zinc-200/60 dark:border-zinc-700/60 text-xs">
+                    <td className="py-3 px-3.5 text-center">
+                      <div className="inline-flex items-center gap-2 text-xs sm:text-sm">
                         <span title={isKm ? 'ចំនួនសាខា' : 'Branches'} className="font-semibold text-zinc-800 dark:text-zinc-200">
                           {org.branches_count ?? 0} {isKm ? 'សាខា' : 'br'}
                         </span>
                         <span className="text-zinc-300 dark:text-zinc-600">•</span>
-                        <span title={isKm ? 'ចំនួនតុ' : 'Tables'} className="text-zinc-600 dark:text-zinc-400">
+                        <span title={isKm ? 'ចំនួនតុ' : 'Tables'} className="text-zinc-700 dark:text-zinc-300">
                           {org.tables_count ?? 0} {isKm ? 'តុ' : 'tbl'}
                         </span>
                         <span className="text-zinc-300 dark:text-zinc-600">•</span>
-                        <span title={isKm ? 'ចំនួនបុគ្គលិក' : 'Staff'} className="text-zinc-600 dark:text-zinc-400">
+                        <span title={isKm ? 'ចំនួនបុគ្គលិក' : 'Staff'} className="text-zinc-700 dark:text-zinc-300">
                           {org.staff_count ?? 0} {isKm ? 'នាក់' : 'stf'}
                         </span>
                       </div>
                     </td>
 
                     {/* Subscription Plan */}
-                    <td className="py-3.5 px-4">
-                      <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                    <td className="py-3 px-3.5">
+                      <span className="text-sm sm:text-base font-semibold text-zinc-800 dark:text-zinc-200">
                         {org.plan_name || org.plan_code || 'Free Tier'}
                       </span>
                     </td>
 
                     {/* Account Status */}
-                    <td className="py-3.5 px-4">
+                    <td className="py-3 px-3.5">
                       {renderStatusBadge(org.status)}
                     </td>
 
                     {/* Created Date */}
-                    <td className="py-3.5 px-4 text-zinc-500 text-xs font-mono">
+                    <td className="py-3 px-3.5 text-zinc-500 dark:text-zinc-400 text-xs sm:text-sm font-mono">
                       {formatDate(org.created_at)}
                     </td>
 
                     {/* Action Dropdown Menu */}
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3 px-3.5 text-right">
                       <div className="org-action-menu relative inline-block text-left">
                         <button
                           type="button"
@@ -399,9 +386,9 @@ export const PlatformOrganizationsTab: FC = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-zinc-400">
+                  <td colSpan={8} className="py-12 text-center text-zinc-400">
                     <Building2 className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                    <p className="font-semibold text-xs">
+                    <p className="font-semibold text-xs sm:text-sm">
                       {isKm ? 'រកមិនឃើញទិន្នន័យហាងណាដែលត្រូវគ្នានឹងការស្វែងរកទេ' : 'No tenant organizations match the current filter.'}
                     </p>
                   </td>
@@ -876,110 +863,6 @@ export const PlatformOrganizationsTab: FC = () => {
             </form>
           </div>
         </div>
-      )}
-
-      {/* Interactive E-Menu Logo Animation Preview Modal */}
-      {showLoaderPreview && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200"
-          onClick={() => setShowLoaderPreview(false)}
-        >
-          <div
-            className="w-full max-w-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl shadow-2xl p-6 space-y-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#167e61]/10 text-[#167e61] dark:text-[#22ab84] flex items-center justify-center">
-                  <Sparkles className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-base text-zinc-950 dark:text-zinc-50">
-                    {isKm ? 'គំរូ E-Menu Logo Writing Loading Animation' : 'E-Menu Logo Stroke-Drawing Animation'}
-                  </h3>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {isKm ? 'ចលនាសរសេរតាមបន្ទាត់ Logo (គ្មាន background)' : 'Handwriting / stroke write-on effect without background'}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowLoaderPreview(false)}
-                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Showcase Grid (Dark vs Light backgrounds, no container background behind logo) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Dark canvas preview */}
-              <div className="rounded-2xl bg-zinc-950 border border-zinc-800 p-6 flex flex-col items-center justify-center min-h-[220px]">
-                <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-500 mb-4">
-                  Dark Background (Transparent)
-                </span>
-                <EmenuLoader
-                  size="md"
-                  message={isKm ? 'កំពុងផ្ទុកទិន្នន័យ...' : 'Loading data...'}
-                  showBrandText
-                />
-              </div>
-
-              {/* Light canvas preview */}
-              <div className="rounded-2xl bg-zinc-50 border border-zinc-200/80 p-6 flex flex-col items-center justify-center min-h-[220px]">
-                <span className="text-[10px] uppercase font-mono tracking-widest text-zinc-400 mb-4">
-                  Light Background (Transparent)
-                </span>
-                <EmenuLoader
-                  size="md"
-                  message={isKm ? 'កំពុងដំណើរការ...' : 'Processing...'}
-                  showBrandText
-                />
-              </div>
-            </div>
-
-            {/* Size Variants Showcase */}
-            <div className="p-4 rounded-2xl bg-zinc-50/50 dark:bg-zinc-950/50 border border-zinc-200/60 dark:border-zinc-800/60">
-              <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block mb-4">
-                {isKm ? 'ទំហំផ្សេងៗ (Size Variants)' : 'Different Size Scales'}
-              </span>
-              <div className="flex items-end justify-around gap-4 py-2">
-                <div className="text-center">
-                  <EmenuLoader size="xs" />
-                  <span className="text-[10px] font-mono text-zinc-400 block mt-2">XS</span>
-                </div>
-                <div className="text-center">
-                  <EmenuLoader size="sm" />
-                  <span className="text-[10px] font-mono text-zinc-400 block mt-2">SM</span>
-                </div>
-                <div className="text-center">
-                  <EmenuLoader size="md" />
-                  <span className="text-[10px] font-mono text-zinc-400 block mt-2">MD</span>
-                </div>
-                <div className="text-center">
-                  <EmenuLoader size="lg" />
-                  <span className="text-[10px] font-mono text-zinc-400 block mt-2">LG</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-xs text-zinc-400">
-                {isKm ? 'បានអនុវត្តទៅលើ PageLoader និងតារាងរួចរាល់' : 'Applied to PageLoader and active table loading'}
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowLoaderPreview(false)}
-                className="px-4 py-2 rounded-2xl text-xs font-semibold bg-[#167e61] text-white hover:bg-[#12674f] transition-colors cursor-pointer"
-              >
-                {isKm ? 'យល់ព្រម' : 'Done'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      )}    </div>
   )
 }

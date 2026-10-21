@@ -207,7 +207,15 @@ export const router = createBrowserRouter([
         path: 'audit-logs',
         element: withSuspense(<PlatformAuditLogsTab />),
       },
+      {
+        path: '*',
+        element: <Navigate to="overview" replace />,
+      },
     ],
+  },
+  {
+    path: '/platform-admin',
+    element: <Navigate to="/superadmin" replace />,
   },
   {
     path: '/platform-admin/*',

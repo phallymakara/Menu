@@ -161,3 +161,33 @@ export function useVerifyManagerPin(orgId: string | null) {
     },
   })
 }
+
+export interface StaffPinVerifyRequest {
+  pin_code: string
+  branch_id?: string | null
+}
+
+export interface StaffPinVerifyResponse {
+  valid: boolean
+  member_id?: string | null
+  user_id?: string | null
+  full_name?: string | null
+  role?: string | null
+  avatar_url?: string | null
+  pos_permissions?: Record<string, any> | null
+}
+
+/** Securely verify a staff or cashier 4-digit PIN for POS access directly via backend database. */
+export function useVerifyStaffPin(orgId: string | null) {
+  return useMutation({
+    mutationFn: async (payload: StaffPinVerifyRequest): Promise<StaffPinVerifyResponse> => {
+      if (!orgId) throw new Error('Organization ID is required')
+      return unwrap(
+        await apiFetch.POST('/api/v1/organizations/{org_id}/members/verify-pos-pin' as any, {
+          params: { path: { org_id: orgId } },
+          body: payload as any,
+        })
+      )
+    },
+  })
+}

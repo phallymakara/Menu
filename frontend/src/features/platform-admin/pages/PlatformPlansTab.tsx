@@ -15,6 +15,8 @@ import {
   Boxes,
   Globe,
   Sparkles,
+  QrCode,
+  RotateCcw,
 } from 'lucide-react'
 import {
   usePlatformPlans,
@@ -29,8 +31,9 @@ import { formatUSD } from '@/lib/currency'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { EmenuLoader } from '@/components/ui/EmenuLoader'
 
-interface FeatureFlagConfig {
+export interface FeatureFlagConfig {
   key: string
+  altKeys?: string[]
   labelEn: string
   labelKm: string
   descriptionEn: string
@@ -38,17 +41,19 @@ interface FeatureFlagConfig {
   icon: typeof BarChart3
 }
 
-const FEATURE_GATES: FeatureFlagConfig[] = [
+export const FEATURE_GATES: FeatureFlagConfig[] = [
   {
-    key: 'has_analytics',
-    labelEn: 'Advanced Analytics',
+    key: 'analytics',
+    altKeys: ['has_analytics'],
+    labelEn: 'Advanced Analytics & Reports',
     labelKm: 'ការវិភាគកម្រិតខ្ពស់ & របាយការណ៍',
     descriptionEn: 'Full financial metrics, top-selling items, and category sales charts.',
     descriptionKm: 'របាយការណ៍លក់ ប្រាក់ចំណូល និងទំនិញលក់ដាច់បំផុត។',
     icon: BarChart3,
   },
   {
-    key: 'has_inventory',
+    key: 'inventory',
+    altKeys: ['has_inventory'],
     labelEn: 'Multi-Branch Inventory',
     labelKm: 'គ្រប់គ្រងស្តុកតាមសាខា',
     descriptionEn: 'Live stock tracking, low-stock alerts, and manual waste adjustments.',
@@ -56,7 +61,8 @@ const FEATURE_GATES: FeatureFlagConfig[] = [
     icon: Boxes,
   },
   {
-    key: 'has_kds',
+    key: 'kds',
+    altKeys: ['has_kds'],
     labelEn: 'Kitchen Display System (KDS)',
     labelKm: 'ប្រព័ន្ធអេក្រង់ផ្ទះបាយ (KDS)',
     descriptionEn: 'Live kitchen order station routing, ticket bumps, and cook status sync.',
@@ -64,7 +70,26 @@ const FEATURE_GATES: FeatureFlagConfig[] = [
     icon: CookingPot,
   },
   {
-    key: 'has_multi_branch',
+    key: 'qr_ordering',
+    altKeys: ['has_qr_ordering'],
+    labelEn: 'QR Menu & Self-Ordering',
+    labelKm: 'មីនុយឌីជីថល & កុម្ម៉ង់ QR',
+    descriptionEn: 'Bilingual mobile digital menu with instant table QR ordering.',
+    descriptionKm: 'អតិថិជនស្កេន QR មើលមីនុយ និងកុម្ម៉ង់ផ្ទាល់ខ្លួនបានយ៉ាងរហ័ស។',
+    icon: QrCode,
+  },
+  {
+    key: 'khqr',
+    altKeys: ['has_khqr'],
+    labelEn: 'Bakong Dynamic KHQR Payments',
+    labelKm: 'ការទូទាត់បាគង KHQR ស្វ័យប្រវត្តិ',
+    descriptionEn: 'Instant bill dynamic QR generation with automatic payment verification.',
+    descriptionKm: 'បង្កើតកូដ KHQR តាមវិក្កយបត្រ និងផ្ទៀងផ្ទាត់ការទូទាត់ភ្លាមៗ។',
+    icon: Sparkles,
+  },
+  {
+    key: 'multi_branch',
+    altKeys: ['multi_branch_reports', 'has_multi_branch'],
     labelEn: 'Multi-Branch Network',
     labelKm: 'បណ្តាញពហុសាខា',
     descriptionEn: 'Centralized multi-outlet catalog, cross-branch roaming, and menu overrides.',
@@ -72,7 +97,8 @@ const FEATURE_GATES: FeatureFlagConfig[] = [
     icon: Store,
   },
   {
-    key: 'has_api_access',
+    key: 'api_access',
+    altKeys: ['has_api_access'],
     labelEn: 'API & Webhooks Access',
     labelKm: 'ការតភ្ជាប់ API & Webhooks',
     descriptionEn: 'Direct REST API integration and automated external event dispatch.',
@@ -81,12 +107,27 @@ const FEATURE_GATES: FeatureFlagConfig[] = [
   },
 ]
 
+export function checkFeatureFlag(
+  flags: Record<string, any> | undefined | null,
+  gate: FeatureFlagConfig
+): boolean {
+  if (!flags) return false
+  if (typeof flags[gate.key] === 'boolean') return flags[gate.key]
+  if (gate.altKeys) {
+    for (const alt of gate.altKeys) {
+      if (typeof flags[alt] === 'boolean') return flags[alt]
+    }
+  }
+  return false
+}
+
 export const PlatformPlansTab: FC = () => {
   const { language } = useLanguageStore()
   const isKm = language === 'km'
 
   const [includeInactive, setIncludeInactive] = useState(true)
   const [detailPlanId, setDetailPlanId] = useState<string | null>(null)
+  const [togglingGateKey, setTogglingGateKey] = useState<string | null>(null)
 
   // Plan Form Modal State (Create or Edit)
   const [isFormModalOpen, setIsFormModalOpen] = useState(false)
@@ -103,11 +144,13 @@ export const PlatformPlansTab: FC = () => {
   const [formIsActive, setFormIsActive] = useState(true)
   const [formIsPublic, setFormIsPublic] = useState(true)
   const [formFeatureFlags, setFormFeatureFlags] = useState<Record<string, boolean>>({
-    has_analytics: true,
-    has_inventory: false,
-    has_kds: false,
-    has_multi_branch: false,
-    has_api_access: false,
+    analytics: true,
+    inventory: false,
+    kds: false,
+    qr_ordering: true,
+    khqr: true,
+    multi_branch: false,
+    api_access: false,
   })
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -135,11 +178,13 @@ export const PlatformPlansTab: FC = () => {
     setFormIsActive(true)
     setFormIsPublic(true)
     setFormFeatureFlags({
-      has_analytics: true,
-      has_inventory: false,
-      has_kds: false,
-      has_multi_branch: false,
-      has_api_access: false,
+      analytics: true,
+      inventory: false,
+      kds: false,
+      qr_ordering: true,
+      khqr: true,
+      multi_branch: false,
+      api_access: false,
     })
     setFormError(null)
     setIsFormModalOpen(true)
@@ -159,15 +204,56 @@ export const PlatformPlansTab: FC = () => {
     setFormIsPublic(plan.is_public ?? true)
 
     const existingFlags = (plan.feature_flags as Record<string, boolean>) || {}
-    setFormFeatureFlags({
-      has_analytics: !!existingFlags.has_analytics,
-      has_inventory: !!existingFlags.has_inventory,
-      has_kds: !!existingFlags.has_kds,
-      has_multi_branch: !!existingFlags.has_multi_branch,
-      has_api_access: !!existingFlags.has_api_access,
+    const flagsState: Record<string, boolean> = {}
+    FEATURE_GATES.forEach((g) => {
+      flagsState[g.key] = checkFeatureFlag(existingFlags, g)
     })
+    setFormFeatureFlags(flagsState)
     setFormError(null)
     setIsFormModalOpen(true)
+  }
+
+  // Direct toggle on card: Check / Uncheck Feature Gate with instant update
+  const handleToggleGate = async (plan: AdminPlanListItem, gate: FeatureFlagConfig) => {
+    const currentVal = checkFeatureFlag(plan.feature_flags as any, gate)
+    const newVal = !currentVal
+    const gateId = `${plan.id}_${gate.key}`
+    setTogglingGateKey(gateId)
+
+    try {
+      const updatedFlags: Record<string, boolean> = {
+        ...((plan.feature_flags as Record<string, boolean>) || {}),
+        [gate.key]: newVal,
+      }
+      if (gate.altKeys) {
+        gate.altKeys.forEach((k) => {
+          updatedFlags[k] = newVal
+        })
+      }
+
+      await updatePlanMutation.mutateAsync({
+        planId: plan.id,
+        payload: {
+          feature_flags: updatedFlags,
+        },
+      })
+    } catch (err) {
+      console.error('Failed to toggle feature gate', err)
+    } finally {
+      setTogglingGateKey(null)
+    }
+  }
+
+  // Direct Reactivate an archived plan
+  const handleReactivatePlan = async (plan: AdminPlanListItem) => {
+    try {
+      await updatePlanMutation.mutateAsync({
+        planId: plan.id,
+        payload: { is_active: true },
+      })
+    } catch (err) {
+      console.error('Failed to reactivate plan', err)
+    }
   }
 
   // Submit Plan Form (Create or Update)
@@ -179,6 +265,18 @@ export const PlatformPlansTab: FC = () => {
     const annuallyNum = parseFloat(formPriceAnnually) || 0
     const maxBranchesNum = parseInt(formMaxBranches, 10) || 1
     const maxStaffNum = parseInt(formMaxStaff, 10) || 5
+
+    // Build complete feature flags dictionary supporting both standard and legacy keys
+    const mergedFlags: Record<string, boolean> = { ...formFeatureFlags }
+    FEATURE_GATES.forEach((g) => {
+      const val = !!formFeatureFlags[g.key]
+      mergedFlags[g.key] = val
+      if (g.altKeys) {
+        g.altKeys.forEach((alt) => {
+          mergedFlags[alt] = val
+        })
+      }
+    })
 
     try {
       if (editingPlan) {
@@ -192,7 +290,7 @@ export const PlatformPlansTab: FC = () => {
             price_usd_annually: annuallyNum,
             max_branches: maxBranchesNum,
             max_staff: maxStaffNum,
-            feature_flags: formFeatureFlags,
+            feature_flags: mergedFlags,
             is_active: formIsActive,
             is_public: formIsPublic,
           },
@@ -211,7 +309,7 @@ export const PlatformPlansTab: FC = () => {
           price_usd_annually: annuallyNum,
           max_branches: maxBranchesNum,
           max_staff: maxStaffNum,
-          feature_flags: formFeatureFlags,
+          feature_flags: mergedFlags,
           is_active: formIsActive,
           is_public: formIsPublic,
         })
@@ -253,70 +351,68 @@ export const PlatformPlansTab: FC = () => {
     <div className="space-y-6">
       {/* Quick Actions Bar */}
       <div className="flex items-center justify-end gap-3 pb-2 border-b border-zinc-200/80 dark:border-zinc-800">
+        <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={includeInactive}
+            onChange={(e) => setIncludeInactive(e.target.checked)}
+            className="rounded-lg border-zinc-300 dark:border-zinc-700 text-[#167e61] focus:ring-[#167e61]"
+          />
+          <span>{isKm ? 'បង្ហាញគម្រោងអសកម្ម' : 'Show Inactive Tiers'}</span>
+        </label>
 
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={includeInactive}
-              onChange={(e) => setIncludeInactive(e.target.checked)}
-              className="rounded-lg border-zinc-300 dark:border-zinc-700 text-[#167e61] focus:ring-[#167e61]"
-            />
-            <span>{isKm ? 'បង្ហាញគម្រោងអសកម្ម' : 'Show Inactive Tiers'}</span>
-          </label>
-
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl text-sm font-semibold bg-[#167e61] hover:bg-[#12674f] text-white shadow-xs transition-all"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{isKm ? 'បង្កើតគម្រោងថ្មី' : 'Create Plan Tier'}</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleOpenCreateModal}
+          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-[#167e61] hover:bg-[#12674f] text-white shadow-xs transition-all"
+        >
+          <Plus className="w-4 h-4" />
+          <span>{isKm ? 'បង្កើតគម្រោងថ្មី' : 'Create Plan Tier'}</span>
+        </button>
       </div>
 
-      {/* Plan Cards Grid */}
+      {/* Plan Cards Grid - Scaled to compact size */}
       {isLoadingPlans ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-96 rounded-2xl bg-zinc-200 dark:bg-zinc-800/60" />
-          ))}
+        <div className="py-20 flex flex-col items-center justify-center">
+          <EmenuLoader
+            size="lg"
+            message={isKm ? 'កំពុងទាញយកគម្រោង Subscription...' : 'Loading subscription plans...'}
+            showBrandText
+          />
         </div>
       ) : plans.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {plans.map((plan) => {
-            const flags = (plan.feature_flags as Record<string, boolean>) || {}
             const isArchived = !plan.is_active
 
             return (
               <div
                 key={plan.id}
-                className={`bg-white dark:bg-zinc-900 border rounded-2xl p-6 shadow-xs flex flex-col justify-between transition-all ${
+                className={`bg-white dark:bg-zinc-900 border rounded-2xl p-4 sm:p-4.5 shadow-xs flex flex-col justify-between transition-all ${
                   isArchived
                     ? 'border-zinc-200 dark:border-zinc-800 opacity-60'
                     : 'border-zinc-200 dark:border-zinc-800 hover:border-[#167e61]/50'
                 }`}
               >
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {/* Card Header: Name, Code & Badges */}
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-extrabold text-zinc-950 dark:text-zinc-50">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="text-sm font-bold text-zinc-950 dark:text-zinc-50">
                           {plan.name}
                         </h3>
-                        {plan.code === 'enterprise' && (
-                          <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                        {plan.code === 'growth' && (
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                         )}
                       </div>
-                      <p className="text-[11px] text-zinc-400 font-mono mt-0.5">
+                      <p className="text-[10px] text-zinc-400 font-mono mt-0.5">
                         {plan.code}
                       </p>
                     </div>
 
                     <div className="flex flex-col items-end gap-1 shrink-0">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
                         plan.is_active
                           ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50'
                           : 'bg-zinc-200 dark:bg-zinc-800 text-zinc-500'
@@ -325,7 +421,7 @@ export const PlatformPlansTab: FC = () => {
                       </span>
 
                       {!plan.is_public && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40">
                           {isKm ? 'លាក់' : 'Private'}
                         </span>
                       )}
@@ -334,26 +430,26 @@ export const PlatformPlansTab: FC = () => {
 
                   {/* Description */}
                   {plan.description && (
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 line-clamp-2">
+                    <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-1">
                       {plan.description}
                     </p>
                   )}
 
                   {/* Pricing Display */}
-                  <div className="p-3.5 rounded-xl bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-100 dark:border-zinc-800/80">
+                  <div className="p-2.5 rounded-xl bg-zinc-50/80 dark:bg-zinc-950/60 border border-zinc-100 dark:border-zinc-800/80">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-2xl font-black text-zinc-950 dark:text-zinc-50">
+                      <span className="text-xl font-black text-zinc-950 dark:text-zinc-50">
                         {formatUSD(plan.price_usd_monthly)}
                       </span>
-                      <span className="text-xs text-zinc-400">/{isKm ? 'ខែ' : 'mo'}</span>
+                      <span className="text-[11px] text-zinc-400">/{isKm ? 'ខែ' : 'mo'}</span>
                     </div>
-                    <div className="text-[11px] text-zinc-400 mt-1">
-                      {formatUSD(plan.price_usd_annually)} /{isKm ? 'ឆ្នាំ' : 'year billed annually'}
+                    <div className="text-[10px] text-zinc-400 mt-0.5">
+                      {formatUSD(plan.price_usd_annually)} /{isKm ? 'ឆ្នាំ' : 'yr billed annually'}
                     </div>
                   </div>
 
                   {/* Subscribers Metric Pill */}
-                  <div className="flex items-center justify-between text-xs py-1 px-2.5 rounded-xl bg-[#167e61]/10 border border-[#167e61]/20 dark:border-[#167e61]/30">
+                  <div className="flex items-center justify-between text-[11px] py-1 px-2.5 rounded-lg bg-[#167e61]/10 border border-[#167e61]/20 dark:border-[#167e61]/30">
                     <span className="text-zinc-500 dark:text-zinc-400 font-medium">
                       {isKm ? 'អតិថិជនប្រើប្រាស់:' : 'Subscribers:'}
                     </span>
@@ -363,96 +459,135 @@ export const PlatformPlansTab: FC = () => {
                   </div>
 
                   {/* Entitlement Limits */}
-                  <div className="space-y-1.5 text-xs">
-                    <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
+                  <div className="space-y-1 text-xs">
+                    <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
                       {isKm ? 'កម្រិតកំណត់ (Limits):' : 'Entitlement Limits:'}
                     </span>
 
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
-                      <div className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-100 dark:border-zinc-800">
+                    <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+                      <div className="p-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-100 dark:border-zinc-800">
                         <span className="text-zinc-400 block">{isKm ? 'សាខាអតិបរមា:' : 'Max Branches:'}</span>
-                        <strong className="text-zinc-900 dark:text-zinc-100">
+                        <strong className="text-zinc-900 dark:text-zinc-100 text-[11px]">
                           {plan.max_branches === -1 ? (isKm ? 'គ្មានកំណត់' : 'Unlimited') : plan.max_branches}
                         </strong>
                       </div>
 
-                      <div className="p-2 rounded-lg bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-100 dark:border-zinc-800">
+                      <div className="p-1.5 rounded-lg bg-zinc-50 dark:bg-zinc-950/40 border border-zinc-100 dark:border-zinc-800">
                         <span className="text-zinc-400 block">{isKm ? 'បុគ្គលិកអតិបរមា:' : 'Max Staff:'}</span>
-                        <strong className="text-zinc-900 dark:text-zinc-100">
+                        <strong className="text-zinc-900 dark:text-zinc-100 text-[11px]">
                           {plan.max_staff === -1 ? (isKm ? 'គ្មានកំណត់' : 'Unlimited') : plan.max_staff}
                         </strong>
                       </div>
                     </div>
                   </div>
 
-                  {/* Feature Gates Checklist */}
-                  <div className="space-y-1.5 pt-1">
-                    <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
-                      {isKm ? 'មុខងារដែលបានបើក (Feature Gates):' : 'Feature Gates:'}
-                    </span>
+                  {/* Interactive Feature Gates Checklist (Check / Uncheck directly on Card) */}
+                  <div className="space-y-1 pt-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider block">
+                        {isKm ? 'មុខងារដែលបានបើក (Feature Gates):' : 'Feature Gates:'}
+                      </span>
+                      <span className="text-[9px] text-zinc-400 font-normal">
+                        {isKm ? 'ចុចដើម្បី បើក/បិទ' : 'Click to toggle'}
+                      </span>
+                    </div>
 
-                    <div className="space-y-1 text-xs">
+                    <div className="space-y-0.5">
                       {FEATURE_GATES.map((gate) => {
-                        const isEnabled = !!flags[gate.key]
+                        const isEnabled = checkFeatureFlag(plan.feature_flags as any, gate)
+                        const isToggling = togglingGateKey === `${plan.id}_${gate.key}`
                         const GateIcon = gate.icon
 
                         return (
-                          <div
+                          <button
                             key={gate.key}
-                            className={`flex items-center gap-2 py-1 px-1.5 rounded-md ${
+                            type="button"
+                            onClick={() => handleToggleGate(plan, gate)}
+                            disabled={isToggling}
+                            title={
+                              isKm
+                                ? `${isEnabled ? 'បិទមុខងារ' : 'បើកមុខងារ'} ${gate.labelKm}`
+                                : `${isEnabled ? 'Revoke' : 'Grant'} access to ${gate.labelEn}`
+                            }
+                            className={`w-full flex items-center justify-between gap-1.5 py-1 px-1.5 rounded-lg transition-all cursor-pointer text-left border ${
                               isEnabled
-                                ? 'text-zinc-900 dark:text-zinc-200'
-                                : 'text-zinc-400 dark:text-zinc-600 line-through opacity-70'
+                                ? 'bg-emerald-500/10 dark:bg-emerald-950/20 border-emerald-500/25 text-zinc-900 dark:text-zinc-100 hover:bg-emerald-500/15'
+                                : 'bg-zinc-50/50 dark:bg-zinc-950/20 border-zinc-200/50 dark:border-zinc-800/50 text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800/40 opacity-70'
                             }`}
                           >
-                            {isEnabled ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                            ) : (
-                              <X className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                            )}
-                            <GateIcon className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                            <span className="text-[11px]">
-                              {isKm ? gate.labelKm : gate.labelEn}
-                            </span>
-                          </div>
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <GateIcon
+                                className={`w-3 h-3 shrink-0 ${
+                                  isEnabled ? 'text-[#167e61] dark:text-[#22ab84]' : 'text-zinc-400'
+                                }`}
+                              />
+                              <span className={`text-[10px] truncate ${isEnabled ? 'font-semibold' : 'line-through'}`}>
+                                {isKm ? gate.labelKm : gate.labelEn}
+                              </span>
+                            </div>
+
+                            <div className="shrink-0 flex items-center">
+                              {isToggling ? (
+                                <Loader2 className="w-3 h-3 text-[#167e61] animate-spin" />
+                              ) : isEnabled ? (
+                                <div className="w-3.5 h-3.5 rounded bg-[#167e61] text-white flex items-center justify-center shadow-xs">
+                                  <Check className="w-2.5 h-2.5 stroke-[2.5]" />
+                                </div>
+                              ) : (
+                                <div className="w-3.5 h-3.5 rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 flex items-center justify-center" />
+                              )}
+                            </div>
+                          </button>
                         )
                       })}
                     </div>
                   </div>
                 </div>
 
-                {/* Card Actions Footer */}
-                <div className="pt-5 mt-5 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-2">
+                {/* Card Actions Footer: Full CRUD controls */}
+                <div className="pt-3 mt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-1.5">
                   <button
                     type="button"
                     onClick={() => setDetailPlanId(plan.id)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                   >
-                    <Users className="w-3.5 h-3.5 text-zinc-400" />
+                    <Users className="w-3 h-3 text-zinc-400" />
                     <span>{isKm ? 'អ្នកជាវ' : 'Subscribers'}</span>
                   </button>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
+                    {/* Edit Plan Button */}
                     <button
                       type="button"
                       onClick={() => handleOpenEditModal(plan)}
-                      className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#167e61]/10 text-[#167e61] hover:bg-[#167e61]/20 dark:text-[#22ab84] transition-colors"
                       title={isKm ? 'កែប្រែគម្រោង' : 'Edit Plan Configuration'}
                     >
-                      <Edit2 className="w-4 h-4" />
+                      <Edit2 className="w-3 h-3" />
+                      <span>{isKm ? 'កែប្រែ' : 'Edit'}</span>
                     </button>
 
-                    {plan.is_active && (
+                    {plan.is_active ? (
                       <button
                         type="button"
                         onClick={() => {
                           setArchiveTargetPlan(plan)
                           setArchiveError(null)
                         }}
-                        className="p-1.5 rounded-xl text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                        className="p-1 rounded-lg text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                         title={isKm ? 'ផ្អាក / ទុកក្នុងប័ណ្ណសារ' : 'Archive Plan'}
                       >
-                        <Archive className="w-4 h-4" />
+                        <Archive className="w-3.5 h-3.5" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleReactivatePlan(plan)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400 transition-colors"
+                        title={isKm ? 'បើកដំណើរការឡើងវិញ' : 'Reactivate Plan'}
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>{isKm ? 'បើកវិញ' : 'Restore'}</span>
                       </button>
                     )}
                   </div>
@@ -739,7 +874,7 @@ export const PlatformPlansTab: FC = () => {
                   {isKm ? 'មុខងារដែលបានបើកសម្រាប់គម្រោងនេះ:' : 'Feature Capabilities Included:'}
                 </label>
 
-                <div className="space-y-2">
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
                   {FEATURE_GATES.map((gate) => {
                     const isChecked = !!formFeatureFlags[gate.key]
                     const GateIcon = gate.icon
@@ -793,7 +928,7 @@ export const PlatformPlansTab: FC = () => {
                       {isKm ? 'បង្ហាញជាសាធារណៈ' : 'Publicly Selectable'}
                     </span>
                     <span className="text-xs text-zinc-400 block mt-0.5">
-                      {isKm ? 'បង្ហាញលើតារាងតម្លៃ' : 'Visible on checkout/upgrade'}
+                      {isKm ? 'បង្ហាញលើ Landing Page' : 'Visible on Landing Page'}
                     </span>
                   </div>
                 </label>

@@ -31,6 +31,7 @@ import type { StaffMember, StaffPosPermissions } from '../types/admin.types'
 import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import type { components } from '@/types/api'
 import { isUuid } from '@/lib/utils'
+import { getApiErrorMessage } from '@/lib/api-error'
 
 /** The UI offers CHEF, which the backend models as the KITCHEN role. */
 const toStaffRole = (role: StaffMember['role']): components['schemas']['StaffRole'] =>
@@ -308,8 +309,12 @@ export const StaffManagementTab: FC = () => {
       })
       setFormErrors({})
       setIsAddStaffModalOpen(false)
-    } catch {
-      alert(language === 'km' ? 'មិនអាចបង្កើតបុគ្គលិកបានទេ' : 'Failed to create staff member')
+    } catch (err) {
+      const msg = getApiErrorMessage(
+        err,
+        language === 'km' ? 'មិនអាចបង្កើតបុគ្គលិកបានទេ' : 'Failed to create staff member'
+      )
+      setFormErrors((prev) => ({ ...prev, general: msg }))
     } finally {
       setIsSubmitting(false)
     }
@@ -381,7 +386,7 @@ export const StaffManagementTab: FC = () => {
       />
 
       {/* Primary Actions & Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-start gap-3">
         <Button
           type="button"
           variant="primary"
@@ -404,7 +409,7 @@ export const StaffManagementTab: FC = () => {
             })
             setIsAddStaffModalOpen(true)
           }}
-          className="text-xs sm:text-sm font-semibold px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-none w-fit"
+          className="text-xs sm:text-sm font-semibold px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-none w-fit shrink-0"
         >
           <Plus className="w-4 h-4 mr-1.5" />
           {language === 'km' ? 'បន្ថែមបុគ្គលិកថ្មី' : 'Add Staff Member'}
@@ -646,6 +651,12 @@ export const StaffManagementTab: FC = () => {
             </div>
 
             <form onSubmit={handleCreateStaff} className="space-y-3" autoComplete="off">
+              {formErrors.general && (
+                <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-xs leading-relaxed">
+                  {formErrors.general}
+                </div>
+              )}
+
               {/* Avatar Upload Trigger */}
               <div className="flex flex-col items-center justify-center text-center py-2">
                 <label

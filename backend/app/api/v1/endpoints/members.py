@@ -27,6 +27,8 @@ from app.schemas.member import (
     MemberInvite,
     MemberResponse,
     MemberUpdate,
+    StaffPinVerifyRequest,
+    StaffPinVerifyResponse,
 )
 from app.services.member_service import (
     accept_invitation,
@@ -34,9 +36,11 @@ from app.services.member_service import (
     get_member,
     invite_member,
     list_members,
+    resolve_pos_permissions,
     revoke_or_archive_member,
     update_member,
     verify_manager_pin,
+    verify_staff_pin,
 )
 
 logger = structlog.get_logger("app.api.v1.endpoints.members")
@@ -316,3 +320,46 @@ async def verify_staff_manager_pin(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(exc),
         ) from exc
+
+
+@router.post(
+    "/organizations/{org_id}/members/verify-pos-pin",
+    response_model=StaffPinVerifyResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def verify_pos_staff_pin(
+    org_id: UUID,
+    payload: StaffPinVerifyRequest,
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> StaffPinVerifyResponse:
+    """
+    Securely verify a staff or cashier 4-digit PIN for POS access directly via backend database.
+    """
+    try:
+        valid, member = await verify_staff_pin(
+            session=session,
+            tenant=tenant,
+            org_id=org_id,
+            pin_code=payload.pin_code,
+            branch_id=payload.branch_id,
+        )
+        if valid and member:
+            return StaffPinVerifyResponse(
+                valid=True,
+                member_id=member.id,
+                user_id=member.user_id,
+                full_name=member.user.full_name,
+                role=member.role.value,
+                avatar_url=member.user.avatar_url,
+                pos_permissions=resolve_pos_permissions(
+                    member.role, member.is_owner, member.pos_permissions
+                ),
+            )
+        return StaffPinVerifyResponse(valid=False)
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+

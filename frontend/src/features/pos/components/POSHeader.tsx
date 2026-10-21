@@ -1,11 +1,18 @@
 import { type FC } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Lock } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { ServiceHubBellButton } from '@/features/service-hub/components/ServiceHubBellButton'
 import { usePOSStore } from '../stores/usePOSStore'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
+
+export interface POSStaffInfo {
+  id?: string
+  full_name: string
+  role?: string
+  avatar_url?: string | null
+}
 
 export interface POSHeaderProps {
   storeName?: string
@@ -16,6 +23,8 @@ export interface POSHeaderProps {
   /** Active business and branch; the service hub bell counts that branch's requests. */
   businessId?: string | null
   branchId?: string | null
+  activeStaff?: POSStaffInfo | null
+  onLock?: () => void
 }
 
 export const POSHeader: FC<POSHeaderProps> = ({
@@ -24,6 +33,8 @@ export const POSHeader: FC<POSHeaderProps> = ({
   isConnected = true,
   businessId = null,
   branchId = null,
+  activeStaff = null,
+  onLock,
 }) => {
   const { language } = useLanguageStore()
   const { tables } = usePOSStore()
@@ -55,6 +66,7 @@ export const POSHeader: FC<POSHeaderProps> = ({
         <div className="flex items-center gap-3">
           <Link
             to="/admin"
+            onClick={onLock}
             className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-600 dark:text-zinc-400 transition-colors"
             title={language === 'km' ? 'ត្រឡប់ទៅផ្ទាំងគ្រប់គ្រង' : 'Back to Dashboard'}
           >
@@ -124,7 +136,41 @@ export const POSHeader: FC<POSHeaderProps> = ({
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          {activeStaff && (
+            <div className="flex items-center gap-2 pl-2.5 pr-1.5 py-1 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 shadow-sm">
+              {activeStaff.avatar_url ? (
+                <img
+                  src={activeStaff.avatar_url}
+                  alt={activeStaff.full_name}
+                  className="w-6 h-6 rounded-lg object-cover shrink-0"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center justify-center uppercase shrink-0">
+                  {activeStaff.full_name.charAt(0)}
+                </div>
+              )}
+              <div className="flex flex-col text-left leading-tight hidden sm:flex pr-1">
+                <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 max-w-[110px] truncate">
+                  {activeStaff.full_name}
+                </span>
+                <span className="text-[10px] text-zinc-400 capitalize">
+                  {activeStaff.role?.toLowerCase() || (language === 'km' ? 'បេឡាករ' : 'Cashier')}
+                </span>
+              </div>
+              {onLock && (
+                <button
+                  type="button"
+                  onClick={onLock}
+                  className="p-1 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
+                  title={language === 'km' ? 'ចាក់សោ POS / ប្តូរបុគ្គលិក' : 'Lock POS / Switch Staff'}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
           <ServiceHubBellButton businessId={businessId} branchId={branchId} />
           <LanguageSwitcher />
           <ThemeToggle />

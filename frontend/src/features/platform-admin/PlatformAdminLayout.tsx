@@ -1,4 +1,4 @@
-import { useState, type FC } from 'react'
+import { useState, Suspense, type FC } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import {
   BarChart3,
@@ -15,6 +15,7 @@ import {
 import { PlatformAdminGuard } from './components/PlatformAdminGuard'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 import { ThemeToggle } from '@/components/ui/ThemeToggle'
+import { PageLoader } from '@/components/ui/PageLoader'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { logout } from '@/lib/auth-session'
@@ -197,14 +198,14 @@ export const PlatformAdminLayout: FC = () => {
                 type="button"
                 onClick={handleLogout}
                 title={isKm ? 'ចាកចេញ' : 'Sign Out'}
-                className="w-12 h-12 mx-auto rounded-full bg-zinc-50 dark:bg-zinc-800/60 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 border border-zinc-200/80 dark:border-zinc-700/60 flex items-center justify-center transition-all cursor-pointer group"
+                className="w-10 h-10 mx-auto flex items-center justify-center transition-all cursor-pointer group"
               >
-                <div className="w-8 h-8 rounded-full bg-[#167e61]/10 text-[#167e61] group-hover:text-rose-600 font-bold text-xs flex items-center justify-center border border-[#167e61]/20">
+                <div className="w-9 h-9 rounded-full bg-[#167e61]/10 text-[#167e61] group-hover:text-rose-600 font-bold text-xs flex items-center justify-center border border-[#167e61]/20">
                   {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'A'}
                 </div>
               </button>
             ) : (
-              <div className="flex items-center gap-3 p-2 rounded-full bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200/80 dark:border-zinc-700/60">
+              <div className="flex items-center gap-3 px-1 py-1">
                 <div className="w-9 h-9 rounded-full bg-[#167e61]/10 text-[#167e61] font-bold text-xs flex items-center justify-center shrink-0 border border-[#167e61]/20">
                   {user?.full_name ? user.full_name.charAt(0).toUpperCase() : 'A'}
                 </div>
@@ -339,9 +340,11 @@ export const PlatformAdminLayout: FC = () => {
           </header>
 
           {/* Main Outlet */}
-          <main className="flex-1 min-h-0 min-w-0 h-full overflow-y-auto overflow-x-hidden px-2.5 pt-2 pb-6 sm:px-3 sm:pt-2.5 lg:px-3.5 lg:pt-2.5 w-full max-w-full">
-            <div className="w-full">
-              <Outlet />
+          <main className="flex-1 min-h-0 min-w-0 h-full overflow-y-auto overflow-x-hidden px-2.5 pt-2 pb-4 sm:px-3 sm:pt-2.5 lg:px-3.5 lg:pt-2.5 w-full max-w-full flex flex-col">
+            <div className="w-full flex-1 flex flex-col min-h-0">
+              <Suspense fallback={<PageLoader />}>
+                <Outlet />
+              </Suspense>
             </div>
           </main>
         </div>

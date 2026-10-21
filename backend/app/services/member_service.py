@@ -767,3 +767,43 @@ async def verify_manager_pin(
                 return True, m.user.full_name, m.role.value
 
     return False, None, None
+
+
+async def verify_staff_pin(
+    session: AsyncSession,
+    tenant: TenantContext,
+    org_id: UUID,
+    pin_code: str,
+    branch_id: UUID | None = None,
+) -> tuple[bool, OrganizationMembership | None]:
+    """
+    Verifies a staff or cashier 4-digit PIN against active memberships in the database.
+    Returns (True, OrganizationMembership) on success, or (False, None).
+    """
+    if tenant.organization_id != org_id:
+        raise TenantNotFoundError("Organization not found.")
+
+    query = (
+        select(OrganizationMembership)
+        .options(selectinload(OrganizationMembership.user))
+        .where(
+            OrganizationMembership.organization_id == org_id,
+            OrganizationMembership.status == MembershipStatus.ACTIVE,
+            OrganizationMembership.pos_pin == pin_code.strip(),
+        )
+    )
+    if branch_id:
+        query = query.where(
+            or_(
+                OrganizationMembership.branch_id == branch_id,
+                OrganizationMembership.branch_id.is_(None),
+                OrganizationMembership.is_owner.is_(True),
+            )
+        )
+
+    result = await session.execute(query)
+    membership = result.scalars().first()
+    if membership:
+        return True, membership
+    return False, None
+

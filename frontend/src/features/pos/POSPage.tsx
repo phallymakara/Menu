@@ -36,7 +36,8 @@ import {
   type StaffOrderPlacementRequest,
 } from './hooks/usePOSQueries'
 import { usePaymentDetail } from './hooks/usePaymentQueries'
-import { useVerifyManagerPin } from '@/features/admin/hooks/useStaffQueries'
+import { useVerifyManagerPin, useStaffMembers, useVerifyStaffPin } from '@/features/admin/hooks/useStaffQueries'
+import { POSCashierPinScreen, type POSStaffMember } from './components/POSCashierPinScreen'
 import { useCategories, useMenuItems } from '@/features/admin/hooks/useMenuQueries'
 import { Category, CourseStage } from '@/features/guest/types/guest.types'
 import { useWebSocket } from '@/lib/websocket'
@@ -107,7 +108,83 @@ export const POSPage: FC = () => {
   const cancelOrderMutation = useCancelOrder(tenantBizId, tenantBranchId)
   const createStaffOrderMutation = useCreateStaffOrder(tenantBizId, tenantBranchId)
   const verifyManagerPinMutation = useVerifyManagerPin(tenantOrgId)
+  const verifyStaffPinMutation = useVerifyStaffPin(tenantOrgId)
   const accessToken = localStorage.getItem('emenu_access_token') || ''
+
+  // Staff & Cashier PIN security queries
+  const { data: rawStaff, isLoading: isStaffLoading } = useStaffMembers(
+    tenantOrgId,
+    tenantBranchId && isUuid(tenantBranchId) ? tenantBranchId : undefined
+  )
+
+  // Active cashier session - strictly requires PIN each time POS is entered/visited
+  const [activeStaff, setActiveStaff] = useState<POSStaffMember | null>(null)
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(false)
+
+  // Ensure lock state is reset on mount and on unmount
+  useEffect(() => {
+    sessionStorage.removeItem('emenu_pos_unlocked')
+    sessionStorage.removeItem('emenu_pos_active_staff')
+    return () => {
+      sessionStorage.removeItem('emenu_pos_unlocked')
+      sessionStorage.removeItem('emenu_pos_active_staff')
+    }
+  }, [])
+
+  const staffMembersList = useMemo<POSStaffMember[]>(() => {
+    if (!rawStaff || !Array.isArray(rawStaff)) return []
+    return (rawStaff as any[]).map((m) => ({
+      id: m.id,
+      full_name: m.full_name || 'Staff',
+      role: m.role || 'staff',
+      avatar_url: m.avatar_url || null,
+      pos_pin: m.pos_pin || null,
+      is_owner: m.is_owner || false,
+    }))
+  }, [rawStaff])
+
+  // Filter staff members who have a valid POS PIN configured
+  const staffWithPin = useMemo(() => {
+    return staffMembersList.filter((m) => !!m.pos_pin && m.pos_pin.trim().length > 0)
+  }, [staffMembersList])
+
+  const handleUnlock = useCallback((staff: POSStaffMember) => {
+    setActiveStaff(staff)
+    setIsUnlocked(true)
+  }, [])
+
+  const handleLock = useCallback(() => {
+    sessionStorage.removeItem('emenu_pos_unlocked')
+    sessionStorage.removeItem('emenu_pos_active_staff')
+    setActiveStaff(null)
+    setIsUnlocked(false)
+  }, [])
+
+  const handleVerifyBackendPin = useCallback(
+    async (pin: string) => {
+      if (!tenantOrgId) return { valid: false }
+      try {
+        const res = await verifyStaffPinMutation.mutateAsync({
+          pin_code: pin,
+          branch_id: tenantBranchId && isUuid(tenantBranchId) ? tenantBranchId : undefined,
+        })
+        if (res.valid && res.full_name) {
+          const staffObj: POSStaffMember = {
+            id: res.member_id || undefined,
+            full_name: res.full_name,
+            role: res.role || 'cashier',
+            avatar_url: res.avatar_url || null,
+          }
+          handleUnlock(staffObj)
+          return { valid: true }
+        }
+        return { valid: false }
+      } catch {
+        return { valid: false }
+      }
+    },
+    [tenantOrgId, tenantBranchId, verifyStaffPinMutation, handleUnlock]
+  )
 
   // Single entity REST drilldowns for active order and completed payment
   const primaryOrderId =
@@ -483,15 +560,29 @@ export const POSPage: FC = () => {
       .replace(/\s+restaurant$/i, '')
       .trim() || rawStoreName
 
-  if (isLoading) {
+  if (isLoading || (isStaffLoading && staffMembersList.length === 0 && !isUnlocked)) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 text-center">
         <EmenuLoader
           size="lg"
-          message={language === 'km' ? 'កំពុងទាញយកប្លង់តុ និង POS...' : 'Loading Floor Map & POS...'}
+          message={language === 'km' ? 'កំពុងទាញយកទិន្នន័យ POS...' : 'Loading POS Terminal...'}
           showBrandText
         />
       </div>
+    )
+  }
+
+  // Cashier PIN Lock Check:
+  // If there are staff/cashiers with a PIN configured, and terminal is not yet unlocked in this session:
+  const requiresPinLock = staffWithPin.length > 0 && !isUnlocked
+
+  if (requiresPinLock) {
+    return (
+      <POSCashierPinScreen
+        storeName={resolvedStoreName}
+        storeLogo={storeInfo.logoUrl}
+        onVerifyPin={handleVerifyBackendPin}
+      />
     )
   }
 
@@ -505,6 +596,8 @@ export const POSPage: FC = () => {
           isConnected={isConnected}
           businessId={tenantBizId}
           branchId={tenantBranchId}
+          activeStaff={activeStaff}
+          onLock={handleLock}
         />
 
         {/* Main Workspace Body */}
@@ -521,14 +614,7 @@ export const POSPage: FC = () => {
                   <ArrowLeft className="w-4 h-4" />
                   <span>{language === 'km' ? 'ត្រឡប់ទៅប្លង់តុ' : 'Back to Floor Map'}</span>
                 </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">
-                    {language === 'km' ? 'ប្លង់តុភោជនីយដ្ឋាន' : 'Floor Map Overview'}
-                  </span>
-                </div>
-              )}
+              ) : null}
             </div>
 
             {selectedTable && (

@@ -469,93 +469,75 @@ export const PlatformOverviewTab: FC = () => {
       ───────────────────────────────────────────────────────────── */}
       <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5">
         {/* MRR */}
-        <div className="p-3 sm:p-3.5 min-h-[96px] sm:min-h-[104px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
-          <span className="text-xs font-medium text-zinc-500 block truncate">
+        <div className="p-3.5 sm:p-4 min-h-[92px] sm:min-h-[102px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
+          <span className="text-xs sm:text-sm font-medium text-zinc-500 dark:text-zinc-400 block truncate">
             {isKm ? 'ចំណូលប្រចាំខែ (MRR)' : 'Monthly Recurring'}
           </span>
-          <div className="text-lg sm:text-xl font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight mt-1 truncate">
+          <div className="text-2xl sm:text-3xl font-bold text-zinc-950 dark:text-zinc-50 tracking-tight truncate">
             {formatUSD(mrrVal)}
           </div>
-          <span className="text-[10px] text-zinc-400">
-            {isKm ? 'ពីថ្លៃគម្រោងជាវ' : 'from active subs'}
-          </span>
         </div>
 
         {/* Active Outlets */}
-        <div className="p-3 sm:p-3.5 min-h-[96px] sm:min-h-[104px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
-          <span className="text-xs font-medium text-zinc-500 block truncate">
+        <div className="p-3.5 sm:p-4 min-h-[92px] sm:min-h-[102px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
+          <span className="text-xs sm:text-sm font-medium text-zinc-500 dark:text-zinc-400 block truncate">
             {isKm ? 'សាខាកំពុងដំណើរការ' : 'Active Outlets'}
           </span>
-          <div className="text-lg sm:text-xl font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight mt-1 truncate">
+          <div className="text-2xl sm:text-3xl font-bold text-zinc-950 dark:text-zinc-50 tracking-tight truncate">
             {(entities?.total_active_branches ?? 0).toLocaleString()}
           </div>
-          <span className="text-[10px] text-zinc-400">
-            {(entities?.total_branches ?? 0).toLocaleString()} {isKm ? 'សាខាសរុប' : 'total locations'}
-          </span>
         </div>
 
         {/* Registered Users */}
-        <div className="p-3 sm:p-3.5 min-h-[96px] sm:min-h-[104px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
-          <span className="text-xs font-medium text-zinc-500 block truncate">
+        <div className="p-3.5 sm:p-4 min-h-[92px] sm:min-h-[102px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
+          <span className="text-xs sm:text-sm font-medium text-zinc-500 dark:text-zinc-400 block truncate">
             {isKm ? 'អ្នកប្រើប្រាស់សរុប' : 'Registered Users'}
           </span>
-          <div className="text-lg sm:text-xl font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight mt-1 truncate">
+          <div className="text-2xl sm:text-3xl font-bold text-zinc-950 dark:text-zinc-50 tracking-tight truncate">
             {(entities?.total_registered_users ?? 0).toLocaleString()}
           </div>
-          <span className="text-[10px] text-zinc-400">
-            {(entities?.total_staff_memberships ?? 0).toLocaleString()} {isKm ? 'បុគ្គលិកសកម្ម' : 'staff roles'}
-          </span>
         </div>
 
         {/* Active Tenants */}
-        <div className="p-3 sm:p-3.5 min-h-[96px] sm:min-h-[104px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
-          <span className="text-xs font-medium text-zinc-500 block truncate">
+        <div className="p-3.5 sm:p-4 min-h-[92px] sm:min-h-[102px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
+          <span className="text-xs sm:text-sm font-medium text-zinc-500 dark:text-zinc-400 block truncate">
             {isKm ? 'អាជីវកម្មសកម្ម' : 'Active Tenants'}
           </span>
-          <div className="text-lg sm:text-xl font-semibold text-zinc-950 dark:text-zinc-50 tracking-tight mt-1 truncate">
+          <div className="text-2xl sm:text-3xl font-bold text-zinc-950 dark:text-zinc-50 tracking-tight truncate">
             {(orgs?.active_organizations ?? 0).toLocaleString()}
           </div>
-          <span className="text-[10px] text-zinc-400">
-            {(orgs?.total_organizations ?? 0).toLocaleString()} {isKm ? 'ហាងចុះឈ្មោះ' : 'total brands'}
-          </span>
         </div>
 
         {/* Growth Rate */}
-        <div className="p-3 sm:p-3.5 min-h-[96px] sm:min-h-[104px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
-          <span className="text-xs font-medium text-zinc-500 block truncate">
+        <div className="p-3.5 sm:p-4 min-h-[92px] sm:min-h-[102px] rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between min-w-0">
+          <span className="text-xs sm:text-sm font-medium text-zinc-500 dark:text-zinc-400 block truncate">
             {isKm ? 'អត្រាកំណើន 30 ថ្ងៃ' : '30-Day Growth'}
           </span>
-          <div className="text-lg sm:text-xl font-semibold text-emerald-600 dark:text-emerald-400 tracking-tight mt-1 truncate flex items-center gap-1.5">
-            <TrendingUp className="w-4 h-4 shrink-0" />
+          <div className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-400 tracking-tight truncate flex items-center gap-1.5">
+            <TrendingUp className="w-5 h-5 shrink-0" />
             <span>{(economics?.tenant_growth_percentage_30d ?? 0).toFixed(1)}%</span>
           </div>
-          <span className="text-[10px] text-zinc-400">
-            +{(economics?.new_tenants_last_30d ?? 0)} {isKm ? 'ហាងថ្មី' : 'new tenants'}
-          </span>
         </div>
 
         {/* Expiring Trials Alert Card */}
-        <div className={`p-3 sm:p-3.5 min-h-[96px] sm:min-h-[104px] rounded-xl border flex flex-col justify-between min-w-0 transition-all ${
+        <div className={`p-3.5 sm:p-4 min-h-[92px] sm:min-h-[102px] rounded-xl border flex flex-col justify-between min-w-0 transition-all ${
           expiringTrialsCount > 0
             ? 'border-amber-300 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/20'
             : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950'
         }`}>
           <div className="flex items-center justify-between gap-1">
-            <span className="text-xs font-medium text-zinc-500 block truncate">
+            <span className="text-xs sm:text-sm font-medium text-zinc-500 dark:text-zinc-400 block truncate">
               {isKm ? 'ជិតផុតកំណត់ Trial' : 'Trials Ending'}
             </span>
-            <Clock className={`w-3.5 h-3.5 shrink-0 ${expiringTrialsCount > 0 ? 'text-amber-500' : 'text-zinc-400'}`} />
+            <Clock className={`w-4 h-4 shrink-0 ${expiringTrialsCount > 0 ? 'text-amber-500' : 'text-zinc-400'}`} />
           </div>
-          <div className={`text-lg sm:text-xl font-semibold tracking-tight mt-1 truncate ${
+          <div className={`text-2xl sm:text-3xl font-bold tracking-tight truncate ${
             expiringTrialsCount > 0
               ? 'text-amber-600 dark:text-amber-400'
               : 'text-zinc-950 dark:text-zinc-50'
           }`}>
             {expiringTrialsCount} {isKm ? 'ហាង' : 'orgs'}
           </div>
-          <span className="text-[10px] text-zinc-400">
-            {isKm ? 'ក្នុង ៧ ថ្ងៃខាងមុខ' : 'next 7 days'}
-          </span>
         </div>
       </div>
 
@@ -1226,13 +1208,10 @@ export const PlatformOverviewTab: FC = () => {
       ───────────────────────────────────────────────────────────── */}
       <div className="p-3.5 sm:p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-3 min-w-0">
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-amber-500 shrink-0" />
-              <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
-                {isKm ? 'ហាងជិតផុតកំណត់សាកល្បង (Expiring Trials)' : 'Expiring Trials & Renewal Outreach'}
-              </h3>
-            </div>
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-bold text-sm sm:text-base text-zinc-950 dark:text-zinc-50">
+              {isKm ? 'ហាងជិតផុតកំណត់សាកល្បង (Expiring Trials)' : 'Expiring Trials & Renewal Outreach'}
+            </h3>
             <button
               type="button"
               onClick={() => navigate('/superadmin/organizations')}
@@ -1243,7 +1222,7 @@ export const PlatformOverviewTab: FC = () => {
             </button>
           </div>
 
-          <p className="text-xs text-zinc-500 mb-3">
+          <p className="text-xs text-zinc-500 mb-2">
             {isKm
               ? 'បញ្ជីហាងដែលជិតផុតកំណត់សាកល្បងក្នុងរយៈពេល ៧ ថ្ងៃខាងមុខ សម្រាប់ក្រុមការងារតាមដាន'
               : 'Tenant organizations with trials ending within 7 days requiring sales or billing follow-up'}
@@ -1251,31 +1230,34 @@ export const PlatformOverviewTab: FC = () => {
 
           {/* List */}
           {expiringTrials.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+            <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {expiringTrials.map((org) => (
                 <div
                   key={org.organization_id}
-                  className="p-2.5 rounded-xl bg-zinc-50/70 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800 flex items-center justify-between gap-2"
+                  className="py-3 sm:py-3.5 flex items-center justify-between gap-3"
                 >
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-zinc-950 dark:text-zinc-50 truncate">
                       {org.organization_name}
                     </div>
-                    <div className="text-[11px] text-zinc-400 font-mono truncate">
-                      /{org.organization_slug} • {org.plan_name}
+                    <div className="text-xs font-medium text-zinc-600 dark:text-zinc-400 mt-0.5">
+                      {org.plan_name}
+                    </div>
+                    <div className="text-xs text-zinc-400 dark:text-zinc-500 font-mono mt-0.5 truncate">
+                      /{org.organization_slug}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50">
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-500 text-white shadow-xs">
                       {org.days_remaining === 0
-                        ? isKm ? 'ផុតថ្ងៃនេះ' : 'ends today'
-                        : isKm ? `នៅសល់ ${org.days_remaining} ថ្ងៃ` : `${org.days_remaining}d left`}
+                        ? (isKm ? 'ផុតថ្ងៃនេះ' : 'ends today')
+                        : (isKm ? `នៅសល់ ${org.days_remaining} ថ្ងៃ` : `${org.days_remaining}d left`)}
                     </span>
                     <button
                       type="button"
                       onClick={() => navigate('/superadmin/organizations')}
-                      className="px-2.5 py-1 rounded-full text-xs font-semibold text-[#167e61] hover:bg-[#167e61]/10 transition-colors"
+                      className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#167e61] hover:bg-[#12674f] transition-colors shadow-xs"
                     >
                       {isKm ? 'កែប្រែ' : 'Review'}
                     </button>
@@ -1284,7 +1266,7 @@ export const PlatformOverviewTab: FC = () => {
               ))}
             </div>
           ) : (
-            <div className="p-6 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 text-center text-zinc-400 space-y-1">
+            <div className="py-6 text-center text-zinc-400 space-y-1">
               <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto opacity-70" />
               <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                 {isKm ? 'មិនមានហាងជិតផុតកំណត់ Trial ទេ' : 'No Critical Trial Expirations'}

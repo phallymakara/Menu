@@ -1,24 +1,56 @@
-import type { FC, ReactNode } from 'react'
+import { useEffect, type FC, ReactNode } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { ShieldAlert, ArrowLeft, Store } from 'lucide-react'
 import { useAuthStore } from '@/stores/useAuthStore'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { useCurrentUser } from '@/features/admin/hooks/useStaffQueries'
+import { EmenuLoader } from '@/components/ui/EmenuLoader'
 
 interface PlatformAdminGuardProps {
   children: ReactNode
 }
 
 export const PlatformAdminGuard: FC<PlatformAdminGuardProps> = ({ children }) => {
-  const { isAuthenticated, user } = useAuthStore()
+  const { isAuthenticated, token, user, updateUser } = useAuthStore()
   const { language } = useLanguageStore()
   const navigate = useNavigate()
 
-  if (!isAuthenticated) {
+  const hasToken = isAuthenticated || !!token
+  const { data: userData, isLoading: isLoadingUser, isError } = useCurrentUser()
+
+  useEffect(() => {
+    if (userData) {
+      updateUser({
+        id: userData.user_id,
+        email: userData.email,
+        full_name: userData.full_name || '',
+        phone: userData.phone,
+        is_platform_admin: userData.is_platform_admin,
+      })
+    }
+  }, [userData, updateUser])
+
+  if (!hasToken || isError) {
     return <Navigate to="/login" replace />
   }
 
+  // If token is present but user profile is still loading, display custom animated EmenuLoader
+  if (!user && isLoadingUser) {
+    return (
+      <div className="h-screen h-[100dvh] flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950 p-6">
+        <EmenuLoader
+          size="lg"
+          message={language === 'km' ? 'កំពុងផ្ទៀងផ្ទាត់សិទ្ធិ Super Admin...' : 'Verifying Super Admin access...'}
+          showBrandText
+        />
+      </div>
+    )
+  }
+
+  const isPlatformAdmin = user?.is_platform_admin ?? userData?.is_platform_admin
+
   // Enforce Super Admin role (is_platform_admin === true)
-  if (!user?.is_platform_admin) {
+  if (!isPlatformAdmin) {
     return (
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl border border-zinc-200 dark:border-zinc-800 p-8 text-center space-y-6 shadow-xl">
