@@ -26,7 +26,7 @@ export const OrderTimelineTracker: FC<OrderTimelineTrackerProps> = ({
   return (
     <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 space-y-4 max-w-2xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+      <div className="flex items-center justify-between pb-1">
         <div className="flex items-center gap-2">
           <Clock className="w-4 h-4 text-emerald-600" />
           <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
@@ -46,7 +46,7 @@ export const OrderTimelineTracker: FC<OrderTimelineTrackerProps> = ({
             key={round.id}
             className="p-3.5 rounded-lg border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/50 space-y-2.5"
           >
-            <div className="flex items-center justify-between text-xs pb-1.5 border-b border-zinc-200/60 dark:border-zinc-800/60">
+            <div className="flex items-center justify-between text-xs pb-1">
               <span className="font-semibold text-zinc-800 dark:text-zinc-200">
                 {language === 'km' ? `ជុំទី #${round.round_number}` : `Round #${round.round_number}`}
               </span>
@@ -77,7 +77,7 @@ export const OrderTimelineTracker: FC<OrderTimelineTrackerProps> = ({
       </div>
 
       {/* Footer Total & Actions */}
-      <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between gap-3">
+      <div className="pt-2 flex items-center justify-between gap-3">
         <div>
           <span className="text-xs text-zinc-500 block leading-tight">{t('total')}</span>
           <CurrencyDisplay amountUSD={totalSessionUSD} className="font-bold text-base" />

@@ -5,7 +5,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import { Category, MenuItem, PlacedOrderRound, TableContextInfo } from './types/guest.types'
 import { GuestHeader } from './components/GuestHeader'
-import { CategoryTabs } from './components/CategoryTabs'
 import { MenuItemCard } from './components/MenuItemCard'
 import { ItemCustomizerModal } from './components/ItemCustomizerModal'
 import { CartFloatingBar } from './components/CartFloatingBar'
@@ -196,7 +195,6 @@ export const GuestOrderPage: FC = () => {
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeCategoryId, setActiveCategoryId] = useState('all')
   const [selectedMenuItem, setSelectedMenuItem] = useState<MenuItem | null>(null)
   const [isCartOpen, setIsCartOpen] = useState(false)
   const [isPayModalOpen, setIsPayModalOpen] = useState(false)
@@ -373,7 +371,7 @@ export const GuestOrderPage: FC = () => {
               name_km: i.name_km || i.name_en,
               description_en: i.description_en || '',
               description_km: i.description_km || '',
-              base_price_usd: Number(i.base_price_usd) || 0,
+              base_price_usd: Number(i.base_price ?? i.base_price_usd ?? i.price ?? 0),
               image_url: i.image_url || null,
               is_available: i.is_available ?? true,
               spicy_level: i.spicy_level,
@@ -383,7 +381,7 @@ export const GuestOrderPage: FC = () => {
                 id: v.id,
                 name_en: v.name_en,
                 name_km: v.name_km,
-                price_usd: Number(v.price_usd) || 0,
+                price_usd: Number(v.price ?? v.price_usd ?? v.price_adjustment ?? 0),
                 is_default: v.is_default ?? false,
               })),
               modifier_groups: i.modifier_groups || [],
@@ -447,24 +445,23 @@ export const GuestOrderPage: FC = () => {
     },
   })
 
-  // Filter items by category & search
+  // Filter items by search
   const filteredCategories = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim()
     return categories
       .map((cat) => {
         const matchingItems = cat.items.filter((item) => {
-          const matchesCategory = activeCategoryId === 'all' || cat.id === activeCategoryId
-          const query = searchQuery.toLowerCase().trim()
-          const matchesSearch =
-            !query ||
+          if (!query) return true
+          return (
             item.name_en.toLowerCase().includes(query) ||
             (item.name_km && item.name_km.includes(query)) ||
             (item.description_en && item.description_en.toLowerCase().includes(query))
-          return matchesCategory && matchesSearch
+          )
         })
         return { ...cat, items: matchingItems }
       })
       .filter((cat) => cat.items.length > 0)
-  }, [categories, activeCategoryId, searchQuery])
+  }, [categories, searchQuery])
 
   // 3. Handle Order Submission to Backend
   const handlePlaceOrder = async () => {
@@ -677,17 +674,8 @@ export const GuestOrderPage: FC = () => {
         hasActiveOrders={orderRounds.length > 0}
       />
 
-      {/* Category Tabs (if items exist) */}
-      {totalItemsCount > 0 && (
-        <CategoryTabs
-          categories={categories}
-          activeCategoryId={activeCategoryId}
-          onSelectCategory={setActiveCategoryId}
-        />
-      )}
-
       {/* Main Content Area */}
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+      <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
         {/* Inline Order Placement Error (No Outer Box Container, Plain Red Text) */}
         {orderError && (
           <p className="text-xs text-red-500 text-center font-medium">
@@ -735,15 +723,15 @@ export const GuestOrderPage: FC = () => {
           /* Catalog Items by Category */
           <div id="menu-items-catalog" className="space-y-8">
             {filteredCategories.map((cat) => (
-              <div key={cat.id} className="space-y-3">
-                <div className="flex items-center gap-2 pb-1 border-b border-zinc-200 dark:border-zinc-800">
-                  <Utensils className="w-3.5 h-3.5 text-emerald-600" />
-                  <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+              <div key={cat.id} className="space-y-3.5">
+                <div className="flex items-center gap-2">
+                  <Utensils className="w-4 h-4 text-emerald-600" />
+                  <h3 className="font-bold text-sm sm:text-base text-zinc-900 dark:text-zinc-100">
                     {language === 'km' && cat.name_km ? cat.name_km : cat.name_en}
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
                   {cat.items.map((item) => (
                     <MenuItemCard
                       key={item.id}

@@ -161,12 +161,10 @@ export const POSCashierPinScreen: FC<POSCashierPinScreenProps> = ({
           {canAccessAdmin ? (
             <Link
               to="/admin"
-              className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition-colors flex items-center gap-1.5 text-xs font-semibold"
+              className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 transition-colors flex items-center justify-center"
+              title={language === 'km' ? 'ផ្ទាំងគ្រប់គ្រង' : 'Dashboard'}
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">
-                {language === 'km' ? 'ត្រឡប់ទៅផ្ទាំងគ្រប់គ្រង' : 'Dashboard'}
-              </span>
             </Link>
           ) : (
             <LogoutButton

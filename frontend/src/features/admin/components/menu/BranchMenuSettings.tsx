@@ -1,10 +1,7 @@
 import { useState, useEffect, useMemo, type FC } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
-  Building2,
   Search,
-  CheckCircle2,
-  AlertCircle,
   Loader2,
   SlidersHorizontal,
   Trash2,
@@ -324,35 +321,29 @@ export const BranchMenuSettings: FC = () => {
     (isFetchingBranchMenu && branchItemsMap.size === 0)
 
   return (
-    <div className="w-full min-h-[420px] p-5 sm:p-6 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col space-y-5 shadow-none">
+    <div className="w-full min-h-[420px] p-5 sm:p-6 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col space-y-5 shadow-none">
       {/* Toast Alert Feedback */}
       {feedbackMessage && (
         <div
           role="alert"
-          className={`flex items-center gap-2 p-3 rounded-2xl border text-xs font-medium ${
+          className={`flex items-center p-3 rounded-xl border text-xs font-normal ${
             feedbackMessage.type === 'success'
-              ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
-              : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300'
+              ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-200/80 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300'
+              : 'bg-rose-50/60 dark:bg-rose-950/30 border-rose-200/80 dark:border-rose-800/60 text-rose-800 dark:text-rose-300'
           }`}
         >
-          {feedbackMessage.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          ) : (
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
-          )}
           <span>{feedbackMessage.text}</span>
         </div>
       )}
 
       {/* Header Bar: Branch Selector & Action Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-zinc-100 dark:border-zinc-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-zinc-100 dark:border-zinc-800/80">
         <div className="flex items-center gap-2.5 flex-wrap">
-          <Building2 className="w-4 h-4 text-zinc-500 shrink-0" />
-          <label htmlFor="branch-select" className="text-xs font-semibold text-zinc-600 dark:text-zinc-400 uppercase tracking-wider shrink-0">
+          <label htmlFor="branch-select" className="text-xs font-medium text-zinc-600 dark:text-zinc-400 shrink-0">
             {isKm ? 'ជ្រើសរើសសាខា' : 'Select Branch'}:
           </label>
           {isLoadingBranches ? (
-            <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+            <span className="text-xs text-zinc-400">Loading...</span>
           ) : branches.length > 0 ? (
             <select
               id="branch-select"
@@ -374,7 +365,7 @@ export const BranchMenuSettings: FC = () => {
                   )
                 }
               }}
-              className="text-xs sm:text-sm font-semibold py-1.5 px-3 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors shadow-none"
+              className="text-xs sm:text-sm font-medium py-1.5 px-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-100 transition-colors shadow-none cursor-pointer"
             >
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>

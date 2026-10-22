@@ -9,7 +9,6 @@ import {
   KitchenStation,
 } from './types/kds.types'
 import { KDSHeader } from './components/KDSHeader'
-import { KDSStationTabs } from './components/KDSStationTabs'
 import { KDSTicketCard } from './components/KDSTicketCard'
 import { KDSRecallDrawer } from './components/KDSRecallDrawer'
 import { useKDSStore } from './stores/useKDSStore'
@@ -40,7 +39,6 @@ export const KDSPage: FC = () => {
     recalledTickets,
     isMuted,
     isRecallOpen,
-    setSelectedStation,
     setRecalledTickets,
     setIsRecallOpen,
   } = useKDSStore()
@@ -452,16 +450,7 @@ export const KDSPage: FC = () => {
         onOpenStations={() => setIsStationSettingsOpen(true)}
       />
 
-      {/* 2. Station Switcher Tabs (Only if custom kitchen stations exist) */}
-      {stations.length > 0 && (
-        <KDSStationTabs
-          stations={stations}
-          selectedStationId={selectedStationId}
-          onSelectStation={setSelectedStation}
-        />
-      )}
-
-      {/* 3. Main Stage: Ticket Grid Viewport */}
+      {/* 2. Main Stage: Ticket Grid Viewport */}
       <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
         {isLoading ? (
           <div className="h-96 flex flex-col items-center justify-center">

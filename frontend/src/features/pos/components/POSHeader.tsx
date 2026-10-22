@@ -88,7 +88,7 @@ export const POSHeader: FC<POSHeaderProps> = ({
               to="/admin"
               onClick={onLock}
               className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-600 dark:text-zinc-400 transition-colors"
-              title={language === 'km' ? 'ត្រឡប់ទៅផ្ទាំងគ្រប់គ្រង' : 'Back to Dashboard'}
+              title={language === 'km' ? 'ផ្ទាំងគ្រប់គ្រង' : 'Dashboard'}
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
