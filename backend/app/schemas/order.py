@@ -2,7 +2,8 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import (
     CourseStage,
@@ -25,6 +26,25 @@ class OrderItemCreate(BaseModel):
     modifiers: list[OrderItemModifierCreate] = Field(default_factory=list)
     course_stage: CourseStage = Field(default=CourseStage.MAINS)
     special_instructions: str | None = Field(default=None, max_length=255)
+
+    @field_validator("course_stage", mode="before")
+    @classmethod
+    def normalize_course_stage(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            val = v.strip().lower()
+            if val in ("appetizers", "appetizer", "starter"):
+                return CourseStage.STARTERS
+            if val in ("digestifs", "digestif", "dessert"):
+                return CourseStage.DESSERTS
+            if val in ("drinks", "drink"):
+                return CourseStage.DRINKS
+            if val in ("mains", "main"):
+                return CourseStage.MAINS
+            try:
+                return CourseStage(val)
+            except ValueError:
+                return CourseStage.MAINS
+        return v or CourseStage.MAINS
 
 
 class GuestOrderPlacementRequest(BaseModel):

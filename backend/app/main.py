@@ -1,7 +1,9 @@
+import argparse
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import structlog
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -95,3 +97,36 @@ async def root() -> dict[str, str]:
         "version": settings.app_version,
         "status": "running",
     }
+
+
+def start() -> None:
+    """
+    Run the FastAPI development server with uvicorn.
+    Used by `uv run menu` to start the backend with reload enabled.
+    """
+    parser = argparse.ArgumentParser(description="Run the Menu API server")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host address to bind (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port number to bind (default: 8000)",
+    )
+    parser.add_argument(
+        "--no-reload",
+        dest="reload",
+        action="store_false",
+        default=True,
+        help="Disable auto-reload",
+    )
+    args, _ = parser.parse_known_args()
+
+    uvicorn.run("app.main:app", host=args.host, port=args.port, reload=args.reload)
+
+
+if __name__ == "__main__":
+    start()

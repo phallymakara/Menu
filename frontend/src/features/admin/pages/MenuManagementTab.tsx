@@ -2,6 +2,8 @@ import { useEffect, useState, type FC, type FormEvent } from 'react'
 import { Plus } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { useWebSocket } from '@/lib/websocket'
 import { Button } from '@/components/ui/Button'
 import { getApiErrorStatus } from '@/lib/api-error'
 import { EmenuLoader } from '@/components/ui/EmenuLoader'
@@ -135,6 +137,31 @@ export const MenuManagementTab: FC = () => {
     businessId,
     editingItem?.id ?? null
   )
+
+  // Real-time WebSocket connection for instant catalog synchronization
+  const { token: accessToken } = useAuthStore()
+  const wsUrl =
+    accessToken && isUuid(selectedBranchId)
+      ? `/ws/branches/${selectedBranchId}?token=${accessToken}&room_type=pos`
+      : null
+
+  useWebSocket(wsUrl, {
+    autoConnect: !!wsUrl,
+    onMessage: (rawMsg) => {
+      try {
+        const data = typeof rawMsg === 'object' && rawMsg !== null ? (rawMsg as any) : {}
+        const evt = String(data.event || data.type || '').toLowerCase()
+        if (evt === 'menu.updated' || evt === 'category.updated') {
+          queryClient.invalidateQueries({ queryKey: ['categories', businessId] })
+          queryClient.invalidateQueries({ queryKey: ['menu-items', businessId] })
+          queryClient.invalidateQueries({ queryKey: ['branch-menu-items'] })
+          queryClient.invalidateQueries({ queryKey: ['branch-categories'] })
+        }
+      } catch {
+        // Ignore parse error
+      }
+    },
+  })
 
   useEffect(() => {
     if (directCategoryDetail && isCategoryModalOpen && editingCategory?.id === directCategoryDetail.id) {
@@ -663,93 +690,96 @@ export const MenuManagementTab: FC = () => {
         onSearchChange={setSearchQuery}
       />
 
-      {/* Lazy Loading Skeleton Grid when switching branch or loading */}
-      {isLoading && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2.5 text-xs text-zinc-500 font-medium py-1">
-            <EmenuLoader size="xs" />
-            <span>
-              {language === 'km'
-                ? 'កំពុងផ្ទុកទិន្នន័យពីសាខា...'
-                : 'Loading branch menu data...'}
-            </span>
-          </div>
+      {/* Scrollable Card Container */}
+      <div className="overflow-y-auto max-h-[calc(100vh-210px)] pr-1 sm:pr-2 overscroll-contain">
+        {/* Lazy Loading Skeleton Grid when switching branch or loading */}
+        {isLoading && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2.5 text-xs text-zinc-500 font-medium py-1">
+              <EmenuLoader size="xs" />
+              <span>
+                {language === 'km'
+                  ? 'កំពុងផ្ទុកទិន្នន័យពីសាខា...'
+                  : 'Loading branch menu data...'}
+              </span>
+            </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-3">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-[22px] sm:rounded-[26px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden flex flex-col justify-between animate-pulse"
-              >
-                <div>
-                  {/* Image Skeleton */}
-                  <div className="aspect-[4/3] w-full bg-zinc-100 dark:bg-zinc-800" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 pb-8">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden flex flex-col justify-between animate-pulse"
+                >
+                  <div>
+                    {/* Image Skeleton */}
+                    <div className="aspect-[16/10] sm:aspect-[4/3] w-full bg-zinc-100 dark:bg-zinc-800" />
 
-                  {/* Body Skeleton */}
-                  <div className="p-2.5 sm:p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="h-3.5 bg-zinc-200 dark:bg-zinc-800 rounded-md w-1/2" />
-                      <div className="h-3.5 bg-zinc-200 dark:bg-zinc-800 rounded-md w-1/4" />
+                    {/* Body Skeleton */}
+                    <div className="p-2.5 sm:p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="h-3.5 bg-zinc-200 dark:bg-zinc-800 rounded-md w-1/2" />
+                        <div className="h-3.5 bg-zinc-200 dark:bg-zinc-800 rounded-md w-1/4" />
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="px-2.5 pb-2.5 sm:px-3 sm:pb-3 pt-0">
-                  <div className="h-5 bg-zinc-100 dark:bg-zinc-800/60 rounded-full w-full" />
+                  <div className="px-2.5 pb-2.5 sm:px-3 sm:pb-3 pt-0">
+                    <div className="h-4.5 bg-zinc-100 dark:bg-zinc-800/60 rounded-full w-full" />
+                  </div>
                 </div>
-              </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Menu Items Grid */}
+        {!isLoading && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 pb-8">
+            {filteredItems.map((item) => (
+              <MenuItemCard
+                key={item.id}
+                item={item}
+                isMenuOpen={openMenuId === item.id}
+                onToggleMenu={() => setOpenMenuId(openMenuId === item.id ? null : item.id)}
+                onEdit={() => {
+                  setOpenMenuId(null)
+                  openEditItemModal(item)
+                }}
+                onDelete={() => {
+                  setOpenMenuId(null)
+                  handleDeleteItem(item.id)
+                }}
+                onToggleAvailability={() => handleToggleAvailability(item)}
+                isBranchMode={!!selectedBranchId}
+                onPromoteLocalItem={() => {
+                  setOpenMenuId(null)
+                  handlePromoteLocalItem(item.id)
+                }}
+              />
             ))}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Menu Items Grid */}
-      {!isLoading && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-3">
-          {filteredItems.map((item) => (
-            <MenuItemCard
-              key={item.id}
-              item={item}
-              isMenuOpen={openMenuId === item.id}
-              onToggleMenu={() => setOpenMenuId(openMenuId === item.id ? null : item.id)}
-              onEdit={() => {
-                setOpenMenuId(null)
-                openEditItemModal(item)
-              }}
-              onDelete={() => {
-                setOpenMenuId(null)
-                handleDeleteItem(item.id)
-              }}
-              onToggleAvailability={() => handleToggleAvailability(item)}
-              isBranchMode={!!selectedBranchId}
-              onPromoteLocalItem={() => {
-                setOpenMenuId(null)
-                handlePromoteLocalItem(item.id)
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!isLoading && filteredItems.length === 0 && (
-        <div className="py-16 text-center space-y-2">
-          <p className="text-base font-semibold text-zinc-700 dark:text-zinc-300">
-            {language === 'km'
-              ? 'មិនទាន់មានមុខម្ហូបក្នុងសាខានេះនៅឡើយទេ'
-              : 'No menu items in this branch yet'}
-          </p>
-          <p className="text-xs text-zinc-400 max-w-md mx-auto">
-            {selectedBranchId
-              ? language === 'km'
-                ? 'សាខានេះត្រូវបានញែកដាច់ដោយឡែក។ អ្នកអាចបន្ថែមមុខម្ហូបថ្មីសម្រាប់សាខានេះ ឬកែប្រែទិន្នន័យពីសាខាមេ (HQ)។'
-                : 'This branch is isolated. You can add local items or override dishes from the Master Catalog (HQ).'
-              : language === 'km'
-                ? 'មិនទាន់មានមុខម្ហូបក្នុងបញ្ជីមុខម្ហូបមេនៅឡើយទេ។'
-                : 'No master catalog items found.'}
-          </p>
-        </div>
-      )}
+        {/* Empty State */}
+        {!isLoading && filteredItems.length === 0 && (
+          <div className="py-16 text-center space-y-2">
+            <p className="text-base font-semibold text-zinc-700 dark:text-zinc-300">
+              {language === 'km'
+                ? 'មិនទាន់មានមុខម្ហូបក្នុងសាខានេះនៅឡើយទេ'
+                : 'No menu items in this branch yet'}
+            </p>
+            <p className="text-xs text-zinc-400 max-w-md mx-auto">
+              {selectedBranchId
+                ? language === 'km'
+                  ? 'សាខានេះត្រូវបានញែកដាច់ដោយឡែក។ អ្នកអាចបន្ថែមមុខម្ហូបថ្មីសម្រាប់សាខានេះ ឬកែប្រែទិន្នន័យពីសាខាមេ (HQ)។'
+                  : 'This branch is isolated. You can add local items or override dishes from the Master Catalog (HQ).'
+                : language === 'km'
+                  ? 'មិនទាន់មានមុខម្ហូបក្នុងបញ្ជីមុខម្ហូបមេនៅឡើយទេ។'
+                  : 'No master catalog items found.'}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Modals */}
       {isItemModalOpen && (

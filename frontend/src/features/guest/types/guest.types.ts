@@ -113,4 +113,5 @@ export interface TableContextInfo {
   is_service_charge_inclusive: boolean
   bakong_account_id: string | null
   bakong_merchant_name: string | null
+  logo_url?: string | null
 }

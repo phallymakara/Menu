@@ -179,15 +179,15 @@ export const POSCashierPinScreen: FC<POSCashierPinScreenProps> = ({
             </LogoutButton>
           )}
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             {resolvedLogo ? (
               <img
                 src={resolvedLogo}
                 alt={resolvedStoreName}
-                className="w-9 h-9 rounded-xl object-cover border border-zinc-200 dark:border-zinc-800"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border border-zinc-200/80 dark:border-zinc-800 shadow-xs shrink-0"
               />
             ) : (
-              <div className="w-9 h-9 rounded-xl bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center font-bold text-sm uppercase">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 flex items-center justify-center font-black text-sm sm:text-base uppercase shadow-xs shrink-0">
                 {resolvedStoreName.charAt(0)}
               </div>
             )}

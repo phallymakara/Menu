@@ -96,6 +96,10 @@ class RestaurantTableResponse(RestaurantTableBase):
     dining_area_name_km: str | None = None
     created_at: datetime
     updated_at: datetime
+    active_session_id: UUID | None = None
+    session_elapsed_minutes: int | None = None
+    session_subtotal_usd: float | None = None
+    active_orders_count: int | None = None
 
 
 class RestaurantTableBatchCreate(BaseModel):
@@ -176,6 +180,7 @@ class TablePublicVerifyResponse(BaseModel):
     business_name_en: str
     currency: str = "USD"
     ordering_url: str
+    logo_url: str | None = None
 
 
 class TableBatchQRExportResponse(BaseModel):

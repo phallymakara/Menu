@@ -402,3 +402,61 @@ export function useBumpStationTicket(businessId: string | null, branchId: string
     },
   })
 }
+
+export function useAcceptKDSOrder(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      const { data, error } = await apiFetch.POST(
+        '/api/v1/businesses/{business_id}/branches/{branch_id}/kds/orders/{order_id}/accept',
+        {
+          params: {
+            path: {
+              business_id: businessId,
+              branch_id: branchId,
+              order_id: orderId,
+            },
+          },
+        }
+      )
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kds', 'tickets', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['kds', 'metrics', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['pos', 'tables'] })
+    },
+  })
+}
+
+export function useRejectKDSOrder(businessId: string | null, branchId: string | null) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ orderId, reason }: { orderId: string; reason?: string }) => {
+      if (!businessId || !branchId) throw new Error('Business and Branch IDs are required')
+      const { data, error } = await apiFetch.POST(
+        '/api/v1/businesses/{business_id}/branches/{branch_id}/kds/orders/{order_id}/reject',
+        {
+          params: {
+            path: {
+              business_id: businessId,
+              branch_id: branchId,
+              order_id: orderId,
+            },
+          },
+          body: { reason: reason ?? null },
+        }
+      )
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['kds', 'tickets', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['kds', 'metrics', businessId, branchId] })
+      queryClient.invalidateQueries({ queryKey: ['pos', 'tables'] })
+    },
+  })
+}
+

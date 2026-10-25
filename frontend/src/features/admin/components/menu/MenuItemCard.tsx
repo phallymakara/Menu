@@ -30,7 +30,7 @@ export const MenuItemCard: FC<MenuItemCardProps> = ({
 
   return (
     <div
-      className={`rounded-[22px] sm:rounded-[26px] border transition-all flex flex-col justify-between relative overflow-hidden shadow-xs hover:shadow-sm ${item.is_available
+      className={`rounded-2xl border transition-all flex flex-col justify-between relative overflow-hidden shadow-xs hover:shadow-sm ${item.is_available
           ? 'border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900'
           : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 opacity-75'
         }`}
@@ -38,7 +38,7 @@ export const MenuItemCard: FC<MenuItemCardProps> = ({
       <div>
         {/* 1. Image */}
         {item.image_url && (
-          <div className="relative aspect-[4/3] w-full bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-center rounded-t-[21px] sm:rounded-t-[25px] overflow-hidden">
+          <div className="relative aspect-[16/10] sm:aspect-[4/3] w-full bg-zinc-100 dark:bg-zinc-800 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-center overflow-hidden">
             <img
               src={item.image_url}
               alt={item.name_en}
@@ -116,17 +116,17 @@ export const MenuItemCard: FC<MenuItemCardProps> = ({
         </div>
 
         {/* Card Body: Title Price & Description */}
-        <div className="p-3 sm:p-3.5 space-y-2">
+        <div className="p-2.5 sm:p-3 space-y-1.5">
           {/* 2. Title & Price */}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <h3 className="font-bold text-xs sm:text-sm text-zinc-950 dark:text-zinc-50 truncate leading-tight">
+              <h3 className="font-bold text-xs sm:text-[13px] text-zinc-950 dark:text-zinc-50 leading-snug line-clamp-2">
                 {language === 'km' && item.name_km ? item.name_km : item.name_en}
               </h3>
             </div>
 
             <div className="text-right shrink-0">
-              <div className="text-xs sm:text-sm font-bold text-zinc-950 dark:text-zinc-50 leading-tight">
+              <div className="text-xs sm:text-[13px] font-extrabold text-zinc-950 dark:text-zinc-50 leading-tight">
                 ${item.price_usd.toFixed(2)}
               </div>
               <div className="text-[10px] text-zinc-500 font-mono font-medium">
@@ -139,12 +139,12 @@ export const MenuItemCard: FC<MenuItemCardProps> = ({
           {(item.price_override !== null && item.price_override !== undefined || item.is_local_item) && (
             <div className="pt-0.5 flex flex-wrap gap-1">
               {item.price_override !== null && item.price_override !== undefined && (
-                <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
+                <span className="inline-flex items-center text-[9.5px] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
                   {language === 'km' ? 'តម្លៃសាខា' : 'Override'}
                 </span>
               )}
               {item.is_local_item && (
-                <span className="inline-flex items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40">
+                <span className="inline-flex items-center text-[9.5px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40">
                   {language === 'km' ? 'មុខម្ហូបសាខា' : 'Local'}
                 </span>
               )}
@@ -154,8 +154,8 @@ export const MenuItemCard: FC<MenuItemCardProps> = ({
       </div>
 
       {/* Card Footer: Toggle Switch to Sell / Not Sell */}
-      <div className="px-3 sm:px-3.5 py-2 sm:py-2.5 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
-        <span className="text-[11px] sm:text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+      <div className="px-2.5 sm:px-3 py-1.5 sm:py-2 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
+        <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
           {item.is_available
             ? language === 'km' ? 'បើកលក់' : 'Available'
             : language === 'km' ? 'បិទលក់' : 'Off Sale'}

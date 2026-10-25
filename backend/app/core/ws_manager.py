@@ -95,6 +95,15 @@ class WebSocketConnectionManager:
             active_room_connections=len(self._rooms[room]),
         )
 
+    def register(self, websocket: WebSocket, room: str) -> None:
+        """Registers an already-accepted WebSocket connection into an additional room."""
+        self._rooms[room].add(websocket)
+        logger.info(
+            "WebSocket registered into room",
+            room=room,
+            active_room_connections=len(self._rooms[room]),
+        )
+
     def disconnect(self, websocket: WebSocket, room: str) -> None:
         """Removes a WebSocket connection from a room upon disconnect."""
         if room in self._rooms and websocket in self._rooms[room]:

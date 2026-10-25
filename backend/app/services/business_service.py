@@ -102,4 +102,15 @@ async def update_business_profile(
         updated_fields=list(update_data.keys()),
     )
 
+    from app.services.realtime_notify_service import broadcast_store_update
+    await broadcast_store_update(
+        session=session,
+        business_id=business_id,
+        details={
+            "updated_fields": list(update_data.keys()),
+            "logo_url": updated_business.logo_url,
+            "business_name": updated_business.name_en,
+        },
+    )
+
     return updated_business

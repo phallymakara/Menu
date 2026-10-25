@@ -63,28 +63,60 @@ export function useOpenTableSession() {
   })
 }
 
-export function useGuestCatalog(businessId: string | null) {
+export function useGuestCatalog(
+  businessId: string | null,
+  branchId?: string | null,
+  tableId?: string | null,
+  token?: string | null
+) {
   return useQuery({
-    queryKey: ['guest', 'catalog', businessId],
+    queryKey: ['guest', 'catalog', businessId, branchId, tableId, token],
     queryFn: async () => {
-      if (!businessId) return { categories: [], items: [] }
-
-      const [catRes, itemRes] = await Promise.all([
-        apiFetch.GET('/api/v1/businesses/{business_id}/categories', {
-          params: { path: { business_id: businessId } },
-        }),
-        apiFetch.GET('/api/v1/businesses/{business_id}/items', {
-          params: { path: { business_id: businessId } },
-        }),
-      ])
-
-      const rawItems = (itemRes.data as any)?.items || (Array.isArray(itemRes.data) ? itemRes.data : [])
-      return {
-        categories: catRes.data || [],
-        items: rawItems,
+      // 1. If branch, table, and token are provided, call the public table catalog endpoint!
+      // This requires zero staff login authentication and works seamlessly on mobile devices.
+      if (branchId && tableId && token) {
+        try {
+          const res = await fetch(
+            `/api/v1/public/tables/catalog?branch_id=${branchId}&table_id=${tableId}&token=${encodeURIComponent(token)}`
+          )
+          if (res.ok) {
+            const data = await res.json()
+            if (data.categories?.length > 0 || data.items?.length > 0) {
+              return data
+            }
+          }
+        } catch (err) {
+          console.warn('Public table catalog error:', err)
+        }
       }
+
+      // 2. Fallback to business endpoints if available
+      if (businessId) {
+        try {
+          const [catRes, itemRes] = await Promise.all([
+            apiFetch.GET('/api/v1/businesses/{business_id}/categories', {
+              params: { path: { business_id: businessId } },
+            }),
+            apiFetch.GET('/api/v1/businesses/{business_id}/items', {
+              params: { path: { business_id: businessId } },
+            }),
+          ])
+
+          const rawItems = (itemRes.data as any)?.items || (Array.isArray(itemRes.data) ? itemRes.data : [])
+          if ((catRes.data && catRes.data.length > 0) || rawItems.length > 0) {
+            return {
+              categories: catRes.data || [],
+              items: rawItems,
+            }
+          }
+        } catch {
+          // Ignore
+        }
+      }
+
+      return { categories: [], items: [] }
     },
-    enabled: !!businessId,
+    enabled: !!(businessId || (branchId && tableId && token)),
   })
 }
 

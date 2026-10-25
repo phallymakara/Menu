@@ -19,7 +19,6 @@ from app.api.v1.endpoints.catalog_sync import router as catalog_sync_router
 from app.api.v1.endpoints.categories import router as categories_router
 from app.api.v1.endpoints.dining_areas import router as dining_areas_router
 from app.api.v1.endpoints.health import router as health_router
-from app.api.v1.endpoints.inventory import router as inventory_router
 from app.api.v1.endpoints.item_variants import router as item_variants_router
 from app.api.v1.endpoints.kds import router as kds_router
 from app.api.v1.endpoints.khqr import router as khqr_router
@@ -64,8 +63,6 @@ api_router.include_router(payments_router)
 api_router.include_router(receipts_router)
 api_router.include_router(catalog_sync_router)
 api_router.include_router(analytics_router)
-api_router.include_router(inventory_router)
-
 
 api_router.include_router(kitchen_stations_router)
 api_router.include_router(kds_router)

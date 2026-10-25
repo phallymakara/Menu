@@ -342,7 +342,7 @@ export const AdminHeader: FC<{ onToggleSidebar?: () => void }> = ({ onToggleSide
             onClick={onToggleSidebar}
             title={language === 'km' ? 'ចុចដើម្បីបិទ/បើកម៉ឺនុយ' : 'Click to toggle sidebar'}
             aria-label="Toggle sidebar"
-            className="w-9 h-9 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 flex items-center justify-center overflow-hidden shrink-0 transition-all cursor-pointer shadow-none border border-zinc-200 dark:border-zinc-700 hover:scale-105 active:scale-95"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 flex items-center justify-center overflow-hidden shrink-0 transition-all cursor-pointer shadow-xs border border-zinc-200/80 dark:border-zinc-700/80 hover:scale-105 active:scale-95"
           >
             {logoUrl ? (
               <img src={logoUrl} alt="Store Logo" className="w-full h-full object-cover" />

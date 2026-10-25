@@ -124,7 +124,7 @@ export const ItemOptionsEditor: FC<ItemOptionsEditorProps> = ({ modifierGroups, 
               }
             }}
             placeholder={language === 'km' ? 'ជម្រើស (EN)' : 'Choice (EN)'}
-            className="w-full min-w-0 px-3.5 py-2 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs sm:text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
+            className="w-full min-w-0 h-9 px-3.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors leading-normal"
           />
           <input
             type="text"
@@ -142,7 +142,7 @@ export const ItemOptionsEditor: FC<ItemOptionsEditorProps> = ({ modifierGroups, 
               }
             }}
             placeholder={language === 'km' ? 'ជម្រើស (KM)' : 'Choice (KM)'}
-            className="w-full min-w-0 px-3.5 py-2 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs sm:text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
+            className="w-full min-w-0 h-9 px-3.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors leading-normal"
           />
           <div className="relative w-full min-w-0">
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-zinc-400">+$</span>
@@ -164,7 +164,7 @@ export const ItemOptionsEditor: FC<ItemOptionsEditorProps> = ({ modifierGroups, 
                 }
               }}
               placeholder="0.00"
-              className="w-full pl-6 pr-3 py-2 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs sm:text-sm outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors text-right"
+              className="w-full h-9 pl-6 pr-3 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors text-right leading-normal"
             />
           </div>
           {/* Tick Icon to Save */}

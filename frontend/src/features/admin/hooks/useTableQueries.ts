@@ -22,9 +22,22 @@ interface TableQrBatch {
   tables: TableQrDetail[]
 }
 
-/** QR codes encode the guest ordering URL on the site the admin is using. */
+/** QR codes encode the guest ordering URL on the site the admin is using.
+ * In development on localhost, swap with LAN IP so physical mobile devices can scan it.
+ */
 function orderingBaseUrl(): string | undefined {
-  return typeof window !== 'undefined' ? window.location.origin : undefined
+  if (typeof window === 'undefined') return undefined
+  if (
+    import.meta.env.MODE !== 'test' &&
+    typeof __DEV_LAN_IP__ !== 'undefined' &&
+    __DEV_LAN_IP__ &&
+    __DEV_LAN_IP__ !== 'localhost' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ) {
+    const port = window.location.port ? `:${window.location.port}` : ''
+    return `${window.location.protocol}//${__DEV_LAN_IP__}${port}`
+  }
+  return window.location.origin
 }
 
 export function useDiningAreas(businessId: string | null, branchId: string | null) {

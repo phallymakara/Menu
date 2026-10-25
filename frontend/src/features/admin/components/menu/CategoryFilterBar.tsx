@@ -1,5 +1,5 @@
 import type { FC } from 'react'
-import { Edit3, Search } from 'lucide-react'
+import { Edit3, Search, X } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import type { Category } from '../../types/admin.types'
 
@@ -27,7 +27,7 @@ export const CategoryFilterBar: FC<CategoryFilterBarProps> = ({
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       {/* Category Pills & Reorder Button */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
         <button
           type="button"
           onClick={() => onCategoryChange('all')}
@@ -67,16 +67,26 @@ export const CategoryFilterBar: FC<CategoryFilterBarProps> = ({
         ))}
       </div>
 
-      {/* Search Field */}
-      <div className="relative w-full sm:w-72 shrink-0">
-        <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+      {/* Search Field with properly aligned placeholder and icon */}
+      <div className="relative w-full sm:w-72 shrink-0 flex items-center">
+        <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={language === 'km' ? 'ស្វែងរកមុខម្ហូប...' : 'Search menu...'}
-          className="w-full h-8.5 pl-8.5 pr-3.5 py-1.5 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
+          placeholder={isKm ? 'ស្វែងរកមុខម្ហូប...' : 'Search menu...'}
+          className="w-full h-9 pl-10 pr-8 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 placeholder:text-xs leading-normal outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors shadow-2xs"
         />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => onSearchChange('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+            aria-label="Clear search"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </div>
   )

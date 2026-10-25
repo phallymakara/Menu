@@ -1,13 +1,9 @@
 import { type FC } from 'react'
 import {
   X,
-  Plus,
   DollarSign,
   QrCode,
   Printer,
-  Trash2,
-  Clock,
-  Users,
   UtensilsCrossed,
   ArrowLeftRight,
 } from 'lucide-react'
@@ -18,10 +14,11 @@ import { useLanguageStore } from '@/stores/useLanguageStore'
 export interface POSOrderDrawerProps {
   table: POSTable | null
   rounds: POSPlacedRound[]
+  isLoading?: boolean
   onClose: () => void
   onOpenCashModal: () => void
   onOpenKHQRModal: () => void
-  onOpenVoidModal: (item: POSPlacedItem) => void
+  onOpenVoidModal?: (item: POSPlacedItem) => void
   onPrintPrecheck: () => void
   onStartDirectOrder?: () => void
   onOpenTableActions?: () => void
@@ -31,52 +28,32 @@ export interface POSOrderDrawerProps {
 export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
   table,
   rounds,
+  isLoading = false,
   onClose,
   onOpenCashModal,
   onOpenKHQRModal,
-  onOpenVoidModal,
+  onOpenVoidModal: _onOpenVoidModal,
   onPrintPrecheck,
-  onStartDirectOrder,
+  onStartDirectOrder: _onStartDirectOrder,
   onOpenTableActions,
-  onCancelRound,
+  onCancelRound: _onCancelRound,
 }) => {
   const { language } = useLanguageStore()
 
   if (!table) return null
-
-  const isOccupiedOrBilling =
-    table.status.toLowerCase() === 'occupied' || table.status.toLowerCase() === 'bill_requested'
 
   const subtotalUSD = rounds.reduce((sum, r) => sum + r.subtotal_usd, 0)
   const taxUSD = subtotalUSD * 0.1 // 10% VAT
   const totalUSD = subtotalUSD + taxUSD
 
   return (
-    <div className="w-full lg:w-96 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between h-[calc(100vh-4rem)] sticky top-16 shrink-0">
+    <div className="w-full lg:w-96 rounded-[22px] sm:rounded-[24px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 shrink-0 lg:sticky lg:top-20 h-[calc(100vh-140px)] min-h-[580px] flex flex-col justify-between shadow-xs">
       {/* 1. Header */}
-      <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="font-extrabold text-base text-zinc-950 dark:text-zinc-50">
-              {table.table_number}
-            </h3>
-            <span className="px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-xs font-mono font-medium text-zinc-600 dark:text-zinc-400">
-              {table.dining_area_name || 'Main Hall'}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3 text-xs text-zinc-500 mt-1">
-            <span className="flex items-center gap-1">
-              <Users className="w-3 h-3" />
-              {table.guest_count || table.capacity} {language === 'km' ? 'នាក់' : 'guests'}
-            </span>
-            {isOccupiedOrBilling && (
-              <span className="flex items-center gap-1 font-mono">
-                <Clock className="w-3 h-3" />
-                {table.session_elapsed_minutes || 14}m
-              </span>
-            )}
-          </div>
+      <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
+        <div className="flex items-center gap-2.5">
+          <h3 className="font-extrabold text-base text-zinc-950 dark:text-zinc-50">
+            {table.table_number}
+          </h3>
         </div>
 
         <div className="flex items-center gap-1">
@@ -84,14 +61,14 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
             <button
               onClick={onOpenTableActions}
               title={language === 'km' ? 'សកម្មភាពតុ' : 'Table Actions'}
-              className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               <ArrowLeftRight className="w-4 h-4" />
             </button>
           )}
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors"
+            className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -99,56 +76,24 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
       </div>
 
       {/* 2. Placed Order Rounds Items List */}
-      <div className="p-4 flex-1 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800/80 space-y-3">
-        {rounds.length === 0 ? (
-          <div className="py-20 text-center text-xs text-zinc-400 space-y-3">
-            <UtensilsCrossed className="w-8 h-8 mx-auto text-zinc-300 dark:text-zinc-700" />
-            <p>
-              {language === 'km'
-                ? 'មិនទាន់មានការកុម្ម៉ង់សម្រាប់តុនេះនៅឡើយទេ'
-                : 'No orders placed yet for this table.'}
+      <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1 overscroll-contain divide-y divide-zinc-100 dark:divide-zinc-800/80">
+        {isLoading ? (
+          <div className="h-full flex flex-col items-center justify-center py-10 text-center text-xs text-zinc-400 space-y-2">
+            <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="font-medium text-zinc-400 dark:text-zinc-500">
+              {language === 'km' ? 'កំពុងទាញយកការកុម្ម៉ង់...' : 'Loading orders...'}
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-              {onOpenTableActions && !table.session_id && (
-                <button
-                  onClick={onOpenTableActions}
-                  className="px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 font-semibold text-xs transition-colors"
-                >
-                  {language === 'km' ? 'បើកតុទទួលភ្ញៀវ' : 'Seat Guests'}
-                </button>
-              )}
-              {onStartDirectOrder && (
-                <button
-                  onClick={onStartDirectOrder}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors"
-                >
-                  {language === 'km' ? '+ កុម្ម៉ង់មុខម្ហូបថ្មី' : '+ Take New Order'}
-                </button>
-              )}
-            </div>
+          </div>
+        ) : rounds.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center py-10 text-center text-xs text-zinc-400 space-y-2">
+            <UtensilsCrossed className="w-8 h-8 mx-auto text-zinc-300 dark:text-zinc-700 opacity-40" />
+            <p className="font-medium text-zinc-400 dark:text-zinc-500">
+              {language === 'km' ? 'មិនទាន់មានការកុម្ម៉ង់' : 'No order yet'}
+            </p>
           </div>
         ) : (
           rounds.map((round) => (
-            <div key={round.id} className="pt-3 first:pt-0 space-y-2">
-              <div className="flex items-center justify-between text-xs font-semibold text-zinc-500 pb-1">
-                <span>
-                  {language === 'km' ? `ជុំទី #${round.round_number}` : `Round #${round.round_number}`}
-                </span>
-                <div className="flex items-center gap-2">
-                  <CurrencyDisplay amountUSD={round.subtotal_usd} className="text-zinc-700 dark:text-zinc-300" />
-                  {onCancelRound && (
-                    <button
-                      type="button"
-                      onClick={() => onCancelRound(round.id)}
-                      className="text-zinc-400 hover:text-red-600 transition-colors"
-                      title={language === 'km' ? 'លុបចោលជុំកុម្ម៉ង់នេះ' : 'Cancel order round'}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
+            <div key={round.id} className="pt-2 first:pt-0 space-y-1.5">
               {/* Items */}
               <div className="space-y-1.5">
                 {round.items.map((item) => {
@@ -156,11 +101,11 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
                   return (
                     <div
                       key={item.id}
-                      className="p-2 rounded-xl border border-zinc-200/60 dark:border-zinc-800/60 bg-zinc-50/50 dark:bg-zinc-900/50 flex items-start justify-between gap-2"
+                      className="py-2 flex items-start justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800/60 last:border-b-0"
                     >
                       <div className="space-y-0.5 min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-                          <span className="font-mono">{item.quantity}x</span>
+                          <span className="font-mono text-zinc-500 dark:text-zinc-400 shrink-0">{item.quantity}x</span>
                           <span className="truncate">{displayName}</span>
                         </div>
 
@@ -169,7 +114,9 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
                         )}
 
                         {item.modifiers_summary && (
-                          <span className="text-[11px] text-zinc-500 block">+ {item.modifiers_summary}</span>
+                          <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block leading-relaxed">
+                            + {item.modifiers_summary}
+                          </span>
                         )}
 
                         {item.special_instructions && (
@@ -179,15 +126,8 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="shrink-0 text-right">
                         <CurrencyDisplay amountUSD={item.subtotal_usd} className="font-bold text-xs" />
-                        <button
-                          onClick={() => onOpenVoidModal(item)}
-                          className="p-1 text-zinc-400 hover:text-red-600 transition-colors"
-                          title="Void item with Supervisor PIN"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
                       </div>
                     </div>
                   )
@@ -199,7 +139,7 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
       </div>
 
       {/* 3. Financial Breakdown & Settlement Actions */}
-      <div className="p-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950/70 space-y-3">
+      <div className="shrink-0 pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
         {rounds.length > 0 && (
           <div className="space-y-1.5 text-xs">
             <div className="flex justify-between text-zinc-500">
@@ -225,43 +165,31 @@ export const POSOrderDrawer: FC<POSOrderDrawerProps> = ({
             <button
               onClick={onOpenCashModal}
               disabled={rounds.length === 0}
-              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+              className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:cursor-not-allowed"
             >
               <DollarSign className="w-4 h-4" />
-              <span>{language === 'km' ? 'សាច់ប្រាក់ (100៛)' : 'Cash (100៛)'}</span>
+              <span>{language === 'km' ? 'សាច់ប្រាក់ Cash' : 'Cash'}</span>
             </button>
 
             <button
               onClick={onOpenKHQRModal}
               disabled={rounds.length === 0}
-              className="py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+              className="py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:cursor-not-allowed"
             >
               <QrCode className="w-4 h-4" />
               <span>Bakong KHQR</span>
             </button>
           </div>
 
-          <div className="flex gap-2">
+          <div>
             <button
               onClick={onPrintPrecheck}
               disabled={rounds.length === 0}
-              className={`${
-                onStartDirectOrder ? 'flex-1' : 'w-full'
-              } py-2.5 px-3 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors`}
+              className="w-full py-2.5 px-3 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-40 text-zinc-700 dark:text-zinc-300 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:cursor-not-allowed"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>{language === 'km' ? 'ព្រីនវិក្កយបត្រ' : 'Print Pre-check'}</span>
             </button>
-
-            {onStartDirectOrder && (
-              <button
-                onClick={onStartDirectOrder}
-                className="flex-1 py-2.5 px-3 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{language === 'km' ? '+ កុម្ម៉ង់បន្ថែម' : '+ Add Dishes'}</span>
-              </button>
-            )}
           </div>
         </div>
       </div>

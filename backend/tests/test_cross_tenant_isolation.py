@@ -15,7 +15,6 @@ from decimal import Decimal
 import pytest
 from fastapi import status
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.security import create_access_token
@@ -25,7 +24,6 @@ from app.main import app
 from app.models.branch import Branch
 from app.models.business import Business
 from app.models.category import Category
-from app.models.inventory import BranchStock
 from app.models.menu_item import MenuItem
 from app.models.user import User
 from tests.test_staff_management import setup_test_tenant
@@ -298,86 +296,6 @@ async def test_station_assignment_only_touches_own_tenant_rows(
     assert t.category_a.kitchen_station_id is None
     assert t.item_a.kitchen_station_id is None
     assert str(t.item_b.kitchen_station_id) == station_id
-
-
-@pytest.mark.anyio
-async def test_inventory_is_isolated_between_tenants(two_tenants: TwoTenants):
-    """Org B's owner gets 404 adjusting org A's stock or creating, approving,
-    dispatching, or receiving transfers with org A's branches and items."""
-    t = two_tenants
-    second_branch_a = Branch(
-        organization_id=t.biz_a.organization_id,
-        business_id=t.biz_a.id,
-        name_en="Victim Riverside",
-        code="B-02",
-        is_active=True,
-    )
-    t.session.add(second_branch_a)
-    await t.session.commit()
-
-    inventory_a = f"/api/v1/businesses/{t.biz_a.id}/inventory"
-    inventory_b = f"/api/v1/businesses/{t.biz_b.id}/inventory"
-
-    item_res = await t.client.post(
-        f"{inventory_a}/items",
-        headers=t.headers_a,
-        json={"name_en": "Palm Sugar", "unit_of_measure": "kg"},
-    )
-    assert item_res.status_code == status.HTTP_201_CREATED
-    inv_item_a = item_res.json()["id"]
-    restock = await t.client.post(
-        f"{inventory_a}/branches/{t.branch_a.id}/stock/adjust",
-        headers=t.headers_a,
-        json={"inventory_item_id": inv_item_a, "quantity_change": "10.00"},
-    )
-    assert restock.status_code == status.HTTP_200_OK
-
-    # Stock adjust: org A's path, and org B's own path with org A's item.
-    adjust_attack = await t.client.post(
-        f"{inventory_a}/branches/{t.branch_a.id}/stock/adjust",
-        headers=t.headers_b,
-        json={"inventory_item_id": inv_item_a, "quantity_change": "-10.00"},
-    )
-    assert adjust_attack.status_code == status.HTTP_404_NOT_FOUND
-    adjust_foreign_item = await t.client.post(
-        f"{inventory_b}/branches/{t.branch_b.id}/stock/adjust",
-        headers=t.headers_b,
-        json={"inventory_item_id": inv_item_a, "quantity_change": "5.00"},
-    )
-    assert adjust_foreign_item.status_code == status.HTTP_404_NOT_FOUND
-    adjust_foreign_branch = await t.client.post(
-        f"{inventory_b}/branches/{t.branch_a.id}/stock/adjust",
-        headers=t.headers_b,
-        json={"inventory_item_id": inv_item_a, "quantity_change": "5.00"},
-    )
-    assert adjust_foreign_branch.status_code == status.HTTP_404_NOT_FOUND
-
-    # Inventory items: org A's business, or a link to org A's dish.
-    item_attack = await t.client.post(
-        f"{inventory_a}/items",
-        headers=t.headers_b,
-        json={"name_en": "Rogue Item"},
-    )
-    assert item_attack.status_code == status.HTTP_404_NOT_FOUND
-    foreign_menu_link = await t.client.post(
-        f"{inventory_b}/items",
-        headers=t.headers_b,
-        json={"name_en": "Linked Item", "menu_item_id": str(t.item_a.id)},
-    )
-    assert foreign_menu_link.status_code == status.HTTP_404_NOT_FOUND
-
-    # Org A's stock is unchanged, and org B created no stock rows for org A's item.
-    stock = await t.client.get(
-        f"{inventory_a}/branches/{t.branch_a.id}/stock", headers=t.headers_a
-    )
-    assert stock.status_code == status.HTTP_200_OK
-    assert [Decimal(str(s["quantity"])) for s in stock.json()] == [Decimal("10.00")]
-    foreign_rows = await t.session.execute(
-        select(func.count(BranchStock.id)).where(
-            BranchStock.organization_id == t.biz_b.organization_id
-        )
-    )
-    assert foreign_rows.scalar_one() == 0
 
 
 @pytest.mark.anyio

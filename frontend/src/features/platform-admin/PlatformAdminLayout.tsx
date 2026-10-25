@@ -167,8 +167,8 @@ export const PlatformAdminLayout: FC = () => {
                         : 'text-zinc-600 dark:text-zinc-400 hover:bg-[#167e61]/5 hover:text-[#167e61] dark:hover:text-[#167e61]'
                     } ${
                       sidebarCollapsed
-                        ? 'w-12 h-12 justify-center mx-auto'
-                        : 'px-4 py-2.5'
+                        ? 'w-10 h-10 justify-center mx-auto'
+                        : 'px-3.5 py-1.5'
                     }`
                   }
                   title={sidebarCollapsed ? (isKm ? item.labelKm : item.labelEn) : undefined}

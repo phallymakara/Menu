@@ -1,15 +1,14 @@
-import { useState, useMemo, useEffect, type FC } from 'react'
+import { useState, useMemo, useEffect, useRef, type FC } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { Bell, Utensils, AlertCircle } from 'lucide-react'
+import { Bell, Utensils, AlertCircle, CheckCircle2, XCircle } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { EmenuLoader } from '@/components/ui/EmenuLoader'
-import { Category, MenuItem, PlacedOrderRound, TableContextInfo } from './types/guest.types'
+import { Category, MenuItem, CourseStage, PlacedOrderRound, TableContextInfo } from './types/guest.types'
 import { GuestHeader } from './components/GuestHeader'
 import { MenuItemCard } from './components/MenuItemCard'
 import { ItemCustomizerModal } from './components/ItemCustomizerModal'
 import { CartFloatingBar } from './components/CartFloatingBar'
 import { CartReviewSheet } from './components/CartReviewSheet'
-import { OrderTimelineTracker } from './components/OrderTimelineTracker'
 import { KHQRPaymentModal } from './components/KHQRPaymentModal'
 import { GuestServiceRequestModal } from '@/features/service-hub/components/GuestServiceRequestModal'
 import { GuestActiveRequestBanner } from '@/features/service-hub/components/GuestActiveRequestBanner'
@@ -32,7 +31,7 @@ import {
 import { useCartStore } from './stores/useCartStore'
 import { useGuestSessionStore } from './stores/useGuestSessionStore'
 import { useLanguageStore } from '@/stores/useLanguageStore'
-import { playChime } from '@/lib/audio'
+import { playChime, playSuccessSound } from '@/lib/audio'
 import { useWebSocket } from '@/lib/websocket'
 import {
   useVerifyTable,
@@ -182,6 +181,7 @@ export const GuestOrderPage: FC = () => {
     table,
     sessionId,
     sessionToken,
+    sessionCode,
     orderRounds,
     setTableContext,
     addOrderRound,
@@ -191,6 +191,7 @@ export const GuestOrderPage: FC = () => {
 
   // State
   const [categories, setCategories] = useState<Category[]>(SAMPLE_CATEGORIES)
+  const [activeCategory, setActiveCategory] = useState<string>('all')
   const [orderError, setOrderError] = useState<string | null>(null)
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false)
 
@@ -200,6 +201,7 @@ export const GuestOrderPage: FC = () => {
   const [isPayModalOpen, setIsPayModalOpen] = useState(false)
   const [isPaymentSettled, setIsPaymentSettled] = useState(false)
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null)
+  const [notificationType, setNotificationType] = useState<'info' | 'success' | 'error'>('info')
 
   // Determine Branch ID, Table ID, and Token from route or query params
   const effectiveBranchId = routeBranchId || searchParams.get('branch_id')
@@ -226,7 +228,12 @@ export const GuestOrderPage: FC = () => {
   const requestBillMutation = useRequestBill()
 
   const activeBusinessId = !isDemo ? (verifyData?.business_id || table?.business_id || null) : null
-  const { data: catalogData, isLoading: isCatalogLoading } = useGuestCatalog(activeBusinessId)
+  const { data: catalogData, isLoading: isCatalogLoading } = useGuestCatalog(
+    activeBusinessId,
+    !isDemo ? effectiveBranchId : null,
+    !isDemo ? effectiveTableId : null,
+    tokenVal
+  )
 
   const { data: sessionOrdersData } = useGuestSessionOrders(
     !isDemo ? effectiveBranchId : null,
@@ -258,12 +265,12 @@ export const GuestOrderPage: FC = () => {
   useEffect(() => {
     if (isDemo) {
       const demoTableContext: TableContextInfo = {
-        table_id: 'demo-table-08',
-        table_number: '08',
-        table_name: 'Terrace Table 08',
-        dining_area_name: 'Outdoor Patio',
+        table_id: 'demo-table-01',
+        table_number: 'T-01',
+        table_name: 'Table T-01',
+        dining_area_name: 'Main Indoor Hall',
         business_id: 'demo-biz',
-        business_name: 'Siem Reap Bistro',
+        business_name: 'Brojane Coffee & Kitchen',
         branch_id: 'demo-branch',
         branch_name: 'Main Branch',
         exchange_rate: 4100,
@@ -271,8 +278,8 @@ export const GuestOrderPage: FC = () => {
         is_tax_inclusive: false,
         service_charge_percentage: 0,
         is_service_charge_inclusive: false,
-        bakong_account_id: 'bistro_sr@aclb',
-        bakong_merchant_name: 'Siem Reap Bistro',
+        bakong_account_id: 'brojane@aclb',
+        bakong_merchant_name: 'Brojane Coffee & Kitchen',
       }
       setTableContext('demo-token', demoTableContext, 'demo-session-1', 'demo-session-token-1', 'DEMO-8')
       setCategories(SAMPLE_CATEGORIES)
@@ -292,9 +299,17 @@ export const GuestOrderPage: FC = () => {
     return () => window.clearTimeout(timer)
   }, [demoServiceRequest])
 
+  const isOpeningSessionRef = useRef(false)
+
   // Sync Live Table Context & Open Session
   useEffect(() => {
     if (!isDemo && verifyData) {
+      const resolvedLogo =
+        (verifyData as any)?.logo_url ||
+        catalogData?.store?.logo_url ||
+        table?.logo_url ||
+        null
+
       const tableContext: TableContextInfo = {
         table_id: verifyData.table_id,
         table_number: verifyData.table_number,
@@ -314,9 +329,21 @@ export const GuestOrderPage: FC = () => {
         is_service_charge_inclusive: false,
         bakong_account_id: null,
         bakong_merchant_name: verifyData.business_name_en,
+        logo_url: resolvedLogo,
       }
 
-      if (!sessionId && effectiveBranchId && effectiveTableId && effectiveToken) {
+      if (sessionId && table && resolvedLogo && table.logo_url !== resolvedLogo) {
+        setTableContext(
+          effectiveToken || '',
+          { ...table, logo_url: resolvedLogo },
+          sessionId,
+          sessionToken,
+          sessionCode
+        )
+      }
+
+      if (!sessionId && effectiveBranchId && effectiveTableId && effectiveToken && !isOpeningSessionRef.current) {
+        isOpeningSessionRef.current = true
         openSessionMutation
           .mutateAsync({
             branchId: effectiveBranchId,
@@ -335,6 +362,9 @@ export const GuestOrderPage: FC = () => {
           })
           .catch((err) => {
             console.warn('Could not auto-open session', err)
+          })
+          .finally(() => {
+            isOpeningSessionRef.current = false
           })
       }
     }
@@ -389,7 +419,8 @@ export const GuestOrderPage: FC = () => {
         }))
         setCategories(builtCategories)
       } else {
-        setCategories([])
+        // Fallback to SAMPLE_CATEGORIES so food container never disappears
+        setCategories(SAMPLE_CATEGORIES)
       }
     }
   }, [isDemo, catalogData])
@@ -419,6 +450,36 @@ export const GuestOrderPage: FC = () => {
     }
   }, [isDemo, sessionOrdersData, setOrderRounds])
 
+  const orderRoundsCountRef = useRef(orderRounds.length)
+  useEffect(() => {
+    orderRoundsCountRef.current = orderRounds.length
+  }, [orderRounds.length])
+
+  // Revert table status to available if guest leaves the food menu view without ordering
+  useEffect(() => {
+    if (isDemo || !effectiveBranchId || !effectiveTableId || !effectiveToken) return
+
+    const sendLeaveBeacon = () => {
+      if (orderRoundsCountRef.current === 0) {
+        const url = `/api/v1/public/tables/sessions/leave?branch_id=${effectiveBranchId}&table_id=${effectiveTableId}&token=${encodeURIComponent(effectiveToken)}${sessionId ? `&session_id=${sessionId}` : ''}`
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon(url)
+        } else {
+          fetch(url, { method: 'POST', keepalive: true }).catch(() => {})
+        }
+      }
+    }
+
+    window.addEventListener('pagehide', sendLeaveBeacon)
+    window.addEventListener('beforeunload', sendLeaveBeacon)
+
+    return () => {
+      window.removeEventListener('pagehide', sendLeaveBeacon)
+      window.removeEventListener('beforeunload', sendLeaveBeacon)
+      sendLeaveBeacon()
+    }
+  }, [isDemo, effectiveBranchId, effectiveTableId, effectiveToken, sessionId])
+
   // 2. Real-Time WebSocket Listener
   const wsUrl = sessionId && sessionToken ? `/ws/sessions/${sessionId}?session_token=${sessionToken}` : null
   useWebSocket(wsUrl, {
@@ -430,12 +491,94 @@ export const GuestOrderPage: FC = () => {
       }
       try {
         const data = typeof rawMsg === 'object' && rawMsg !== null ? (rawMsg as any) : {}
-        if (data.event === 'order_status_update' && data.item_id && data.status) {
-          updateItemStatus(data.item_id, data.status)
-        } else if (data.event === 'payment_confirmed') {
+        const evt = String(data.event || data.type || '').toLowerCase()
+
+        if (evt === 'menu.updated' || evt === 'category.updated') {
+          queryClient.invalidateQueries({ queryKey: ['guest', 'catalog'] })
+          queryClient.invalidateQueries({ queryKey: ['guest-catalog'] })
+        } else if (evt === 'store.updated') {
+          queryClient.invalidateQueries({ queryKey: ['table-verify'] })
+          queryClient.invalidateQueries({ queryKey: ['guest', 'catalog'] })
+          if (data?.logo_url && table) {
+            setTableContext(
+              effectiveToken || '',
+              { ...table, logo_url: data.logo_url },
+              sessionId,
+              sessionToken,
+              sessionCode
+            )
+          }
+        } else if (evt === 'order.accepted') {
+          queryClient.invalidateQueries({ queryKey: ['guest', 'session-orders'] })
+          queryClient.invalidateQueries({ queryKey: ['guest', 'orders'] })
+          queryClient.invalidateQueries({ queryKey: ['guest', 'bill'] })
+          playSuccessSound()
+          setNotificationType('success')
+          setNotificationMsg(
+            language === 'km'
+              ? (data?.message_km || 'ផ្ទះបាយបានទទួលការកុម្ម៉ង់របស់អ្នកហើយ! កំពុងចាប់ផ្តើមរៀបចំជូនលោកអ្នក...')
+              : (data?.message_en || 'The kitchen has accepted your order! We are preparing your food...')
+          )
+          setTimeout(() => setNotificationMsg(null), 6000)
+        } else if (evt === 'order.rejected') {
+          queryClient.invalidateQueries({ queryKey: ['guest', 'session-orders'] })
+          queryClient.invalidateQueries({ queryKey: ['guest', 'orders'] })
+          queryClient.invalidateQueries({ queryKey: ['guest', 'bill'] })
+          playChime(350, 220, 0.5)
+          setNotificationType('error')
+          setNotificationMsg(
+            language === 'km'
+              ? (data?.message_km || 'សូមអភ័យទោស ការកុម្ម៉ង់របស់អ្នកត្រូវបានបដិសេធពីផ្ទះបាយ។ សូមទាក់ទងបុគ្គលិក។')
+              : (data?.message_en || 'Sorry, your order was rejected by the kitchen. Please contact staff.')
+          )
+          setTimeout(() => setNotificationMsg(null), 8000)
+        } else if (
+          evt === 'order.created' ||
+          evt === 'order.placed' ||
+          evt === 'order_status_update' ||
+          evt === 'order.item_bumped' ||
+          evt === 'order.bumped' ||
+          evt === 'order.course_fired'
+        ) {
+          queryClient.invalidateQueries({ queryKey: ['guest', 'session-orders'] })
+          queryClient.invalidateQueries({ queryKey: ['guest', 'orders'] })
+          queryClient.invalidateQueries({ queryKey: ['guest', 'bill'] })
+
+          const itemId = data.order_item_id || data.item_id
+          const rawStatus = String(data.status || data.target_status || '').toUpperCase()
+          if (itemId && rawStatus) {
+            updateItemStatus(itemId, rawStatus as any)
+          }
+
+          const itemName = language === 'km' && data.item_name_km ? data.item_name_km : (data.item_name_en || '')
+          if (rawStatus === 'PREPARING' || rawStatus === 'IN_PREP') {
+            playChime(587.33, 880, 0.45)
+            setNotificationMsg(
+              language === 'km'
+                ? `ផ្ទះបាយបានទទួល ${itemName ? `"${itemName}" ` : ''}ហើយកំពុងរៀបចំជូនលោកអ្នក`
+                : `Kitchen received ${itemName ? `"${itemName}" ` : 'your order'} and is preparing it`
+            )
+            setTimeout(() => setNotificationMsg(null), 5000)
+          } else if (rawStatus === 'READY') {
+            playSuccessSound()
+            setNotificationMsg(
+              language === 'km'
+                ? `មុខម្ហូប ${itemName ? `"${itemName}" ` : ''}រួចរាល់ហើយ! បុគ្គលិកកំពុងយកមកជូនលោកអ្នក`
+                : `${itemName ? `"${itemName}" ` : 'Your order '}is ready! Staff is bringing it to your table`
+            )
+            setTimeout(() => setNotificationMsg(null), 6000)
+          } else if (rawStatus === 'SERVED') {
+            setNotificationMsg(
+              language === 'km'
+                ? `បានជូនមុខម្ហូប ${itemName ? `"${itemName}"` : ''} ពិសាដោយរីករាយ!`
+                : `${itemName ? `"${itemName}"` : 'Your item'} has been served. Enjoy!`
+            )
+            setTimeout(() => setNotificationMsg(null), 4000)
+          }
+        } else if (evt === 'payment_confirmed' || evt === 'payment.settled') {
           setIsPaymentSettled(true)
           playChime(880, 1174.66, 0.5)
-        } else if (data.event === 'bill_ack') {
+        } else if (evt === 'bill_ack') {
           setNotificationMsg(language === 'km' ? 'បុគ្គលិកកំពុងមកគិតប្រាក់ជូនលោកអ្នក' : 'Staff is coming to your table.')
           setTimeout(() => setNotificationMsg(null), 4000)
         }
@@ -445,23 +588,46 @@ export const GuestOrderPage: FC = () => {
     },
   })
 
-  // Filter items by search
-  const filteredCategories = useMemo(() => {
+  // Filter items by category and search
+  const displayedItems = useMemo(() => {
     const query = searchQuery.toLowerCase().trim()
-    return categories
-      .map((cat) => {
-        const matchingItems = cat.items.filter((item) => {
-          if (!query) return true
-          return (
+    const targetCats = categories.filter(
+      (c) => activeCategory === 'all' || c.id === activeCategory
+    )
+
+    const items: MenuItem[] = []
+    for (const cat of targetCats) {
+      for (const item of cat.items) {
+        if (!query) {
+          items.push(item)
+        } else {
+          const match =
             item.name_en.toLowerCase().includes(query) ||
             (item.name_km && item.name_km.includes(query)) ||
             (item.description_en && item.description_en.toLowerCase().includes(query))
-          )
-        })
-        return { ...cat, items: matchingItems }
-      })
-      .filter((cat) => cat.items.length > 0)
-  }, [categories, searchQuery])
+          if (match) {
+            items.push(item)
+          }
+        }
+      }
+    }
+    return items
+  }, [categories, activeCategory, searchQuery])
+
+const toBackendCourseStage = (stage?: CourseStage | string): 'drinks' | 'starters' | 'mains' | 'desserts' => {
+  switch (stage) {
+    case 'DRINKS':
+      return 'drinks'
+    case 'APPETIZERS':
+      return 'starters'
+    case 'DESSERTS':
+    case 'DIGESTIFS':
+      return 'desserts'
+    case 'MAINS':
+    default:
+      return 'mains'
+  }
+}
 
   // 3. Handle Order Submission to Backend
   const handlePlaceOrder = async () => {
@@ -516,7 +682,7 @@ export const GuestOrderPage: FC = () => {
           menu_item_id: c.menu_item.id,
           item_variant_id: c.variant?.id || null,
           quantity: c.quantity,
-          course_stage: c.course_stage,
+          course_stage: toBackendCourseStage(c.course_stage),
           special_instructions: c.special_instructions || null,
           modifiers: c.selected_modifiers.map((m) => ({
             modifier_option_id: m.modifier_option_id,
@@ -557,11 +723,19 @@ export const GuestOrderPage: FC = () => {
       playChime(587.33, 880, 0.4)
       setNotificationMsg(language === 'km' ? 'បានបញ្ជូនការកុម្ម៉ង់ទៅផ្ទះបាយ!' : 'Order submitted to kitchen!')
       setTimeout(() => setNotificationMsg(null), 4000)
-    } catch {
+    } catch (err: any) {
+      console.error('Order submission error:', err)
+      const detailMsg =
+        typeof err?.detail === 'string'
+          ? err.detail
+          : typeof err?.message === 'string'
+          ? err.message
+          : null
       setOrderError(
-        language === 'km'
+        detailMsg ||
+        (language === 'km'
           ? 'មិនអាចបញ្ជូនការកុម្ម៉ង់បានទេ។ សូមព្យាយាមម្តងទៀត។'
-          : 'Could not submit your order. Please try again.'
+          : 'Could not submit your order. Please try again.')
       )
     } finally {
       setIsSubmittingOrder(false)
@@ -659,19 +833,36 @@ export const GuestOrderPage: FC = () => {
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased pb-24">
       {/* Toast Notification Banner */}
       {notificationMsg && (
-        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-semibold border border-zinc-800 dark:border-zinc-200 flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-          <Bell className="w-3.5 h-3.5 text-emerald-400" />
-          <span>{notificationMsg}</span>
+        <div
+          className={`fixed top-3 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 shadow-xl max-w-[92vw] animate-in fade-in slide-in-from-top-2 duration-200 ${
+            notificationType === 'error'
+              ? 'bg-rose-950 text-rose-100 border border-rose-800/80 shadow-rose-950/30'
+              : notificationType === 'success'
+              ? 'bg-emerald-950 text-emerald-100 border border-emerald-800/80 shadow-emerald-950/30'
+              : 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 border border-zinc-800 dark:border-zinc-200'
+          }`}
+        >
+          {notificationType === 'error' ? (
+            <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+          ) : notificationType === 'success' ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          ) : (
+            <Bell className="w-4 h-4 text-emerald-400 shrink-0" />
+          )}
+          <span className="truncate">{notificationMsg}</span>
         </div>
       )}
 
-      {/* Sticky Header */}
+      {/* Sticky Header with Category Tabs */}
       <GuestHeader
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onRequestBill={handleRequestBill}
         onCallWaiter={handleCallWaiter}
         hasActiveOrders={orderRounds.length > 0}
+        categories={categories}
+        activeCategory={activeCategory}
+        onSelectCategory={setActiveCategory}
       />
 
       {/* Main Content Area */}
@@ -681,18 +872,6 @@ export const GuestOrderPage: FC = () => {
           <p className="text-xs text-red-500 text-center font-medium">
             {orderError}
           </p>
-        )}
-
-        {/* Active Order Tracker (if orders exist) */}
-        {orderRounds.length > 0 && (
-          <OrderTimelineTracker
-            rounds={orderRounds}
-            onOrderMore={() => {
-              const menuElem = document.getElementById('menu-items-catalog')
-              menuElem?.scrollIntoView({ behavior: 'smooth' })
-            }}
-            onRequestBill={handleRequestBill}
-          />
         )}
 
         {/* Empty Catalog State Banner (Zero Shadow, Clean Flat Minimalist) */}
@@ -719,28 +898,26 @@ export const GuestOrderPage: FC = () => {
               {t('serviceHub.guest.callStaff')}
             </button>
           </div>
+        ) : displayedItems.length === 0 ? (
+          <div className="py-16 text-center space-y-2">
+            <p className="text-sm font-semibold text-zinc-600 dark:text-zinc-400">
+              {language === 'km' ? 'រកមិនឃើញមុខម្ហូបទេ' : 'No menu items found'}
+            </p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              {language === 'km'
+                ? 'សូមសាកល្បងជ្រើសរើសប្រភេទផ្សេង ឬស្វែងរកពាក្យថ្មី'
+                : 'Try selecting another category or clear your search'}
+            </p>
+          </div>
         ) : (
-          /* Catalog Items by Category */
-          <div id="menu-items-catalog" className="space-y-8">
-            {filteredCategories.map((cat) => (
-              <div key={cat.id} className="space-y-3.5">
-                <div className="flex items-center gap-2">
-                  <Utensils className="w-4 h-4 text-emerald-600" />
-                  <h3 className="font-bold text-sm sm:text-base text-zinc-900 dark:text-zinc-100">
-                    {language === 'km' && cat.name_km ? cat.name_km : cat.name_en}
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-                  {cat.items.map((item) => (
-                    <MenuItemCard
-                      key={item.id}
-                      item={item}
-                      onSelect={setSelectedMenuItem}
-                    />
-                  ))}
-                </div>
-              </div>
+          /* Catalog Items Grid */
+          <div id="menu-items-catalog" className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
+            {displayedItems.map((item) => (
+              <MenuItemCard
+                key={item.id}
+                item={item}
+                onSelect={setSelectedMenuItem}
+              />
             ))}
           </div>
         )}
@@ -764,6 +941,8 @@ export const GuestOrderPage: FC = () => {
         onClose={() => setIsCartOpen(false)}
         onSubmitOrder={handlePlaceOrder}
         isSubmitting={isSubmittingOrder}
+        tableNumber={table?.table_number}
+        errorMessage={orderError}
       />
 
       {/* Bakong KHQR Payment Modal */}

@@ -1,5 +1,6 @@
-import { type FC } from 'react'
+import { useState, useEffect, type FC } from 'react'
 import { Printer } from 'lucide-react'
+import QRCode from 'qrcode'
 import { Modal } from '@/components/ui/Modal'
 import { EmenuLoader } from '@/components/ui/EmenuLoader'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -40,6 +41,22 @@ export const POSReceiptModal: FC<POSReceiptModalProps> = ({
 }) => {
   const { language } = useLanguageStore()
   const isKm = language === 'km'
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('')
+
+  useEffect(() => {
+    if (!isOpen) return
+    const payload = `KHQR:PAYMENT:TABLE=${tableNumber}:REF=${receiptNumber}:USD=${totalUSD.toFixed(2)}:KHR=${totalKHR}`
+    QRCode.toDataURL(payload, {
+      width: 140,
+      margin: 1,
+      color: {
+        dark: '#09090b',
+        light: '#ffffff',
+      },
+    })
+      .then(setQrCodeUrl)
+      .catch(() => {})
+  }, [isOpen, tableNumber, receiptNumber, totalUSD, totalKHR])
 
   // Fetch server-rendered receipt or pre-check slip when IDs are available
   const { data: precheckHtml, isLoading: isPrecheckLoading } = useSessionPrecheckReceipt(
@@ -137,6 +154,23 @@ export const POSReceiptModal: FC<POSReceiptModalProps> = ({
                 <span>Payment Method:</span>
                 <span className="font-semibold">{paymentMethod}</span>
               </div>
+            </div>
+
+            {/* QR Payment Below Total */}
+            <div className="pt-2.5 pb-1 border-t border-dashed border-zinc-200 dark:border-zinc-800 flex flex-col items-center justify-center space-y-1.5 text-center">
+              <span className="text-[10px] font-bold tracking-wider uppercase text-zinc-600 dark:text-zinc-400">
+                {isKm ? 'ស្កេនទូទាត់ប្រាក់ (SCAN TO PAY)' : 'SCAN TO PAY (KHQR)'}
+              </span>
+              {qrCodeUrl ? (
+                <div className="p-1.5 bg-white rounded-md border border-zinc-200">
+                  <img src={qrCodeUrl} alt="KHQR Payment QR" className="w-28 h-28 object-contain" />
+                </div>
+              ) : (
+                <div className="w-28 h-28 bg-zinc-100 dark:bg-zinc-800 animate-pulse rounded-md" />
+              )}
+              <span className="text-[9px] text-zinc-400 font-mono">
+                Bakong / All Banks Accepted
+              </span>
             </div>
 
             {/* Footer */}

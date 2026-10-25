@@ -18,6 +18,50 @@ function getAudioContext(): AudioContext | null {
   }
   return audioCtx
 }
+if (typeof window !== 'undefined') {
+  const unlockAudio = () => {
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume()
+    }
+  }
+  window.addEventListener('click', unlockAudio, { once: true, passive: true })
+  window.addEventListener('touchstart', unlockAudio, { once: true, passive: true })
+  window.addEventListener('keydown', unlockAudio, { once: true, passive: true })
+}
+
+/**
+ * Play a resonant, attention-grabbing chime for the kitchen display system (KDS)
+ * when a new guest or POS order arrives.
+ */
+export function playKitchenOrderChime() {
+  const ctx = getAudioContext()
+  if (!ctx) return
+
+  try {
+    const now = ctx.currentTime
+    // 3 ascending bells: 659.25Hz (E5), 880Hz (A5), 1046.50Hz (C6)
+    const notes = [659.25, 880, 1046.5]
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+
+      osc.type = 'triangle'
+      osc.frequency.setValueAtTime(freq, now + idx * 0.12)
+
+      gain.gain.setValueAtTime(0, now + idx * 0.12)
+      gain.gain.linearRampToValueAtTime(0.5, now + idx * 0.12 + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.12 + 0.45)
+
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+
+      osc.start(now + idx * 0.12)
+      osc.stop(now + idx * 0.12 + 0.45)
+    })
+  } catch (err) {
+    console.warn('Kitchen order chime playback error:', err)
+  }
+}
 
 /**
  * Play a bright, pleasant 2-tone chime (e.g. for Item Ready / New Order notification)

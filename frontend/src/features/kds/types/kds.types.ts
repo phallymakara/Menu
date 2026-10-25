@@ -65,6 +65,7 @@ export interface KDSTicket {
   order_id: string
   order_number: string
   order_type: 'dine_in' | 'takeaway' | 'delivery'
+  order_status?: string | null
   round_number: number
   table_id?: string | null
   table_number?: string | null

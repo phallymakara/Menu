@@ -265,7 +265,7 @@ const StoreSettingsForm: FC<{ business: Business }> = ({ business }) => {
         </div>
         <div className="p-5 sm:p-6 space-y-5">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 pb-4 border-b border-zinc-100 dark:border-zinc-800/80">
-            <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/80 flex items-center justify-center overflow-hidden shrink-0">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-zinc-100 dark:bg-zinc-800/80 border border-zinc-200/80 dark:border-zinc-700/80 flex items-center justify-center overflow-hidden shrink-0 shadow-xs">
               {logoUrl ? (
                 <img src={logoUrl} alt="Store logo" className="w-full h-full object-cover" />
               ) : (

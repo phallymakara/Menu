@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "backend"
 version = "0.1.0"
@@ -32,6 +36,12 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.1",
 ]
+
+[project.scripts]
+menu = "app.main:start"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
 
 [tool.ruff]
 src = ["."]

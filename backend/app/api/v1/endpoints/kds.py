@@ -16,11 +16,13 @@ from app.schemas.kds import (
     ItemRerouteRequest,
     ItemStatusBumpRequest,
     KDSTicketItemResponse,
+    KDSTicketRejectRequest,
     KDSTicketResponse,
     StationMetricsResponse,
     StationTicketBumpRequest,
 )
 from app.services.kds_service import (
+    accept_kds_order,
     bump_item_status,
     bump_station_ticket,
     fire_course,
@@ -28,6 +30,7 @@ from app.services.kds_service import (
     get_station_metrics,
     get_station_tickets,
     recall_station_tickets,
+    reject_kds_order,
     reroute_item_station,
     undo_item_status,
 )
@@ -245,3 +248,50 @@ async def reroute_item_endpoint(
         order_item_id=order_item_id,
         payload=payload,
     )
+
+
+@router.post(
+    "/orders/{order_id}/accept",
+    response_model=KDSTicketResponse,
+    summary="Accept pending order ticket from kitchen screen",
+)
+async def accept_kds_order_endpoint(
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> KDSTicketResponse:
+    """Accepts an order round and transitions items to cooking/preparing."""
+    return await accept_kds_order(
+        session=session,
+        tenant=tenant,
+        business_id=business_id,
+        branch_id=branch_id,
+        order_id=order_id,
+    )
+
+
+@router.post(
+    "/orders/{order_id}/reject",
+    response_model=KDSTicketResponse,
+    summary="Reject order ticket from kitchen screen with notification",
+)
+async def reject_kds_order_endpoint(
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+    tenant: Annotated[TenantContext, Depends(get_current_tenant_context)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    payload: KDSTicketRejectRequest | None = None,
+) -> KDSTicketResponse:
+    """Rejects an order ticket, voids items, and alerts the customer."""
+    return await reject_kds_order(
+        session=session,
+        tenant=tenant,
+        business_id=business_id,
+        branch_id=branch_id,
+        order_id=order_id,
+        payload=payload,
+    )
+

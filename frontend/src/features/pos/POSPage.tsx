@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useCallback, type FC } from 'react'
 import { Navigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Search, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useUserRoleAccess } from '@/features/auth/hooks/useUserRoleAccess'
@@ -85,6 +85,7 @@ export const POSPage: FC = () => {
   const { language } = useLanguageStore()
 
   const [isTableActionsModalOpen, setIsTableActionsModalOpen] = useState(false)
+  const [menuSearchQuery, setMenuSearchQuery] = useState('')
   const [storeInfo, setStoreInfo] = useState({
     nameEn: localStorage.getItem('emenu_business_name_en') || '',
     nameKm: localStorage.getItem('emenu_business_name_km') || '',
@@ -227,28 +228,31 @@ export const POSPage: FC = () => {
       display_order: c.display_order ?? 0,
       items: items
         .filter((i) => i.category_id === c.id)
-        .map((i) => ({
-          id: i.id,
-          category_id: i.category_id,
-          name_en: i.name_en,
-          name_km: i.name_km || i.name_en,
-          description_en: i.description_en || '',
-          description_km: i.description_km || '',
-          base_price_usd: Number(i.base_price_usd) || 0,
-          image_url: i.image_url || null,
-          is_available: i.is_available ?? true,
-          spicy_level: i.spicy_level,
-          is_popular: i.is_popular,
-          is_vegetarian: i.is_vegetarian,
-          variants: (i.variants || []).map((v: any) => ({
-            id: v.id,
-            name_en: v.name_en,
-            name_km: v.name_km,
-            price_usd: Number(v.price_usd) || 0,
-            is_default: v.is_default ?? false,
-          })),
-          modifier_groups: i.modifier_groups || [],
-        })),
+        .map((i) => {
+          const basePrice = Number(i.base_price ?? i.base_price_usd ?? i.price_usd) || 0
+          return {
+            id: i.id,
+            category_id: i.category_id,
+            name_en: i.name_en,
+            name_km: i.name_km || i.name_en,
+            description_en: i.description_en || '',
+            description_km: i.description_km || '',
+            base_price_usd: basePrice,
+            image_url: i.image_url || null,
+            is_available: i.is_available ?? true,
+            spicy_level: i.spicy_level ?? (i.spice_level ?? 0),
+            is_popular: i.is_popular ?? false,
+            is_vegetarian: i.is_vegetarian ?? false,
+            variants: (i.variants || []).map((v: any) => ({
+              id: v.id,
+              name_en: v.name_en,
+              name_km: v.name_km,
+              price_usd: v.price_usd != null ? Number(v.price_usd) : (basePrice + (Number(v.price_adjustment) || 0)),
+              is_default: v.is_default ?? false,
+            })),
+            modifier_groups: i.modifier_groups || [],
+          }
+        }),
     }))
   }, [rawCategories, rawMenuItems])
 
@@ -315,22 +319,27 @@ export const POSPage: FC = () => {
     setZones(builtZones)
   }, [rawAreas, setZones])
 
+  const [isLoadingRounds, setIsLoadingRounds] = useState(false)
+
   useEffect(() => {
     if (!rawTables) return
     const safeAreas = rawAreas || []
-    const builtTables: POSTable[] = rawTables.map((t) => ({
-      id: t.id,
-      table_number: t.table_number,
-      status: (t.status || 'AVAILABLE').toLowerCase() as any,
-      capacity: t.max_capacity || 4,
-      dining_area_id: t.dining_area_id,
-      dining_area_name: safeAreas.find((a) => a.id === t.dining_area_id)?.name_en || 'Main Area',
-      session_id: (t as any).active_session_id || null,
-      session_elapsed_minutes: 0,
-      session_subtotal_usd: 0,
-      guest_count: t.max_capacity || 2,
-      active_orders_count: 0,
-    }))
+    const builtTables: POSTable[] = rawTables.map((t) => {
+      const isAvailable = (t.status || 'AVAILABLE').toLowerCase() === 'available'
+      return {
+        id: t.id,
+        table_number: t.table_number,
+        status: (t.status || 'AVAILABLE').toLowerCase() as any,
+        capacity: t.max_capacity || 4,
+        dining_area_id: t.dining_area_id,
+        dining_area_name: safeAreas.find((a) => a.id === t.dining_area_id)?.name_en || 'Main Area',
+        session_id: isAvailable ? null : ((t as any).active_session_id || null),
+        session_elapsed_minutes: isAvailable ? 0 : ((t as any).session_elapsed_minutes ?? 0),
+        session_subtotal_usd: isAvailable ? 0 : ((t as any).session_subtotal_usd ?? 0),
+        guest_count: t.max_capacity || 2,
+        active_orders_count: isAvailable ? 0 : ((t as any).active_orders_count ?? 0),
+      }
+    })
     setTables(builtTables)
     setIsSwitchingBranch(false)
   }, [rawTables, rawAreas, setTables])
@@ -344,19 +353,65 @@ export const POSPage: FC = () => {
   const handleSelectTable = useCallback((table: POSTable) => {
     setSelectedTable(table)
 
-    if (table.session_id && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+    if (table.status === 'available' || !table.session_id) {
+      setActiveRounds([])
+      setIsLoadingRounds(false)
+      return
+    }
+
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      setIsLoadingRounds(true)
       queryClient
         .fetchQuery(sessionRoundsQuery(tenantBizId, tenantBranchId, table.id, table.session_id))
-        .then(setActiveRounds)
-        .catch(() => setActiveRounds([]))
+        .then((rounds) => {
+          setActiveRounds(rounds)
+          setIsLoadingRounds(false)
+        })
+        .catch(() => {
+          setActiveRounds([])
+          setIsLoadingRounds(false)
+        })
     } else {
       setActiveRounds([])
+      setIsLoadingRounds(false)
     }
   }, [queryClient, setActiveRounds, setSelectedTable, tenantBizId, tenantBranchId])
 
+  // 3b. Take Order directly on Table
+  const handleTakeOrder = useCallback((table: POSTable) => {
+    handleSelectTable(table)
+    setViewMode('direct_order')
+  }, [handleSelectTable, setViewMode])
+
   // 4. Mark Table Cleaned Action
   const handleMarkCleaned = async (tableId: string) => {
+    const targetTable =
+      tables.find((t) => t.id === tableId) || (selectedTable?.id === tableId ? selectedTable : null)
+    const hasUnpaid =
+      targetTable &&
+      ((targetTable.active_orders_count !== undefined && targetTable.active_orders_count > 0) ||
+        (targetTable.session_subtotal_usd !== undefined && targetTable.session_subtotal_usd > 0))
+
+    if (hasUnpaid) {
+      alert(
+        language === 'km'
+          ? 'មិនអាចដោះលែងតុនេះបានទេ ដោយសារមានការកុម្ម៉ង់ដែលមិនទាន់ទូទាត់។ សូមទូទាត់ប្រាក់ជាមុនសិន (សាច់ប្រាក់ ឬ KHQR)។'
+          : 'Cannot free table with unpaid orders. Settle bill via Cash or KHQR first.'
+      )
+      return
+    }
+
     updateTableStatus(tableId, 'available', null)
+    if (selectedTable && selectedTable.id === tableId) {
+      setSelectedTable({
+        ...selectedTable,
+        status: 'available',
+        session_id: null,
+        session_subtotal_usd: 0,
+        active_orders_count: 0,
+      })
+      setActiveRounds([])
+    }
     playSuccessSound()
 
     if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
@@ -537,13 +592,67 @@ export const POSPage: FC = () => {
       }
       try {
         const data = typeof rawMsg === 'object' && rawMsg !== null ? (rawMsg as any) : {}
-        if (data.event === 'TABLE_STATUS_CHANGED') {
-          updateTableStatus(data.table_id, data.status)
+        const evt = String(data.event || data.type || '').toLowerCase()
+
+        if (evt === 'order.created' || evt === 'order.placed' || evt === 'new_order') {
+          if (data.table_id) {
+            updateTableStatus(data.table_id, 'occupied', data.order_id)
+          }
           fetchPOSData()
-        } else if (data.event === 'PAYMENT_SETTLED') {
-          updateTableStatus(data.table_id, 'dirty_cleaning')
+          queryClient.invalidateQueries({ queryKey: ['dining-areas'] })
+          queryClient.invalidateQueries({ queryKey: ['tables'] })
+          queryClient.invalidateQueries({ queryKey: ['pos', 'rounds'] })
+          queryClient.invalidateQueries({ queryKey: ['orders'] })
+
+          if (selectedTable && (selectedTable.id === data.table_id || selectedTable.session_id === data.table_session_id)) {
+            const sid = data.table_session_id || selectedTable.session_id
+            if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+              queryClient
+                .fetchQuery(sessionRoundsQuery(tenantBizId, tenantBranchId, selectedTable.id, sid))
+                .then(setActiveRounds)
+                .catch(() => {})
+            }
+          }
+          playChime(587.33, 880, 0.4)
+        } else if (
+          evt === 'order.item_bumped' ||
+          evt === 'order.bumped' ||
+          evt === 'order_status_update' ||
+          evt === 'order.course_fired'
+        ) {
           fetchPOSData()
+          queryClient.invalidateQueries({ queryKey: ['pos', 'rounds'] })
+          queryClient.invalidateQueries({ queryKey: ['orders'] })
+          if (selectedTable && isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+            queryClient
+              .fetchQuery(sessionRoundsQuery(tenantBizId, tenantBranchId, selectedTable.id, selectedTable.session_id))
+              .then(setActiveRounds)
+              .catch(() => {})
+          }
+        } else if (evt === 'table_session.opened' || evt === 'table.session.opened') {
+          if (data.table_id) {
+            updateTableStatus(data.table_id, 'occupied')
+          }
+          fetchPOSData()
+        } else if (evt === 'table_status_changed' || evt === 'table.status.changed' || evt === 'table.updated') {
+          if (data.table_id && data.status) {
+            updateTableStatus(data.table_id, data.status)
+          }
+          fetchPOSData()
+        } else if (evt === 'payment_settled' || evt === 'payment.settled' || evt === 'payment.completed') {
+          if (data.table_id) {
+            updateTableStatus(data.table_id, 'dirty_cleaning')
+          }
+          fetchPOSData()
+          queryClient.invalidateQueries({ queryKey: ['pos', 'rounds'] })
           playSuccessSound()
+        } else if (evt === 'menu.updated' || evt === 'category.updated') {
+          queryClient.invalidateQueries({ queryKey: ['categories'] })
+          queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+          queryClient.invalidateQueries({ queryKey: ['item-variants'] })
+        } else if (evt === 'store.updated') {
+          queryClient.invalidateQueries({ queryKey: ['business'] })
+          queryClient.invalidateQueries({ queryKey: ['store-settings'] })
         }
       } catch {
         // Ignore parse error
@@ -616,39 +725,51 @@ export const POSPage: FC = () => {
         />
 
         {/* Main Workspace Body */}
-        <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
-          {/* Header / Mode Indicator (Only if in order mode or a table is active) */}
-          {(viewMode === 'direct_order' || selectedTable) && (
-            <div className="flex items-center justify-between gap-4 flex-wrap pb-2">
-              <div className="flex items-center gap-2">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 max-w-[1600px] w-full mx-auto space-y-3 sm:space-y-4">
+          {/* Header / Mode Indicator (Only if in direct order menu catalog mode) */}
+          {viewMode === 'direct_order' && (
+            <div className="flex items-center justify-between gap-3 sm:gap-4 flex-wrap pb-1">
+              <div className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-[280px]">
                 {viewMode === 'direct_order' ? (
                   <button
                     type="button"
-                    onClick={() => setViewMode('floor_map')}
-                    className="px-3.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold flex items-center gap-2 text-zinc-800 dark:text-zinc-200 transition-colors shadow-sm"
+                    onClick={() => {
+                      setViewMode('floor_map')
+                      setMenuSearchQuery('')
+                    }}
+                    className="shrink-0 px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold flex items-center gap-2 text-zinc-800 dark:text-zinc-200 transition-colors shadow-xs"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     <span>{language === 'km' ? 'ត្រឡប់ទៅប្លង់តុ' : 'Back to Floor Map'}</span>
                   </button>
                 ) : null}
+
+                {/* Search input on the same row as the back button */}
+                {viewMode === 'direct_order' && (
+                  <div className="relative flex-1 max-w-sm sm:max-w-md">
+                    <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={menuSearchQuery}
+                      onChange={(e) => setMenuSearchQuery(e.target.value)}
+                      placeholder={language === 'km' ? 'ស្វែងរកមុខម្ហូប...' : 'Search menu item...'}
+                      className="w-full pl-10 pr-8 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs focus:ring-1 focus:ring-emerald-500 outline-none transition-colors shadow-xs"
+                    />
+                    {menuSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setMenuSearchQuery('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                        aria-label="Clear search"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {selectedTable && (
-                <div className="flex items-center gap-2 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                  <span className="px-2.5 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 font-bold text-zinc-900 dark:text-zinc-100">
-                    {language === 'km' ? 'តុ' : 'Table'}: {selectedTable.table_number}
-                  </span>
-                  {viewMode === 'floor_map' && (
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('direct_order')}
-                      className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-colors"
-                    >
-                      {language === 'km' ? '+ កុម្ម៉ង់ម្ហូប' : '+ Take Order'}
-                    </button>
-                  )}
-                </div>
-              )}
+
             </div>
           )}
 
@@ -665,6 +786,8 @@ export const POSPage: FC = () => {
                 onClearCart={clearCart}
                 onSubmitOrder={handleSubmitOrder}
                 isSubmitting={createStaffOrderMutation.isPending}
+                searchQuery={menuSearchQuery}
+                onSearchQueryChange={setMenuSearchQuery}
               />
             </div>
           ) : (
@@ -675,6 +798,7 @@ export const POSPage: FC = () => {
                   selectedZoneId={selectedZoneId}
                   selectedTableId={selectedTable?.id}
                   onSelectTable={handleSelectTable}
+                  onTakeOrder={handleTakeOrder}
                   onMarkCleaned={handleMarkCleaned}
                 />
               </div>
@@ -684,6 +808,7 @@ export const POSPage: FC = () => {
                 <POSOrderDrawer
                   table={selectedTable}
                   rounds={activeRounds}
+                  isLoading={isLoadingRounds}
                   onClose={() => setSelectedTable(null)}
                   onOpenCashModal={openCashModal}
                   onOpenKHQRModal={openKHQRModal}

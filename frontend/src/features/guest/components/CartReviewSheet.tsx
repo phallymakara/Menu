@@ -1,8 +1,7 @@
 import { type FC } from 'react'
-import { Trash2, Plus, Minus, SendHorizontal } from 'lucide-react'
+import { Trash2, SendHorizontal, Utensils } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
-import { Badge } from '@/components/ui/Badge'
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay'
 import { useCartStore } from '../stores/useCartStore'
 import { useLanguageStore } from '@/stores/useLanguageStore'
@@ -12,6 +11,8 @@ export interface CartReviewSheetProps {
   onClose: () => void
   onSubmitOrder: () => void
   isSubmitting?: boolean
+  tableNumber?: string
+  errorMessage?: string | null
 }
 
 export const CartReviewSheet: FC<CartReviewSheetProps> = ({
@@ -19,99 +20,120 @@ export const CartReviewSheet: FC<CartReviewSheetProps> = ({
   onClose,
   onSubmitOrder,
   isSubmitting = false,
+  tableNumber,
+  errorMessage,
 }) => {
-  const { t, language } = useLanguageStore()
-  const { items, updateQuantity, removeItem, getTotalUSD, clearCart } = useCartStore()
+  const { language } = useLanguageStore()
+  const { items, updateQuantity, removeItem, getTotalUSD } = useCartStore()
 
   const total = getTotalUSD()
+
+  const modalTitle = tableNumber
+    ? (language === 'km' ? `កន្ត្រកកុម្ម៉ង់ (តុ ${tableNumber})` : `Cart (Table ${tableNumber})`)
+    : (language === 'km' ? 'កន្ត្រកកុម្ម៉ង់' : 'Cart')
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={t('cart')}
-      description={language === 'km' ? 'សូមពិនិត្យមុខម្ហូបមុនពេលបញ្ជូនទៅផ្ទះបាយ' : 'Review your items before sending to the kitchen'}
+      title={modalTitle}
       isBottomSheet={true}
     >
-      <div className="space-y-4 pb-2">
+      <div className="space-y-3 pb-2">
         {items.length === 0 ? (
           <div className="py-12 text-center text-xs text-zinc-400">
             {language === 'km' ? 'មិនទាន់មានមុខម្ហូបក្នុងកន្ត្រកនៅឡើយទេ' : 'Your cart is empty'}
           </div>
         ) : (
-          <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+          <div className="divide-y divide-zinc-200 dark:divide-zinc-800 max-h-80 overflow-y-auto pr-1">
             {items.map((item) => {
-              const displayName = language === 'km' && item.menu_item.name_km ? item.menu_item.name_km : item.menu_item.name_en
-              const variantName = item.variant ? (language === 'km' && item.variant.name_km ? item.variant.name_km : item.variant.name_en) : null
+              const displayName =
+                language === 'km' && item.menu_item.name_km ? item.menu_item.name_km : item.menu_item.name_en
+              const variantName = item.variant
+                ? language === 'km' && item.variant.name_km
+                  ? item.variant.name_km
+                  : item.variant.name_en
+                : null
+              const imageUrl = item.menu_item.image_url
 
               return (
                 <div
                   key={item.cart_item_id}
-                  className="p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50 space-y-2"
+                  className="py-3 first:pt-1 last:pb-1 flex items-center gap-3 text-xs"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="space-y-0.5 min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100">
-                          {displayName}
-                        </span>
-                        {variantName && (
-                          <span className="text-[11px] text-zinc-500 font-medium">({variantName})</span>
-                        )}
-                        <Badge variant="neutral" size="sm">
-                          {item.course_stage}
-                        </Badge>
-                      </div>
-
-                      {/* Modifier Summary */}
-                      {item.selected_modifiers.length > 0 && (
-                        <div className="text-[11px] text-zinc-500 space-y-0.5">
-                          {item.selected_modifiers.map((m, mi) => (
-                            <span key={mi} className="block">
-                              + {m.modifier_option_name}
-                              {m.price_adjustment_usd > 0 && ` ($${m.price_adjustment_usd.toFixed(2)})`}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Special Note */}
-                      {item.special_instructions && (
-                        <p className="text-[11px] text-amber-600 dark:text-amber-400 italic">
-                          Note: "{item.special_instructions}"
-                        </p>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => removeItem(item.cart_item_id)}
-                      className="text-zinc-400 hover:text-red-600 transition-colors p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                  {/* Product Thumbnail Photo */}
+                  <div className="w-12 h-12 rounded-xl bg-zinc-100 dark:bg-zinc-800 border border-zinc-200/60 dark:border-zinc-700/60 overflow-hidden shrink-0 flex items-center justify-center">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt=""
+                        aria-hidden="true"
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <Utensils className="w-5 h-5 text-zinc-400 opacity-40" />
+                    )}
                   </div>
 
-                  {/* Quantity Stepper & Subtotal */}
-                  <div className="flex items-center justify-between pt-1 border-t border-zinc-200/60 dark:border-zinc-800/60">
-                    <div className="flex items-center rounded-full border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-1 py-0.5">
+                  {/* Product Details */}
+                  <div className="space-y-0.5 flex-1 min-w-0">
+                    <span className="font-bold text-xs sm:text-sm text-zinc-950 dark:text-zinc-50 truncate block leading-snug">
+                      {displayName}
+                    </span>
+                    {variantName && (
+                      <span className="text-[11px] text-zinc-500 block leading-tight">({variantName})</span>
+                    )}
+                    {item.selected_modifiers.length > 0 && (
+                      <span className="text-[10px] text-zinc-400 block truncate">
+                        + {item.selected_modifiers.map((m) => m.modifier_option_name).join(', ')}
+                      </span>
+                    )}
+                    {item.special_instructions && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 italic truncate">
+                        Note: "{item.special_instructions}"
+                      </p>
+                    )}
+                    <div className="flex items-center gap-1.5 pt-0.5">
+                      <CurrencyDisplay
+                        amountUSD={item.unit_price_usd}
+                        className="text-xs font-bold text-emerald-600 dark:text-emerald-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quantity Controls & Remove Action */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/80 p-0.5 shadow-2xs">
                       <button
+                        type="button"
                         onClick={() => updateQuantity(item.cart_item_id, item.quantity - 1)}
-                        className="p-1 px-1.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
+                        className="w-6 h-6 flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-white dark:hover:bg-zinc-700 rounded-md transition-colors font-bold text-xs cursor-pointer"
+                        aria-label="Decrease quantity"
                       >
-                        <Minus className="w-3 h-3" />
+                        -
                       </button>
-                      <span className="w-7 text-center font-mono font-semibold text-xs">
+                      <span className="w-5 text-center font-mono font-black text-xs text-zinc-900 dark:text-zinc-100">
                         {item.quantity}
                       </span>
                       <button
+                        type="button"
                         onClick={() => updateQuantity(item.cart_item_id, item.quantity + 1)}
-                        className="p-1 px-1.5 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
+                        className="w-6 h-6 flex items-center justify-center text-zinc-600 dark:text-zinc-400 hover:bg-white dark:hover:bg-zinc-700 rounded-md transition-colors font-bold text-xs cursor-pointer"
+                        aria-label="Increase quantity"
                       >
-                        <Plus className="w-3 h-3" />
+                        +
                       </button>
                     </div>
 
-                    <CurrencyDisplay amountUSD={item.total_price_usd} className="font-semibold text-xs" />
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.cart_item_id)}
+                      className="p-1.5 text-zinc-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                      title={language === 'km' ? 'លុប' : 'Remove'}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               )
@@ -122,32 +144,33 @@ export const CartReviewSheet: FC<CartReviewSheetProps> = ({
         {/* Order Summary Footer */}
         {items.length > 0 && (
           <div className="pt-3 border-t border-zinc-200 dark:border-zinc-800 space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-zinc-500 font-medium">{t('subtotal')}</span>
-              <CurrencyDisplay amountUSD={total} className="font-bold text-base" />
+            {/* Total Price at Bottom */}
+            <div className="flex items-center justify-between text-sm sm:text-base">
+              <span className="font-bold text-zinc-900 dark:text-zinc-100">
+                {language === 'km' ? 'សរុប:' : 'Total:'}
+              </span>
+              <CurrencyDisplay
+                amountUSD={total}
+                className="font-bold text-base sm:text-lg text-emerald-600 dark:text-emerald-400"
+              />
             </div>
 
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={clearCart}
-                className="w-1/3"
-                size="md"
-              >
-                {language === 'km' ? 'សម្អាត' : 'Clear'}
-              </Button>
+            {errorMessage && (
+              <p className="text-xs text-red-500 text-center font-medium bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-lg p-2">
+                {errorMessage}
+              </p>
+            )}
 
-              <Button
-                variant="primary"
-                onClick={onSubmitOrder}
-                isLoading={isSubmitting}
-                className="flex-1 justify-center gap-2"
-                size="md"
-              >
-                <SendHorizontal className="w-4 h-4" />
-                <span>{t('placeOrder')}</span>
-              </Button>
-            </div>
+            <Button
+              variant="primary"
+              onClick={onSubmitOrder}
+              isLoading={isSubmitting}
+              className="w-full justify-center gap-2"
+              size="lg"
+            >
+              <SendHorizontal className="w-4 h-4" />
+              <span>{language === 'km' ? 'បញ្ជូនទៅផ្ទះបាយ (Send Order)' : 'Send Order to Kitchen'}</span>
+            </Button>
           </div>
         )}
       </div>

@@ -5,7 +5,6 @@ import {
   LayoutGrid,
   UtensilsCrossed,
   Grid3X3,
-  Boxes,
   Users,
   Settings,
 } from 'lucide-react'
@@ -63,19 +62,6 @@ export const AdminSidebar: FC<{
       ],
     },
     {
-      titleEn: 'SUPPLY & INVENTORY',
-      titleKm: 'ការផ្គត់ផ្គង់ & ស្តុក',
-      items: [
-        {
-          path: '/admin/inventory',
-          exact: true,
-          icon: Boxes,
-          labelKm: 'គ្រឿងផ្សំដើម',
-          labelEn: 'Raw Ingredients',
-        },
-      ],
-    },
-    {
       titleEn: 'SETTINGS & ACCESS',
       titleKm: 'ការកំណត់ & សិទ្ធិ',
       items: [
@@ -105,21 +91,21 @@ export const AdminSidebar: FC<{
   return (
     <nav
       className={`w-full h-full border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between overflow-y-auto overflow-x-hidden shrink-0 transition-[padding] duration-300 ease-in-out motion-reduce:transition-none ${
-        isCollapsed ? 'px-2.5 py-3' : 'p-3'
+        isCollapsed ? 'px-2 py-2.5' : 'p-2.5'
       }`}
     >
-      <div className={isCollapsed ? 'space-y-3' : 'space-y-4'}>
+      <div className={isCollapsed ? 'space-y-2' : 'space-y-3'}>
         {navSections.map((section, sIdx) => (
-          <div key={sIdx} className="space-y-1">
+          <div key={sIdx} className="space-y-0.5">
             {isCollapsed ? (
-              sIdx > 0 && <div className="my-2 border-t border-zinc-100 dark:border-zinc-800" />
+              sIdx > 0 && <div className="my-1.5 border-t border-zinc-100 dark:border-zinc-800" />
             ) : (
-              <div className="px-3 text-[11px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+              <div className="px-3 text-[10.5px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider mb-0.5">
                 {language === 'km' ? section.titleKm : section.titleEn}
               </div>
             )}
 
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {section.items.map((item) => {
                 const Icon = item.icon
                 const isActive = isCurrentPath(item.path, item.exact)
@@ -133,8 +119,8 @@ export const AdminSidebar: FC<{
                     title={label}
                     className={`flex items-center rounded-full text-sm font-semibold transition-all group ${
                       isCollapsed
-                        ? 'w-12 h-12 justify-center mx-auto'
-                        : 'gap-3 px-3.5 py-2.5'
+                        ? 'w-10 h-10 justify-center mx-auto'
+                        : 'gap-3 px-3.5 py-1.5'
                     } ${
                       isActive
                         ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-950 font-bold shadow-none'
@@ -142,7 +128,7 @@ export const AdminSidebar: FC<{
                     }`}
                   >
                     <Icon
-                      className={`${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} shrink-0 ${
+                      className={`${isCollapsed ? 'w-4 h-4' : 'w-4 h-4'} shrink-0 ${
                         isActive
                           ? 'text-white dark:text-zinc-950'
                           : 'text-zinc-500 group-hover:text-zinc-900 dark:group-hover:text-zinc-100'

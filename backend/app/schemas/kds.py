@@ -3,7 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.enums import CourseStage, OrderItemStatus, OrderType
+from app.models.enums import CourseStage, OrderItemStatus, OrderStatus, OrderType
 from app.schemas.order import OrderItemModifierResponse
 
 
@@ -42,6 +42,7 @@ class KDSTicketResponse(BaseModel):
     order_id: UUID
     order_number: str
     order_type: OrderType
+    order_status: OrderStatus = OrderStatus.PENDING
     round_number: int
     table_id: UUID | None = None
     table_number: str | None = None
@@ -66,6 +67,10 @@ class ItemStatusBumpRequest(BaseModel):
 
 class StationTicketBumpRequest(BaseModel):
     target_status: OrderItemStatus = OrderItemStatus.READY_TO_SERVE
+
+
+class KDSTicketRejectRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=255)
 
 
 class CourseFireRequest(BaseModel):

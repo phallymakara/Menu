@@ -3,7 +3,6 @@ import {
   Plus,
   Printer,
   Trash2,
-  Users,
   ExternalLink,
   X,
   Loader2,
@@ -16,6 +15,8 @@ import {
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { useAuthStore } from '@/stores/useAuthStore'
+import { useWebSocket } from '@/lib/websocket'
 import { Button } from '@/components/ui/Button'
 import { apiFetch } from '@/lib/api-client'
 import { unwrap } from '@/lib/api-error'
@@ -186,6 +187,33 @@ export const DiningTablesTab: FC = () => {
   const singleQrMutation = useSingleTableQr(businessId, branchId)
   const regenQrMutation = useRegenerateTableQr(businessId, branchId)
   const { data: qrCodes } = useTableQrCodes(businessId, branchId)
+
+  // Real-time WebSocket connection to keep tables and status updated live
+  const { token: accessToken } = useAuthStore()
+  const wsUrl =
+    accessToken && isUuid(branchId) ? `/ws/branches/${branchId}?token=${accessToken}&room_type=pos` : null
+
+  useWebSocket(wsUrl, {
+    autoConnect: !!wsUrl,
+    onMessage: (rawMsg) => {
+      try {
+        const data = typeof rawMsg === 'object' && rawMsg !== null ? (rawMsg as any) : {}
+        const evt = String(data.event || data.type || '').toLowerCase()
+        if (
+          evt.startsWith('table') ||
+          evt.startsWith('order') ||
+          evt === 'payment_settled' ||
+          evt === 'payment.settled'
+        ) {
+          queryClient.invalidateQueries({ queryKey: ['tables', businessId, branchId] })
+          queryClient.invalidateQueries({ queryKey: ['dining-areas', businessId, branchId] })
+          queryClient.invalidateQueries({ queryKey: ['table-qr-codes', businessId, branchId] })
+        }
+      } catch {
+        // Ignore parse error
+      }
+    },
+  })
 
   const isLoading = isSwitchingBranch || ((isAreasLoading || isTablesLoading) && tables.length === 0)
 
@@ -623,7 +651,7 @@ export const DiningTablesTab: FC = () => {
           {language === 'km' ? '+ តំបន់' : '+ Area'}
         </Button>
 
-        {rawAreas.length > 1 && (
+        {rawAreas.length > 0 && (
           <Button
             type="button"
             variant="outline"
@@ -632,7 +660,7 @@ export const DiningTablesTab: FC = () => {
             className="text-xs sm:text-sm font-semibold px-3.5 py-1.5"
           >
             <ArrowUpDown className="w-3.5 h-3.5 mr-1.5" />
-            {language === 'km' ? 'រៀបលំដាប់តំបន់' : 'Reorder Areas'}
+            {language === 'km' ? 'រៀបចំតំបន់' : 'Manage Areas'}
           </Button>
         )}
 
@@ -680,78 +708,23 @@ export const DiningTablesTab: FC = () => {
                 : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'
             }`}
           >
-            {language === 'km' ? 'តំបន់ទាំងអស់' : 'All Zones'} ({tables.length})
+            {language === 'km' ? 'តំបន់ទាំងអស់' : 'All Zones'}
           </button>
-          {zones.map((z) => {
-            const count = tables.filter((t) => t.zone_id === z.id).length
-            return (
-              <button
-                key={z.id}
-                type="button"
-                onClick={() => setActiveZone(z.id)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-                  activeZone === z.id
-                    ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                    : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'
-                }`}
-              >
-                {language === 'km' ? z.name_km : z.name_en} ({count})
-              </button>
-            )
-          })}
+          {zones.map((z) => (
+            <button
+              key={z.id}
+              type="button"
+              onClick={() => setActiveZone(z.id)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                activeZone === z.id
+                  ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
+                  : 'border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-900'
+              }`}
+            >
+              {language === 'km' ? z.name_km : z.name_en}
+            </button>
+          ))}
         </div>
-
-        {/* Selected Zone Control Bar */}
-        {activeZone !== 'all' && (() => {
-          const currentArea = rawAreas.find((a) => a.id === activeZone)
-          if (!currentArea) return null
-          return (
-            <div className="flex items-center justify-between gap-3 p-3 sm:px-4 rounded-2xl bg-zinc-50 dark:bg-zinc-900/60 border border-zinc-200/80 dark:border-zinc-800 text-xs">
-              <div className="flex items-center gap-2 flex-wrap min-w-0">
-                <span className="font-bold text-zinc-900 dark:text-zinc-100 text-sm">
-                  {language === 'km' ? currentArea.name_km || currentArea.name_en : currentArea.name_en}
-                </span>
-                {currentArea.service_charge_percentage != null && Number(currentArea.service_charge_percentage) > 0 && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-medium">
-                    +{Number(currentArea.service_charge_percentage)}% {language === 'km' ? 'សេវាបន្ថែម' : 'Service Charge'}
-                  </span>
-                )}
-                {currentArea.minimum_spend != null && Number(currentArea.minimum_spend) > 0 && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 font-medium">
-                    {language === 'km' ? 'ចំណាយអប្បបរមា' : 'Min Spend'}: ${Number(currentArea.minimum_spend).toFixed(2)}
-                  </span>
-                )}
-                {!currentArea.is_active && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-medium">
-                    {language === 'km' ? 'ផ្អាកដំណើរការ' : 'Inactive'}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 shrink-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleOpenEditArea(activeZone)}
-                  className="h-8 text-xs px-3 rounded-full"
-                >
-                  <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                  {language === 'km' ? 'កែប្រែ' : 'Edit Zone'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsDeleteAreaModalOpen(true)}
-                  className="h-8 text-xs px-3 rounded-full text-red-600 hover:text-red-700 hover:border-red-300 dark:text-red-400 dark:hover:border-red-800"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                  {language === 'km' ? 'លុប' : 'Delete'}
-                </Button>
-              </div>
-            </div>
-          )
-        })()}
       </div>
 
       {/* Tables Grid */}
@@ -770,70 +743,56 @@ export const DiningTablesTab: FC = () => {
         </div>
       ) : (
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-2.5">
           {filteredTables.map((tbl) => {
             const qr = qrCodes?.get(tbl.id)
 
             return (
               <div
                 key={tbl.id}
-                className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col justify-between space-y-3"
+                className="rounded-2xl border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs hover:shadow-xs transition-all duration-200 flex flex-col justify-between relative overflow-hidden group"
               >
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-lg font-bold text-zinc-950 dark:text-zinc-50 font-mono">
-                        {tbl.table_number}
-                      </span>
-                      <span className="text-xs text-zinc-400 font-medium">({tbl.zone_name})</span>
-                    </div>
-
-                    <span className="px-2 py-0.5 rounded text-[11px] font-semibold border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 uppercase">
-                      {tbl.status}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 text-xs text-zinc-500 font-medium">
-                    <Users className="w-3.5 h-3.5 text-zinc-400" />
-                    <span>{tbl.capacity} {language === 'km' ? 'កៅអី' : 'Seats'}</span>
-                  </div>
-
-                  <div className="p-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex flex-col items-center justify-center space-y-1">
-                    {qr ? (
-                      <img
-                        src={qr.qr_base64}
-                        alt={`QR for ${tbl.table_number}`}
-                        className="w-20 h-20 rounded bg-white p-1"
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
-                    )}
-                    <span className="text-[10px] font-mono text-zinc-400 truncate max-w-[180px]">
-                      {qr ? new URL(qr.ordering_url).pathname : '...'}
-                    </span>
-                  </div>
+                {/* 1. Card Top / Header */}
+                <div className="px-2.5 py-1 border-b border-zinc-100 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/40 flex items-center justify-between">
+                  <span className="text-xs font-black text-zinc-950 dark:text-zinc-50 font-mono tracking-tight">
+                    {tbl.table_number}
+                  </span>
                 </div>
 
-                <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                {/* 2. Card Body: QR Code Display */}
+                <div className="p-2 flex items-center justify-center">
+                  {qr ? (
+                    <img
+                      src={qr.qr_base64}
+                      alt={`QR for ${tbl.table_number}`}
+                      className="w-full aspect-square object-contain rounded-xl bg-white p-1 shadow-2xs border border-zinc-200/80 dark:border-zinc-700/60"
+                    />
+                  ) : (
+                    <div className="w-full aspect-square rounded-xl bg-zinc-100 dark:bg-zinc-800 animate-pulse" />
+                  )}
+                </div>
+
+                {/* 3. Card Footer Action Bar */}
+                <div className="px-2 py-1 border-t border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between bg-zinc-50/50 dark:bg-zinc-900/40">
                   <a
                     href={qr?.ordering_url}
                     aria-disabled={!qr}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                    className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 hover:underline flex items-center gap-0.5 transition-colors"
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
+                    <ExternalLink className="w-3 h-3" />
                     <span>{language === 'km' ? 'មើលមីនុយ' : 'Preview'}</span>
                   </a>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     <button
                       type="button"
                       onClick={() => handleOpenEditTable(tbl)}
                       title={language === 'km' ? 'កែប្រែតុ និងពិនិត្យលម្អិត' : 'Edit Table & Details'}
-                      className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-emerald-600 dark:hover:bg-zinc-800 dark:hover:text-emerald-400 transition-colors"
+                      className="p-1 rounded-md text-zinc-500 hover:bg-zinc-200/70 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 transition-colors cursor-pointer"
                     >
-                      <Pencil className="w-3.5 h-3.5" />
+                      <Pencil className="w-3 h-3" />
                     </button>
 
                     <button
@@ -843,9 +802,9 @@ export const DiningTablesTab: FC = () => {
                         setIsPrintModalOpen(true)
                       }}
                       title={language === 'km' ? 'បោះពុម្ព QR តុ' : 'Print QR Stand'}
-                      className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      className="p-1 rounded-md text-zinc-500 hover:bg-zinc-200/70 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 transition-colors cursor-pointer"
                     >
-                      <Printer className="w-3.5 h-3.5" />
+                      <Printer className="w-3 h-3" />
                     </button>
 
                     <button
@@ -855,18 +814,18 @@ export const DiningTablesTab: FC = () => {
                         setIsRegenModalOpen(true)
                       }}
                       title={language === 'km' ? 'បង្កើតកូដសម្ងាត់ QR ថ្មី' : 'Regenerate QR Token'}
-                      className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-amber-600 dark:hover:bg-zinc-800 dark:hover:text-amber-400 transition-colors"
+                      className="p-1 rounded-md text-zinc-500 hover:bg-amber-100 hover:text-amber-700 dark:hover:bg-amber-950/40 dark:hover:text-amber-400 transition-colors cursor-pointer"
                     >
-                      <RefreshCw className="w-3.5 h-3.5" />
+                      <RefreshCw className="w-3 h-3" />
                     </button>
 
                     <button
                       type="button"
                       onClick={() => handleDeleteTable(tbl.id)}
                       title={language === 'km' ? 'លុបតុ' : 'Delete Table'}
-                      className="p-1.5 rounded-lg text-zinc-400 hover:text-red-600 transition-colors"
+                      className="p-1 rounded-md text-zinc-400 hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-colors cursor-pointer"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
@@ -1224,6 +1183,31 @@ export const DiningTablesTab: FC = () => {
                   </div>
 
                   <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsReorderModalOpen(false)
+                        handleOpenEditArea(area.id)
+                      }}
+                      title={language === 'km' ? 'កែប្រែ' : 'Edit'}
+                      aria-label="Edit Area"
+                      className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveZone(area.id)
+                        setIsReorderModalOpen(false)
+                        setIsDeleteAreaModalOpen(true)
+                      }}
+                      title={language === 'km' ? 'លុប' : 'Delete'}
+                      aria-label="Delete Area"
+                      className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-600 dark:text-red-400 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       type="button"
                       disabled={idx === 0}

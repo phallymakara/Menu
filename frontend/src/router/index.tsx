@@ -55,11 +55,6 @@ const StaffManagementTab = lazy(() =>
     default: m.StaffManagementTab,
   }))
 )
-const InventoryManagementTab = lazy(() =>
-  import('@/features/admin/pages/InventoryManagementTab').then((m) => ({
-    default: m.InventoryTab,
-  }))
-)
 const KDSPage = lazy(() =>
   import('@/features/kds/KDSPage').then((m) => ({
     default: m.KDSPage,
@@ -155,10 +150,6 @@ export const router = createBrowserRouter([
       {
         path: 'tables',
         element: withSuspense(<DiningTablesTab />),
-      },
-      {
-        path: 'inventory',
-        element: withSuspense(<InventoryManagementTab />),
       },
       {
         path: 'settings',

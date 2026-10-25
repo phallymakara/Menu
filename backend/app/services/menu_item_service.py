@@ -116,6 +116,14 @@ async def create_menu_item(
     )
     await session.commit()
 
+    from app.services.realtime_notify_service import broadcast_menu_update
+    await broadcast_menu_update(
+        session=session,
+        business_id=business_id,
+        action="item_created",
+        details={"item_id": str(item.id), "name_en": item.name_en},
+    )
+
     logger.info(
         "Menu item created successfully",
         item_id=str(item.id),
@@ -304,6 +312,14 @@ async def update_menu_item(
     )
     await session.commit()
 
+    from app.services.realtime_notify_service import broadcast_menu_update
+    await broadcast_menu_update(
+        session=session,
+        business_id=business_id,
+        action="item_updated",
+        details={"item_id": str(item_id), "updated_fields": list(update_data.keys())},
+    )
+
     logger.info(
         "Menu item updated successfully",
         item_id=str(item_id),
@@ -335,6 +351,14 @@ async def delete_menu_item(
         resource_id=str(item_id),
     )
     await session.commit()
+
+    from app.services.realtime_notify_service import broadcast_menu_update
+    await broadcast_menu_update(
+        session=session,
+        business_id=business_id,
+        action="item_deleted",
+        details={"item_id": str(item_id)},
+    )
 
     logger.info(
         "Menu item deleted successfully",

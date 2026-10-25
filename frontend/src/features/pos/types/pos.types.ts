@@ -48,6 +48,7 @@ export interface POSCartItem {
   menu_item_id: string
   item_name_en: string
   item_name_km?: string | null
+  image_url?: string | null
   variant_id?: string | null
   variant_name?: string | null
   quantity: number

@@ -1,15 +1,67 @@
 import { useState, useRef, useEffect, type FC } from 'react'
 import { Outlet, Navigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { AdminHeader } from './components/AdminHeader'
 import { AdminSidebar } from './components/AdminSidebar'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
+import { useAuthStore } from '@/stores/useAuthStore'
 import { useUserRoleAccess } from '@/features/auth/hooks/useUserRoleAccess'
+import { useWebSocket } from '@/lib/websocket'
 import { PageLoader } from '@/components/ui/PageLoader'
+import { isUuid } from '@/lib/utils'
 
 export const AdminLayout: FC = () => {
   const { language } = useLanguageStore()
   const { isLoading: isRoleLoading, isCashierOnly, isKitchenOnly } = useUserRoleAccess()
+  const queryClient = useQueryClient()
+  const { token: accessToken } = useAuthStore()
+
+  const [activeBranchId, setActiveBranchId] = useState<string | null>(() => {
+    const saved = localStorage.getItem('emenu_branch_id')
+    return saved && saved !== 'all' && isUuid(saved) ? saved : null
+  })
+
+  useEffect(() => {
+    const onBranchChange = (e: any) => {
+      const bId = e.detail?.branchId
+      if (bId && bId !== 'all' && isUuid(bId)) {
+        setActiveBranchId(bId)
+      }
+    }
+    window.addEventListener('branch-changed', onBranchChange)
+    return () => window.removeEventListener('branch-changed', onBranchChange)
+  }, [])
+
+  const wsUrl =
+    accessToken && isUuid(activeBranchId)
+      ? `/ws/branches/${activeBranchId}?token=${accessToken}&room_type=pos`
+      : null
+
+  useWebSocket(wsUrl, {
+    autoConnect: !!wsUrl,
+    onMessage: (rawMsg) => {
+      try {
+        const data = typeof rawMsg === 'object' && rawMsg !== null ? (rawMsg as any) : {}
+        const evt = String(data.event || data.type || '').toLowerCase()
+        if (evt === 'menu.updated' || evt === 'category.updated') {
+          queryClient.invalidateQueries({ queryKey: ['categories'] })
+          queryClient.invalidateQueries({ queryKey: ['menu-items'] })
+        } else if (evt.startsWith('order') || evt.startsWith('table') || evt.startsWith('payment')) {
+          queryClient.invalidateQueries({ queryKey: ['tables'] })
+          queryClient.invalidateQueries({ queryKey: ['dining-areas'] })
+          queryClient.invalidateQueries({ queryKey: ['orders'] })
+          queryClient.invalidateQueries({ queryKey: ['analytics'] })
+        } else if (evt === 'store.updated') {
+          queryClient.invalidateQueries({ queryKey: ['business'] })
+          queryClient.invalidateQueries({ queryKey: ['store-settings'] })
+        }
+      } catch {
+        // Ignore parse error
+      }
+    },
+  })
+
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [desktopSidebarOpen, setDesktopSidebarOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('emenu_desktop_sidebar_open')

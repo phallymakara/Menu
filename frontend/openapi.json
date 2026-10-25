@@ -1817,6 +1817,98 @@
         }
       }
     },
+    "/api/v1/public/tables/sessions/leave": {
+      "post": {
+        "tags": [
+          "Public Table QR Verification"
+        ],
+        "summary": "Guest leaves view of food without ordering",
+        "description": "Called when a guest leaves or closes the food menu view. If they have not placed\nany orders, the table status is safely transitioned back to available.",
+        "operationId": "leave_public_table_session_endpoint_api_v1_public_tables_sessions_leave_post",
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Branch ID from scanned QR",
+              "title": "Branch Id"
+            },
+            "description": "Branch ID from scanned QR"
+          },
+          {
+            "name": "table_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Table ID from scanned QR",
+              "title": "Table Id"
+            },
+            "description": "Table ID from scanned QR"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Verification token from scanned QR",
+              "title": "Token"
+            },
+            "description": "Verification token from scanned QR"
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional active session ID",
+              "title": "Session Id"
+            },
+            "description": "Optional active session ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Leave Public Table Session Endpoint Api V1 Public Tables Sessions Leave Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/public/tables/orders": {
       "post": {
         "tags": [
@@ -2129,6 +2221,77 @@
                     "$ref": "#/components/schemas/GuestServiceRequestResponse"
                   },
                   "title": "Response List Public Service Requests Endpoint Api V1 Public Tables Service Requests Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/tables/catalog": {
+      "get": {
+        "tags": [
+          "Public Table QR Verification"
+        ],
+        "summary": "Guest retrieves public menu catalog for a table",
+        "description": "Public guest endpoint: retrieves active categories and menu items for the table.\nRequires no staff login credentials; verified via table QR token.",
+        "operationId": "get_public_table_catalog_endpoint_api_v1_public_tables_catalog_get",
+        "parameters": [
+          {
+            "name": "branch_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Branch ID from scanned QR",
+              "title": "Branch Id"
+            },
+            "description": "Branch ID from scanned QR"
+          },
+          {
+            "name": "table_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Table ID from scanned QR",
+              "title": "Table Id"
+            },
+            "description": "Table ID from scanned QR"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Verification token from scanned QR",
+              "title": "Token"
+            },
+            "description": "Verification token from scanned QR"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Public Table Catalog Endpoint Api V1 Public Tables Catalog Get"
                 }
               }
             }
@@ -7995,394 +8158,6 @@
         }
       }
     },
-    "/api/v1/businesses/{business_id}/inventory/items": {
-      "get": {
-        "tags": [
-          "Multi-Branch Inventory"
-        ],
-        "summary": "List master inventory items for a business",
-        "description": "Lists all organization-wide master inventory items.",
-        "operationId": "list_inventory_items_endpoint_api_v1_businesses__business_id__inventory_items_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InventoryItemResponse"
-                  },
-                  "title": "Response List Inventory Items Endpoint Api V1 Businesses  Business Id  Inventory Items Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "Multi-Branch Inventory"
-        ],
-        "summary": "Create a new master inventory item",
-        "description": "Creates a new inventory item and seeds branch stock balances.",
-        "operationId": "create_inventory_item_endpoint_api_v1_businesses__business_id__inventory_items_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InventoryItemCreate"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InventoryItemResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/inventory/branches/{branch_id}/stock": {
-      "get": {
-        "tags": [
-          "Multi-Branch Inventory"
-        ],
-        "summary": "Get real-time stock balances for a branch",
-        "description": "Retrieves all stock balances and low-stock indicators for a specific branch.",
-        "operationId": "get_branch_stock_endpoint_api_v1_businesses__business_id__inventory_branches__branch_id__stock_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "branch_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Branch Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/BranchStockResponse"
-                  },
-                  "title": "Response Get Branch Stock Endpoint Api V1 Businesses  Business Id  Inventory Branches  Branch Id  Stock Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/inventory/branches/{branch_id}/stock/adjust": {
-      "post": {
-        "tags": [
-          "Multi-Branch Inventory"
-        ],
-        "summary": "Adjust stock balance (audit, restock, spoilage/waste)",
-        "description": "Manually updates stock counts and logs an immutable audit event.",
-        "operationId": "adjust_branch_stock_endpoint_api_v1_businesses__business_id__inventory_branches__branch_id__stock_adjust_post",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "branch_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Branch Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/BranchStockAdjustRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BranchStockResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/businesses/{business_id}/inventory/alerts/low-stock": {
-      "get": {
-        "tags": [
-          "Multi-Branch Inventory"
-        ],
-        "summary": "Get low-stock item alerts across all branches",
-        "description": "Identifies items where branch quantity is at or below the reorder threshold.",
-        "operationId": "get_low_stock_alerts_endpoint_api_v1_businesses__business_id__inventory_alerts_low_stock_get",
-        "security": [
-          {
-            "HTTPBearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "business_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid",
-              "title": "Business Id"
-            }
-          },
-          {
-            "name": "branch_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Branch Id"
-            }
-          },
-          {
-            "name": "X-Organization-Id",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "X-Organization-Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/LowStockAlertResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/businesses/{business_id}/branches/{branch_id}/kitchen-stations": {
       "post": {
         "tags": [
@@ -9631,6 +9406,193 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KDSTicketItemResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/kds/orders/{order_id}/accept": {
+      "post": {
+        "tags": [
+          "Kitchen Display System (KDS)"
+        ],
+        "summary": "Accept pending order ticket from kitchen screen",
+        "description": "Accepts an order round and transitions items to cooking/preparing.",
+        "operationId": "accept_kds_order_endpoint_api_v1_businesses__business_id__branches__branch_id__kds_orders__order_id__accept_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Order Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KDSTicketResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/kds/orders/{order_id}/reject": {
+      "post": {
+        "tags": [
+          "Kitchen Display System (KDS)"
+        ],
+        "summary": "Reject order ticket from kitchen screen with notification",
+        "description": "Rejects an order ticket, voids items, and alerts the customer.",
+        "operationId": "reject_kds_order_endpoint_api_v1_businesses__business_id__branches__branch_id__kds_orders__order_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "business_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Business Id"
+            }
+          },
+          {
+            "name": "branch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Branch Id"
+            }
+          },
+          {
+            "name": "order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Order Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/KDSTicketRejectRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KDSTicketResponse"
                 }
               }
             }
@@ -13508,6 +13470,81 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ManagerPinVerifyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{org_id}/members/verify-pos-pin": {
+      "post": {
+        "tags": [
+          "Organization Staff & Members"
+        ],
+        "summary": "Verify Pos Staff Pin",
+        "description": "Securely verify a staff or cashier 4-digit PIN for POS access directly via backend database.",
+        "operationId": "verify_pos_staff_pin_api_v1_organizations__org_id__members_verify_pos_pin_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "org_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Org Id"
+            }
+          },
+          {
+            "name": "X-Organization-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Organization-Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffPinVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffPinVerifyResponse"
                 }
               }
             }
@@ -17719,164 +17756,6 @@
         "title": "BranchResponse",
         "description": "Response schema for a branch."
       },
-      "BranchStockAdjustRequest": {
-        "properties": {
-          "inventory_item_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Inventory Item Id"
-          },
-          "quantity_change": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Quantity Change",
-            "description": "Positive to add stock, negative to reduce/waste stock"
-          },
-          "reason": {
-            "$ref": "#/components/schemas/StockAdjustmentReason",
-            "default": "stock_take_audit"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 500
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          }
-        },
-        "type": "object",
-        "required": [
-          "inventory_item_id",
-          "quantity_change"
-        ],
-        "title": "BranchStockAdjustRequest"
-      },
-      "BranchStockResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "branch_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Branch Id"
-          },
-          "branch_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Branch Name"
-          },
-          "inventory_item_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Inventory Item Id"
-          },
-          "item_name_en": {
-            "type": "string",
-            "title": "Item Name En"
-          },
-          "item_name_km": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Item Name Km"
-          },
-          "sku": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sku"
-          },
-          "unit_of_measure": {
-            "$ref": "#/components/schemas/UnitOfMeasure"
-          },
-          "quantity": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Quantity"
-          },
-          "reorder_threshold": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Reorder Threshold"
-          },
-          "ideal_stock_quantity": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Ideal Stock Quantity"
-          },
-          "is_low_stock": {
-            "type": "boolean",
-            "title": "Is Low Stock",
-            "default": false
-          },
-          "is_out_of_stock": {
-            "type": "boolean",
-            "title": "Is Out Of Stock",
-            "default": false
-          },
-          "cost_per_unit_usd": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Cost Per Unit Usd"
-          },
-          "total_stock_value_usd": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Total Stock Value Usd"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "branch_id",
-          "inventory_item_id",
-          "item_name_en",
-          "unit_of_measure",
-          "quantity",
-          "reorder_threshold",
-          "ideal_stock_quantity",
-          "cost_per_unit_usd",
-          "total_stock_value_usd",
-          "updated_at"
-        ],
-        "title": "BranchStockResponse"
-      },
       "BranchTableLiveDashboardResponse": {
         "properties": {
           "branch_id": {
@@ -20597,212 +20476,6 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "InventoryItemCreate": {
-        "properties": {
-          "name_en": {
-            "type": "string",
-            "maxLength": 150,
-            "minLength": 1,
-            "title": "Name En"
-          },
-          "name_km": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 150
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Km"
-          },
-          "sku": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 50
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sku"
-          },
-          "unit_of_measure": {
-            "$ref": "#/components/schemas/UnitOfMeasure",
-            "default": "piece"
-          },
-          "cost_per_unit_usd": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Cost Per Unit Usd",
-            "default": "0.00"
-          },
-          "reorder_threshold": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Reorder Threshold",
-            "default": "0.00"
-          },
-          "ideal_stock_quantity": {
-            "anyOf": [
-              {
-                "type": "number",
-                "minimum": 0.0
-              },
-              {
-                "type": "string",
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
-              }
-            ],
-            "title": "Ideal Stock Quantity",
-            "default": "0.00"
-          },
-          "menu_item_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Menu Item Id"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active",
-            "default": true
-          }
-        },
-        "type": "object",
-        "required": [
-          "name_en"
-        ],
-        "title": "InventoryItemCreate"
-      },
-      "InventoryItemResponse": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Id"
-          },
-          "organization_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Organization Id"
-          },
-          "business_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Business Id"
-          },
-          "name_en": {
-            "type": "string",
-            "title": "Name En"
-          },
-          "name_km": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name Km"
-          },
-          "sku": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sku"
-          },
-          "unit_of_measure": {
-            "$ref": "#/components/schemas/UnitOfMeasure"
-          },
-          "cost_per_unit_usd": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Cost Per Unit Usd"
-          },
-          "reorder_threshold": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Reorder Threshold"
-          },
-          "ideal_stock_quantity": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Ideal Stock Quantity"
-          },
-          "menu_item_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Menu Item Id"
-          },
-          "is_active": {
-            "type": "boolean",
-            "title": "Is Active"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "organization_id",
-          "business_id",
-          "name_en",
-          "unit_of_measure",
-          "cost_per_unit_usd",
-          "reorder_threshold",
-          "ideal_stock_quantity",
-          "is_active",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "InventoryItemResponse"
-      },
       "InviteAccept": {
         "properties": {
           "token": {
@@ -21511,6 +21184,24 @@
         ],
         "title": "KDSTicketItemResponse"
       },
+      "KDSTicketRejectRequest": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "KDSTicketRejectRequest"
+      },
       "KDSTicketResponse": {
         "properties": {
           "order_id": {
@@ -21524,6 +21215,10 @@
           },
           "order_type": {
             "$ref": "#/components/schemas/OrderType"
+          },
+          "order_status": {
+            "$ref": "#/components/schemas/OrderStatus",
+            "default": "pending"
           },
           "round_number": {
             "type": "integer",
@@ -22299,100 +21994,6 @@
           "password"
         ],
         "title": "LoginRequest"
-      },
-      "LowStockAlertItem": {
-        "properties": {
-          "branch_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Branch Id"
-          },
-          "branch_name": {
-            "type": "string",
-            "title": "Branch Name"
-          },
-          "branch_code": {
-            "type": "string",
-            "title": "Branch Code"
-          },
-          "inventory_item_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Inventory Item Id"
-          },
-          "item_name_en": {
-            "type": "string",
-            "title": "Item Name En"
-          },
-          "sku": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sku"
-          },
-          "unit_of_measure": {
-            "$ref": "#/components/schemas/UnitOfMeasure"
-          },
-          "current_quantity": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Current Quantity"
-          },
-          "reorder_threshold": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Reorder Threshold"
-          },
-          "shortage_quantity": {
-            "type": "string",
-            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-            "title": "Shortage Quantity"
-          }
-        },
-        "type": "object",
-        "required": [
-          "branch_id",
-          "branch_name",
-          "branch_code",
-          "inventory_item_id",
-          "item_name_en",
-          "unit_of_measure",
-          "current_quantity",
-          "reorder_threshold",
-          "shortage_quantity"
-        ],
-        "title": "LowStockAlertItem"
-      },
-      "LowStockAlertResponse": {
-        "properties": {
-          "business_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Business Id"
-          },
-          "total_low_stock_items": {
-            "type": "integer",
-            "title": "Total Low Stock Items"
-          },
-          "alerts": {
-            "items": {
-              "$ref": "#/components/schemas/LowStockAlertItem"
-            },
-            "type": "array",
-            "title": "Alerts"
-          }
-        },
-        "type": "object",
-        "required": [
-          "business_id",
-          "total_low_stock_items"
-        ],
-        "title": "LowStockAlertResponse"
       },
       "ManagerPinVerifyRequest": {
         "properties": {
@@ -26255,6 +25856,51 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "active_session_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Session Id"
+          },
+          "session_elapsed_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Elapsed Minutes"
+          },
+          "session_subtotal_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Subtotal Usd"
+          },
+          "active_orders_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Orders Count"
           }
         },
         "type": "object",
@@ -26846,6 +26492,129 @@
         ],
         "title": "StaffOrderPlacementRequest"
       },
+      "StaffPinVerifyRequest": {
+        "properties": {
+          "pin_code": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 4,
+            "title": "Pin Code",
+            "description": "4-6 digit numeric PIN"
+          },
+          "branch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Branch Id",
+            "description": "Optional branch context"
+          },
+          "terminal_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terminal Type",
+            "description": "Optional terminal filter: 'pos' or 'kds'"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pin_code"
+        ],
+        "title": "StaffPinVerifyRequest",
+        "description": "Request schema to verify staff/cashier POS/KDS PIN."
+      },
+      "StaffPinVerifyResponse": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "member_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "avatar_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avatar Url"
+          },
+          "pos_permissions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StaffPosPermissions"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid"
+        ],
+        "title": "StaffPinVerifyResponse",
+        "description": "Response returned upon validating a staff PIN for POS terminal sign-in."
+      },
       "StaffPosPermissions": {
         "properties": {
           "can_void_item": {
@@ -26969,21 +26738,6 @@
           "expediter"
         ],
         "title": "StationType"
-      },
-      "StockAdjustmentReason": {
-        "type": "string",
-        "enum": [
-          "restock",
-          "stock_take_audit",
-          "spoilage_waste",
-          "damaged",
-          "transfer_out",
-          "transfer_in",
-          "other",
-          "recipe_depletion",
-          "recipe_waste"
-        ],
-        "title": "StockAdjustmentReason"
       },
       "SubscriptionResponse": {
         "properties": {
@@ -27311,6 +27065,17 @@
           "ordering_url": {
             "type": "string",
             "title": "Ordering Url"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
           }
         },
         "type": "object",
@@ -27925,20 +27690,6 @@
         ],
         "title": "TopSellingItemsResponse",
         "description": "Network-wide or branch-specific top-performing menu items."
-      },
-      "UnitOfMeasure": {
-        "type": "string",
-        "enum": [
-          "kg",
-          "g",
-          "liter",
-          "ml",
-          "piece",
-          "can",
-          "bottle",
-          "pack"
-        ],
-        "title": "UnitOfMeasure"
       },
       "UserStatus": {
         "type": "string",

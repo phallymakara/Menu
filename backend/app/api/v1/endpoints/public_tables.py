@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 import structlog
@@ -36,6 +36,7 @@ from app.services.service_request_service import (
 )
 from app.services.table_qr_service import verify_public_table
 from app.services.table_session_service import (
+    leave_guest_table_session,
     open_guest_table_session,
     request_guest_session_bill,
 )
@@ -127,6 +128,37 @@ async def request_public_table_bill_endpoint(
             branch_id=branch_id,
             table_id=table_id,
             qr_token=token,
+        )
+    except TenantNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post(
+    "/sessions/leave",
+    status_code=status.HTTP_200_OK,
+    summary="Guest leaves view of food without ordering",
+)
+async def leave_public_table_session_endpoint(
+    branch_id: Annotated[UUID, Query(description="Branch ID from scanned QR")],
+    table_id: Annotated[UUID, Query(description="Table ID from scanned QR")],
+    token: Annotated[str, Query(description="Verification token from scanned QR")],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    session_id: Annotated[UUID | None, Query(description="Optional active session ID")] = None,
+) -> dict[str, str]:
+    """
+    Called when a guest leaves or closes the food menu view. If they have not placed
+    any orders, the table status is safely transitioned back to available.
+    """
+    try:
+        return await leave_guest_table_session(
+            session=session,
+            branch_id=branch_id,
+            table_id=table_id,
+            qr_token=token,
+            session_id=session_id,
         )
     except TenantNotFoundError as exc:
         raise HTTPException(
@@ -287,3 +319,136 @@ async def list_public_service_requests_endpoint(
         )
     except InvalidTokenError as exc:
         raise _invalid_guest_session(exc) from exc
+
+
+@router.get(
+    "/catalog",
+    status_code=status.HTTP_200_OK,
+    summary="Guest retrieves public menu catalog for a table",
+)
+async def get_public_table_catalog_endpoint(
+    branch_id: Annotated[UUID, Query(description="Branch ID from scanned QR")],
+    table_id: Annotated[UUID, Query(description="Table ID from scanned QR")],
+    token: Annotated[str, Query(description="Verification token from scanned QR")],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict[str, Any]:
+    """
+    Public guest endpoint: retrieves active categories and menu items for the table.
+    Requires no staff login credentials; verified via table QR token.
+    """
+    from sqlalchemy import or_, select
+    from sqlalchemy.orm import selectinload
+    from app.models.category import Category
+    from app.models.menu_item import MenuItem
+    from app.models.modifier import MenuItemModifierGroup, ModifierGroup, ModifierOption
+    from app.services.table_session_service import _get_guest_table
+
+    try:
+        table = await _get_guest_table(session, branch_id, table_id, token)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+    cat_stmt = (
+        select(Category)
+        .where(
+            Category.business_id == table.business_id,
+            Category.is_active.is_(True),
+            or_(Category.branch_id.is_(None), Category.branch_id == branch_id),
+        )
+        .order_by(Category.display_order.asc(), Category.created_at.asc())
+    )
+    cat_res = await session.execute(cat_stmt)
+    categories = cat_res.scalars().all()
+
+    item_stmt = (
+        select(MenuItem)
+        .options(
+            selectinload(MenuItem.variants),
+            selectinload(MenuItem.modifier_group_links)
+            .selectinload(MenuItemModifierGroup.group)
+            .selectinload(ModifierGroup.options),
+        )
+        .where(
+            MenuItem.business_id == table.business_id,
+            MenuItem.is_active.is_(True),
+            or_(MenuItem.branch_id.is_(None), MenuItem.branch_id == branch_id),
+        )
+        .order_by(MenuItem.display_order.asc(), MenuItem.created_at.asc())
+    )
+    item_res = await session.execute(item_stmt)
+    items = item_res.scalars().all()
+
+    return {
+        "categories": [
+            {
+                "id": str(c.id),
+                "name_en": c.name_en,
+                "name_km": c.name_km or c.name_en,
+                "display_order": c.display_order,
+                "is_active": c.is_active,
+            }
+            for c in categories
+        ],
+        "items": [
+            {
+                "id": str(it.id),
+                "category_id": str(it.category_id) if it.category_id else None,
+                "name_en": it.name_en,
+                "name_km": it.name_km or it.name_en,
+                "description_en": it.description_en or "",
+                "description_km": it.description_km or "",
+                "base_price": float(it.base_price),
+                "base_price_usd": float(it.base_price),
+                "currency": it.currency,
+                "image_url": it.image_url,
+                "is_available": it.is_active,
+                "spicy_level": it.spice_level,
+                "is_popular": it.is_popular,
+                "is_vegetarian": it.is_vegetarian,
+                "variants": [
+                    {
+                        "id": str(v.id),
+                        "name_en": v.name_en,
+                        "name_km": v.name_km or v.name_en,
+                        "price_usd": float(v.price) if getattr(v, "price", None) is not None else float(it.base_price),
+                    }
+                    for v in (it.variants or [])
+                    if getattr(v, "is_active", True)
+                ],
+                "modifier_groups": [
+                    {
+                        "id": str(link.group.id),
+                        "name_en": link.group.name_en,
+                        "name_km": link.group.name_km or link.group.name_en,
+                        "selection_type": "SINGLE" if link.group.max_selections == 1 else "MULTI",
+                        "min_selections": link.group.min_selections,
+                        "max_selections": link.group.max_selections,
+                        "is_required": link.group.min_selections > 0,
+                        "options": [
+                            {
+                                "id": str(opt.id),
+                                "name_en": opt.name_en,
+                                "name_km": opt.name_km or opt.name_en,
+                                "price_adjustment_usd": float(opt.price),
+                                "price_usd": float(opt.price),
+                                "is_default": opt.is_default,
+                            }
+                            for opt in (link.group.options or [])
+                            if opt.is_active
+                        ],
+                    }
+                    for link in (it.modifier_group_links or [])
+                    if link.group and link.group.is_active
+                ],
+            }
+            for it in items
+        ],
+        "store": {
+            "name_en": table.business.name_en if table.business else None,
+            "name_km": table.business.name_km if table.business else None,
+            "logo_url": table.business.logo_url if table.business else None,
+        },
+    }

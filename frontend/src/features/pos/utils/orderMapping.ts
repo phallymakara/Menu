@@ -48,9 +48,17 @@ function toPOSItem(item: OrderItemResponse): POSPlacedItem {
  * Orders from other sessions and cancelled orders are dropped, voided items are hidden,
  * and rounds are returned in the order they were placed.
  */
-export function toPOSRounds(orders: OrderResponse[], sessionId: string): POSPlacedRound[] {
-  return orders
-    .filter((order) => order.table_session_id === sessionId && order.status !== 'cancelled')
+export function toPOSRounds(orders: OrderResponse[], sessionId?: string | null): POSPlacedRound[] {
+  if (!sessionId) {
+    return []
+  }
+
+  const filtered = orders.filter((order) => {
+    if (order.status === 'cancelled') return false
+    return order.table_session_id === sessionId
+  })
+
+  return filtered
     .sort((a, b) => a.round_number - b.round_number)
     .map((order) => ({
       id: order.id,

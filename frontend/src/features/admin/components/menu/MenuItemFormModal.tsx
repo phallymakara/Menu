@@ -115,9 +115,9 @@ export const MenuItemFormModal: FC<MenuItemFormModalProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm sm:text-base font-semibold text-zinc-800 dark:text-zinc-200 block">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block px-1">
                 {language === 'km' ? 'ឈ្មោះមុខម្ហូប (EN)' : 'Item Name (EN)'} *
               </label>
               <input
@@ -126,12 +126,12 @@ export const MenuItemFormModal: FC<MenuItemFormModalProps> = ({
                 value={form.name_en}
                 onChange={(e) => setForm({ ...form, name_en: e.target.value })}
                 placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះមុខម្ហូបជាភាសាអង់គ្លេស' : 'Enter item name in English'}
-                className="w-full px-4 py-2.5 sm:py-3 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm sm:text-base outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
+                className="w-full h-10 px-4 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors leading-normal"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-sm sm:text-base font-semibold text-zinc-800 dark:text-zinc-200 block">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block px-1">
                 {language === 'km' ? 'ឈ្មោះមុខម្ហូប (KM)' : 'Item Name (KM)'}
               </label>
               <input
@@ -139,20 +139,20 @@ export const MenuItemFormModal: FC<MenuItemFormModalProps> = ({
                 value={form.name_km}
                 onChange={(e) => setForm({ ...form, name_km: e.target.value })}
                 placeholder={language === 'km' ? 'បញ្ចូលឈ្មោះមុខម្ហូបជាភាសាខ្មែរ' : 'Enter item name in Khmer'}
-                className="w-full px-4 py-2.5 sm:py-3 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm sm:text-base outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
+                className="w-full h-10 px-4 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors leading-normal"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-sm sm:text-base font-semibold text-zinc-800 dark:text-zinc-200 block">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block px-1">
                 {language === 'km' ? 'ប្រភេទ' : 'Category'} *
               </label>
               <select
                 value={form.category_id}
                 onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                className="w-full px-4 py-2.5 sm:py-3 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm sm:text-base outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
+                className="w-full h-10 px-4 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors leading-normal"
               >
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -162,8 +162,8 @@ export const MenuItemFormModal: FC<MenuItemFormModalProps> = ({
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-sm sm:text-base font-semibold text-zinc-800 dark:text-zinc-200 block">
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block px-1">
                 {language === 'km' ? 'តម្លៃ ($ USD)' : 'Price ($ USD)'} *
               </label>
               <input
@@ -174,13 +174,13 @@ export const MenuItemFormModal: FC<MenuItemFormModalProps> = ({
                 value={form.price_usd || ''}
                 onChange={(e) => setForm({ ...form, price_usd: parseFloat(e.target.value) || 0 })}
                 placeholder="0.00"
-                className="w-full px-4 py-2.5 sm:py-3 rounded-full border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm sm:text-base outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
+                className="w-full h-10 px-4 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors leading-normal"
               />
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm sm:text-base font-semibold text-zinc-800 dark:text-zinc-200 block">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block px-1">
               {language === 'km' ? 'ការពិពណ៌នា (EN)' : 'Description (EN)'}
             </label>
             <textarea
@@ -188,12 +188,12 @@ export const MenuItemFormModal: FC<MenuItemFormModalProps> = ({
               value={form.description_en}
               onChange={(e) => setForm({ ...form, description_en: e.target.value })}
               placeholder={language === 'km' ? 'បញ្ចូលការពិពណ៌នាមុខម្ហូបជាភាសាអង់គ្លេស...' : 'Enter item description in English...'}
-              className="w-full px-4 py-3 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm sm:text-base outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors resize-none"
+              className="w-full px-4 py-2.5 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors leading-relaxed resize-none"
             />
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm sm:text-base font-semibold text-zinc-800 dark:text-zinc-200 block">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block px-1">
               {language === 'km' ? 'ការពិពណ៌នា (KM)' : 'Description (KM)'}
             </label>
             <textarea
@@ -201,7 +201,7 @@ export const MenuItemFormModal: FC<MenuItemFormModalProps> = ({
               value={form.description_km}
               onChange={(e) => setForm({ ...form, description_km: e.target.value })}
               placeholder={language === 'km' ? 'បញ្ចូលការពិពណ៌នាមុខម្ហូបជាភាសាខ្មែរ...' : 'Enter item description in Khmer...'}
-              className="w-full px-4 py-3 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-sm sm:text-base outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors resize-none"
+              className="w-full px-4 py-2.5 rounded-2xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors leading-relaxed resize-none"
             />
           </div>
 
@@ -215,22 +215,22 @@ export const MenuItemFormModal: FC<MenuItemFormModalProps> = ({
             onChange={(modifier_groups) => setForm({ ...form, modifier_groups })}
           />
 
-          <div className="flex justify-end gap-2.5 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+          <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
             <Button
               type="button"
               variant="outline"
-              size="md"
+              size="sm"
               onClick={() => onClose()}
-              className="h-11 px-5 text-sm font-semibold rounded-2xl"
+              className="h-9 px-4 text-xs sm:text-sm font-medium rounded-2xl"
             >
               {language === 'km' ? 'បោះបង់' : 'Cancel'}
             </Button>
             <Button
               type="submit"
               variant="primary"
-              size="md"
+              size="sm"
               disabled={isSubmitting}
-              className="h-11 px-6 text-sm font-semibold rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="h-9 px-5 text-xs sm:text-sm font-medium rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

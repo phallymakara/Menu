@@ -2,6 +2,19 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import os from 'os'
+
+function getLocalIp(): string {
+  const nets = os.networkInterfaces()
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name] || []) {
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address
+      }
+    }
+  }
+  return 'localhost'
+}
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
@@ -11,6 +24,9 @@ export default defineConfig(({ mode }) => {
   const port = Number(env.PORT) || 3000
 
   return {
+    define: {
+      __DEV_LAN_IP__: JSON.stringify(getLocalIp()),
+    },
     plugins: [react()],
     test: {
       environment: 'jsdom',
@@ -23,6 +39,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      host: true,
       port,
       proxy: {
         '/api': {

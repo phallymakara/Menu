@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -119,7 +119,9 @@ async def _get_guest_table(
             token is not the table's current QR token.
     """
     res = await session.execute(
-        select(RestaurantTable).where(
+        select(RestaurantTable)
+        .options(selectinload(RestaurantTable.business))
+        .where(
             RestaurantTable.id == table_id,
             RestaurantTable.branch_id == branch_id,
         )
@@ -155,15 +157,24 @@ async def _open_or_join_session(
     """
     # Check for existing active or bill_requested session
     existing_sess = await session.execute(
-        select(TableSession).where(
+        select(TableSession)
+        .where(
             TableSession.table_id == table.id,
             TableSession.status.in_(
                 [TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]
             ),
         )
+        .order_by(TableSession.opened_at.desc())
     )
-    active_session = existing_sess.scalar_one_or_none()
-    if active_session is not None:
+    all_active = list(existing_sess.scalars().all())
+    if all_active:
+        active_session = all_active[0]
+        if len(all_active) > 1:
+            for extra in all_active[1:]:
+                extra.status = TableSessionStatus.COMPLETED
+                extra.closed_at = extra.opened_at
+            await session.commit()
+            await session.refresh(active_session)
         return active_session, False
 
     # Create new session
@@ -191,6 +202,25 @@ async def _open_or_join_session(
         table=table.table_number,
         opened_by_type=opened_by_type,
     )
+
+    from app.services.realtime_notify_service import broadcast_table_update
+    await broadcast_table_update(
+        branch_id=table.branch_id,
+        business_id=table.business_id,
+        table_id=table.id,
+        action="session_opened",
+        table_status="occupied",
+        table_number=table.table_number,
+    )
+    from app.core.ws_manager import ws_manager
+    await ws_manager.broadcast_to_rooms(
+        rooms=[f"branch:{table.branch_id}:pos", f"branch:{table.branch_id}:expo"],
+        event="table_status_changed",
+        data={"table_id": str(table.id), "status": "occupied"},
+        business_id=table.business_id,
+        branch_id=table.branch_id,
+    )
+
     return sess_obj, True
 
 
@@ -266,6 +296,73 @@ async def open_guest_table_session(
     return _map_session_to_response(sess_obj, table.table_number)
 
 
+async def leave_guest_table_session(
+    session: AsyncSession,
+    branch_id: UUID,
+    table_id: UUID,
+    qr_token: str,
+    session_id: UUID | None = None,
+) -> dict[str, str]:
+    """
+    Called when a guest leaves or closes the food menu view without ordering.
+    If the table has no active orders, clears open sessions and reverts table
+    status to available.
+    """
+    table = await _get_guest_table(session, branch_id, table_id, qr_token)
+
+    from app.models.order import Order
+    from app.models.enums import OrderStatus
+
+    order_count_res = await session.execute(
+        select(func.count(Order.id)).where(
+            Order.table_id == table_id,
+            Order.status != OrderStatus.CANCELLED,
+        )
+    )
+    order_count = order_count_res.scalar() or 0
+
+    if order_count == 0:
+        now_utc = datetime.now(timezone.utc)
+        active_sessions_res = await session.execute(
+            select(TableSession).where(
+                TableSession.table_id == table_id,
+                TableSession.status.in_([TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]),
+            )
+        )
+        for s in active_sessions_res.scalars().all():
+            s.status = TableSessionStatus.COMPLETED
+            s.closed_at = now_utc
+
+        table.status = TableStatus.AVAILABLE
+        await session.commit()
+
+        from app.services.realtime_notify_service import broadcast_table_update
+        await broadcast_table_update(
+            branch_id=branch_id,
+            business_id=table.business_id,
+            table_id=table_id,
+            action="status_updated",
+            table_status="available",
+            table_number=table.table_number,
+        )
+        from app.core.ws_manager import ws_manager
+        await ws_manager.broadcast_to_rooms(
+            rooms=[f"branch:{branch_id}:pos", f"branch:{branch_id}:expo"],
+            event="table_status_changed",
+            data={"table_id": str(table_id), "status": "available"},
+            business_id=table.business_id,
+            branch_id=branch_id,
+        )
+
+        logger.info(
+            "Guest left without ordering, table reverted to available",
+            table=table.table_number,
+            table_id=str(table_id),
+        )
+
+    return {"status": table.status, "table_id": str(table_id)}
+
+
 async def get_active_table_session(
     session: AsyncSession,
     business_id: UUID,
@@ -283,14 +380,16 @@ async def get_active_table_session(
     table = await _get_tenant_table(session, tenant, business_id, branch_id, table_id)
 
     sess_res = await session.execute(
-        select(TableSession).where(
+        select(TableSession)
+        .where(
             TableSession.table_id == table_id,
             TableSession.status.in_(
                 [TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]
             ),
         )
+        .order_by(TableSession.opened_at.desc())
     )
-    sess_obj = sess_res.scalar_one_or_none()
+    sess_obj = sess_res.scalars().first()
     if sess_obj is None:
         raise TenantNotFoundError("No active session found for this table.")
 
@@ -312,21 +411,25 @@ async def _request_bill_for_table(
         TenantNotFoundError: If the table has no active or bill_requested session.
     """
     sess_res = await session.execute(
-        select(TableSession).where(
+        select(TableSession)
+        .where(
             TableSession.table_id == table.id,
             TableSession.status == TableSessionStatus.ACTIVE,
         )
+        .order_by(TableSession.opened_at.desc())
     )
-    sess_obj = sess_res.scalar_one_or_none()
+    sess_obj = sess_res.scalars().first()
     if sess_obj is None:
         # Check if already in bill_requested
         bill_res = await session.execute(
-            select(TableSession).where(
+            select(TableSession)
+            .where(
                 TableSession.table_id == table.id,
                 TableSession.status == TableSessionStatus.BILL_REQUESTED,
             )
+            .order_by(TableSession.opened_at.desc())
         )
-        sess_obj = bill_res.scalar_one_or_none()
+        sess_obj = bill_res.scalars().first()
         if sess_obj is None:
             raise TenantNotFoundError("No active session found to request bill.")
         return sess_obj, False
@@ -429,14 +532,16 @@ async def close_table_session(
     table = await _get_tenant_table(session, tenant, business_id, branch_id, table_id)
 
     sess_res = await session.execute(
-        select(TableSession).where(
+        select(TableSession)
+        .where(
             TableSession.table_id == table_id,
             TableSession.status.in_(
                 [TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]
             ),
         )
+        .order_by(TableSession.opened_at.desc())
     )
-    sess_obj = sess_res.scalar_one_or_none()
+    sess_obj = sess_res.scalars().first()
     if sess_obj is None:
         raise TenantNotFoundError("No active session found to close.")
 
@@ -444,6 +549,22 @@ async def close_table_session(
     sess_obj.closed_at = datetime.now(timezone.utc)
     if payload.notes:
         sess_obj.notes = payload.notes
+
+    if str(payload.next_table_status) == TableStatus.AVAILABLE:
+        from app.models.order import Order
+        from app.models.enums import OrderStatus
+        from app.core.exceptions import ResourceConflictError
+
+        unpaid_res = await session.execute(
+            select(func.count(Order.id)).where(
+                Order.table_session_id == sess_obj.id,
+                Order.status != OrderStatus.CANCELLED,
+            )
+        )
+        if (unpaid_res.scalar() or 0) > 0:
+            raise ResourceConflictError(
+                "Cannot free table with unpaid orders. Please settle the bill via Cash or KHQR first."
+            )
 
     table.status = str(payload.next_table_status)
 

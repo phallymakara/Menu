@@ -1,10 +1,11 @@
 import { useState, type FC } from 'react'
-import { Plus, Trash2, Layers, Loader2 } from 'lucide-react'
+import { Plus, Trash2, Layers, Loader2, Pencil, Check } from 'lucide-react'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import {
   useItemVariants,
   useCreateItemVariant,
   useBatchCreateItemVariants,
+  useUpdateItemVariant,
   useDeleteItemVariant,
 } from '../../hooks/useItemVariantQueries'
 
@@ -27,6 +28,8 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
 
   const [isAdding, setIsAdding] = useState(false)
   const [draft, setDraft] = useState(EMPTY_VARIANT_DRAFT)
+  const [editingVariantId, setEditingVariantId] = useState<string | null>(null)
+  const [editDraft, setEditDraft] = useState(EMPTY_VARIANT_DRAFT)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const { data: variants = [], isLoading } = useItemVariants(businessId, itemId, {
@@ -35,6 +38,7 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
 
   const createVariantMutation = useCreateItemVariant(businessId, itemId)
   const batchCreateMutation = useBatchCreateItemVariants(businessId, itemId)
+  const updateVariantMutation = useUpdateItemVariant(businessId, itemId)
   const deleteVariantMutation = useDeleteItemVariant(businessId, itemId)
 
   if (!itemId) {
@@ -113,6 +117,56 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
     }
   }
 
+  const handleStartEdit = (v: (typeof variants)[0]) => {
+    setIsAdding(false)
+    setEditingVariantId(v.id)
+    setEditDraft({
+      variant_group: v.variant_group,
+      name_en: v.name_en,
+      name_km: v.name_km || '',
+      price_adjustment: Number(v.price_adjustment),
+      is_default: v.is_default,
+    })
+    setErrorMsg(null)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingVariantId(null)
+    setEditDraft(EMPTY_VARIANT_DRAFT)
+    setErrorMsg(null)
+  }
+
+  const handleSaveEdit = async (variantId: string) => {
+    const nameEn = editDraft.name_en.trim()
+    const nameKm = editDraft.name_km.trim()
+    if (!nameEn) {
+      setErrorMsg(isKm ? 'សូមបញ្ចូលឈ្មោះទំហំមុខម្ហូប' : 'Please enter variant name.')
+      return
+    }
+
+    setErrorMsg(null)
+    try {
+      await updateVariantMutation.mutateAsync({
+        variantId,
+        payload: {
+          variant_group: editDraft.variant_group || 'Size',
+          name_en: nameEn,
+          name_km: nameKm || undefined,
+          price_adjustment: editDraft.price_adjustment,
+          is_default: editDraft.is_default,
+        },
+      })
+      setEditingVariantId(null)
+      setEditDraft(EMPTY_VARIANT_DRAFT)
+    } catch {
+      setErrorMsg(
+        isKm
+          ? 'មិនអាចកែប្រែទំហំមុខម្ហូបបានទេ។ សូមព្យាយាមម្តងទៀត។'
+          : 'Could not update variant. Please try again.'
+      )
+    }
+  }
+
   const handleDeleteVariant = async (variantId: string) => {
     setErrorMsg(null)
     try {
@@ -129,6 +183,7 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
   const isSubmitting =
     createVariantMutation.isPending ||
     batchCreateMutation.isPending ||
+    updateVariantMutation.isPending ||
     deleteVariantMutation.isPending
 
   return (
@@ -161,6 +216,7 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
               type="button"
               onClick={() => {
                 setIsAdding(true)
+                setEditingVariantId(null)
                 setErrorMsg(null)
               }}
               className="px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-xl bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 flex items-center gap-1.5 transition-colors shrink-0"
@@ -183,45 +239,139 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
       {/* Existing Variants List */}
       {variants.length > 0 && (
         <div className="space-y-1.5">
-          {variants.map((v) => (
-            <div
-              key={v.id}
-              className="flex items-center justify-between py-2 px-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 transition-colors"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="font-semibold text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 truncate">
-                  {isKm && v.name_km ? v.name_km : v.name_en}
-                </span>
-                {v.name_km && v.name_en && (
-                  <span className="text-xs text-zinc-400 truncate">
-                    ({isKm ? v.name_en : v.name_km})
-                  </span>
-                )}
-                {v.is_default && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-semibold">
-                    {isKm ? 'លំនាំដើម' : 'Default'}
-                  </span>
-                )}
-              </div>
+          {variants.map((v) =>
+            editingVariantId === v.id ? (
+              <div
+                key={v.id}
+                className="p-3 rounded-2xl border border-emerald-500/50 bg-emerald-50/20 dark:bg-emerald-950/20 space-y-2.5"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 block mb-1">
+                      {isKm ? 'ឈ្មោះទំហំ (EN)' : 'Size Name (EN)'} *
+                    </label>
+                    <input
+                      type="text"
+                      value={editDraft.name_en}
+                      onChange={(e) => setEditDraft({ ...editDraft, name_en: e.target.value })}
+                      placeholder="e.g. Regular, Large"
+                      className="w-full px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                    />
+                  </div>
 
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="font-mono font-semibold text-xs sm:text-sm text-zinc-700 dark:text-zinc-300">
-                  {Number(v.price_adjustment) >= 0
-                    ? `+$${Number(v.price_adjustment).toFixed(2)}`
-                    : `-$${Math.abs(Number(v.price_adjustment)).toFixed(2)}`}
-                </span>
-                <button
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => handleDeleteVariant(v.id)}
-                  title={isKm ? 'លុបទំហំនេះ' : 'Delete Variant'}
-                  className="w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-red-600 dark:hover:text-red-400 rounded-md transition-colors disabled:opacity-50"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                  <div>
+                    <label className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 block mb-1">
+                      {isKm ? 'ឈ្មោះទំហំ (KM)' : 'Size Name (KM)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editDraft.name_km}
+                      onChange={(e) => setEditDraft({ ...editDraft, name_km: e.target.value })}
+                      placeholder="ឧទាហរណ៍ ធំ, កណ្តាល"
+                      className="w-full px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-semibold text-zinc-600 dark:text-zinc-400 block mb-1">
+                      {isKm ? 'តម្លៃបន្ថែម ($)' : 'Price Delta ($)'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={editDraft.price_adjustment}
+                      onChange={(e) =>
+                        setEditDraft({
+                          ...editDraft,
+                          price_adjustment: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      placeholder="0.00"
+                      className="w-full px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs font-mono outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-700 dark:text-zinc-300">
+                    <input
+                      type="checkbox"
+                      checked={editDraft.is_default}
+                      onChange={(e) => setEditDraft({ ...editDraft, is_default: e.target.checked })}
+                      className="rounded border-zinc-300 text-emerald-600 focus:ring-0"
+                    />
+                    <span>{isKm ? 'កំណត់ជាទំហំលំនាំដើម' : 'Set as default size'}</span>
+                  </label>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      className="px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-300 transition-colors"
+                    >
+                      {isKm ? 'បោះបង់' : 'Cancel'}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={() => handleSaveEdit(v.id)}
+                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-xs font-semibold text-white flex items-center gap-1 transition-colors"
+                    >
+                      {updateVariantMutation.isPending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Check className="w-3.5 h-3.5" />
+                      )}
+                      <span>{isKm ? 'រក្សាទុក' : 'Save'}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            ) : (
+              <div
+                key={v.id}
+                className="flex items-center justify-between py-2 px-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-semibold text-xs sm:text-sm text-zinc-900 dark:text-zinc-100 truncate">
+                    {isKm && v.name_km ? v.name_km : v.name_en}
+                  </span>
+                  {v.name_km && v.name_en && (
+                    <span className="text-xs text-zinc-400 truncate">
+                      ({isKm ? v.name_en : v.name_km})
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="font-mono font-semibold text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 mr-1.5">
+                    {Number(v.price_adjustment) >= 0
+                      ? `+$${Number(v.price_adjustment).toFixed(2)}`
+                      : `-$${Math.abs(Number(v.price_adjustment)).toFixed(2)}`}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => handleStartEdit(v)}
+                    title={isKm ? 'កែប្រែទំហំនេះ' : 'Edit Variant'}
+                    className="w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => handleDeleteVariant(v.id)}
+                    title={isKm ? 'លុបទំហំនេះ' : 'Delete Variant'}
+                    className="w-7 h-7 flex items-center justify-center text-zinc-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )
+          )}
         </div>
       )}
 
@@ -238,7 +388,7 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
                 value={draft.name_en}
                 onChange={(e) => setDraft({ ...draft, name_en: e.target.value })}
                 placeholder="e.g. Regular, Large"
-                className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                className="w-full px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
               />
             </div>
 
@@ -251,7 +401,7 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
                 value={draft.name_km}
                 onChange={(e) => setDraft({ ...draft, name_km: e.target.value })}
                 placeholder="ឧទាហរណ៍ ធំ, កណ្តាល"
-                className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                className="w-full px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
               />
             </div>
 
@@ -267,7 +417,7 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
                   setDraft({ ...draft, price_adjustment: parseFloat(e.target.value) || 0 })
                 }
                 placeholder="0.00"
-                className="w-full px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs font-mono outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
+                className="w-full px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 text-xs font-mono outline-none focus:border-zinc-900 dark:focus:border-zinc-100"
               />
             </div>
           </div>
@@ -291,7 +441,7 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
                   setDraft(EMPTY_VARIANT_DRAFT)
                   setErrorMsg(null)
                 }}
-                className="px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-300 transition-colors"
+                className="px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-300 transition-colors"
               >
                 {isKm ? 'បោះបង់' : 'Cancel'}
               </button>
@@ -300,7 +450,7 @@ export const ItemVariantsEditor: FC<ItemVariantsEditorProps> = ({ businessId, it
                 type="button"
                 disabled={isSubmitting}
                 onClick={handleSaveVariant}
-                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-xs font-semibold text-white flex items-center gap-1 transition-colors"
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-xs font-semibold text-white flex items-center gap-1 transition-colors"
               >
                 {isSubmitting ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />

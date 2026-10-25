@@ -367,12 +367,16 @@ async def _resolve_guest_ordering_context(
         raise TenantNotFoundError("Restaurant table not found at this branch.")
 
     active_session_res = await session.execute(
-        select(TableSession).where(
+        select(TableSession)
+        .where(
             TableSession.table_id == table_id,
-            TableSession.status == TableSessionStatus.ACTIVE,
+            TableSession.status.in_(
+                [TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]
+            ),
         )
+        .order_by(TableSession.opened_at.desc())
     )
-    table_session = active_session_res.scalar_one_or_none()
+    table_session = active_session_res.scalars().first()
 
     token_is_valid = _guest_token_matches(token, table.qr_code_token) or (
         table_session is not None
@@ -446,6 +450,8 @@ async def place_guest_order(
         session.add(table_session)
         table.status = TableStatus.OCCUPIED
         await session.flush()
+    else:
+        table.status = TableStatus.OCCUPIED
 
     # 3. Resolve Branch Financial Settings
     tax_pct, sc_pct, usd_to_khr = await _resolve_financial_settings(session, branch)
@@ -546,6 +552,16 @@ async def place_guest_order(
         branch_id=branch_id,
     )
 
+    from app.services.realtime_notify_service import broadcast_table_update
+    await broadcast_table_update(
+        branch_id=branch_id,
+        business_id=reloaded_order.business_id,
+        table_id=table_id,
+        action="status_updated",
+        table_status="occupied",
+        table_number=table.table_number,
+    )
+
     return reloaded_order
 
 
@@ -587,12 +603,16 @@ async def place_staff_order(
             )
 
         active_session_res = await session.execute(
-            select(TableSession).where(
+            select(TableSession)
+            .where(
                 TableSession.table_id == table_id,
-                TableSession.status == TableSessionStatus.ACTIVE,
+                TableSession.status.in_(
+                    [TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]
+                ),
             )
+            .order_by(TableSession.opened_at.desc())
         )
-        table_session = active_session_res.scalar_one_or_none()
+        table_session = active_session_res.scalars().first()
         if table_session is None:
             table_session = TableSession(
                 organization_id=branch.organization_id,
@@ -744,8 +764,9 @@ async def get_table_session_orders_summary(
                 [TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]
             ),
         )
+        .order_by(TableSession.opened_at.desc())
     )
-    table_session = session_res.scalar_one_or_none()
+    table_session = session_res.scalars().first()
     if table_session is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

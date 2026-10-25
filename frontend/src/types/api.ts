@@ -619,6 +619,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/tables/sessions/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guest leaves view of food without ordering
+         * @description Called when a guest leaves or closes the food menu view. If they have not placed
+         *     any orders, the table status is safely transitioned back to available.
+         */
+        post: operations["leave_public_table_session_endpoint_api_v1_public_tables_sessions_leave_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/tables/orders": {
         parameters: {
             query?: never;
@@ -704,6 +725,27 @@ export interface paths {
          *     when the session already has an open request of the same type.
          */
         post: operations["create_public_service_request_endpoint_api_v1_public_tables_service_requests_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/tables/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Guest retrieves public menu catalog for a table
+         * @description Public guest endpoint: retrieves active categories and menu items for the table.
+         *     Requires no staff login credentials; verified via table QR token.
+         */
+        get: operations["get_public_table_catalog_endpoint_api_v1_public_tables_catalog_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1823,90 +1865,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/businesses/{business_id}/inventory/items": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List master inventory items for a business
-         * @description Lists all organization-wide master inventory items.
-         */
-        get: operations["list_inventory_items_endpoint_api_v1_businesses__business_id__inventory_items_get"];
-        put?: never;
-        /**
-         * Create a new master inventory item
-         * @description Creates a new inventory item and seeds branch stock balances.
-         */
-        post: operations["create_inventory_item_endpoint_api_v1_businesses__business_id__inventory_items_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/inventory/branches/{branch_id}/stock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get real-time stock balances for a branch
-         * @description Retrieves all stock balances and low-stock indicators for a specific branch.
-         */
-        get: operations["get_branch_stock_endpoint_api_v1_businesses__business_id__inventory_branches__branch_id__stock_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/inventory/branches/{branch_id}/stock/adjust": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Adjust stock balance (audit, restock, spoilage/waste)
-         * @description Manually updates stock counts and logs an immutable audit event.
-         */
-        post: operations["adjust_branch_stock_endpoint_api_v1_businesses__business_id__inventory_branches__branch_id__stock_adjust_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/businesses/{business_id}/inventory/alerts/low-stock": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get low-stock item alerts across all branches
-         * @description Identifies items where branch quantity is at or below the reorder threshold.
-         */
-        get: operations["get_low_stock_alerts_endpoint_api_v1_businesses__business_id__inventory_alerts_low_stock_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/businesses/{business_id}/branches/{branch_id}/kitchen-stations": {
         parameters: {
             query?: never;
@@ -2149,6 +2107,46 @@ export interface paths {
          * @description Dynamically re-assigns an item to a different station screen.
          */
         post: operations["reroute_item_endpoint_api_v1_businesses__business_id__branches__branch_id__kds_items__order_item_id__reroute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/kds/orders/{order_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept pending order ticket from kitchen screen
+         * @description Accepts an order round and transitions items to cooking/preparing.
+         */
+        post: operations["accept_kds_order_endpoint_api_v1_businesses__business_id__branches__branch_id__kds_orders__order_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/businesses/{business_id}/branches/{branch_id}/kds/orders/{order_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject order ticket from kitchen screen with notification
+         * @description Rejects an order ticket, voids items, and alerts the customer.
+         */
+        post: operations["reject_kds_order_endpoint_api_v1_businesses__business_id__branches__branch_id__kds_orders__order_id__reject_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2762,6 +2760,26 @@ export interface paths {
          * @description Verify a 4-digit manager or owner PIN for sensitive POS authorization overrides.
          */
         post: operations["verify_staff_manager_pin_api_v1_organizations__org_id__members_verify_manager_pin_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/{org_id}/members/verify-pos-pin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Pos Staff Pin
+         * @description Securely verify a staff or cashier 4-digit PIN for POS access directly via backend database.
+         */
+        post: operations["verify_pos_staff_pin_api_v1_organizations__org_id__members_verify_pos_pin_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4684,75 +4702,6 @@ export interface components {
              */
             updated_at: string;
         };
-        /** BranchStockAdjustRequest */
-        BranchStockAdjustRequest: {
-            /**
-             * Inventory Item Id
-             * Format: uuid
-             */
-            inventory_item_id: string;
-            /**
-             * Quantity Change
-             * @description Positive to add stock, negative to reduce/waste stock
-             */
-            quantity_change: number | string;
-            /** @default stock_take_audit */
-            reason?: components["schemas"]["StockAdjustmentReason"];
-            /** Notes */
-            notes?: string | null;
-        };
-        /** BranchStockResponse */
-        BranchStockResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Branch Id
-             * Format: uuid
-             */
-            branch_id: string;
-            /** Branch Name */
-            branch_name?: string | null;
-            /**
-             * Inventory Item Id
-             * Format: uuid
-             */
-            inventory_item_id: string;
-            /** Item Name En */
-            item_name_en: string;
-            /** Item Name Km */
-            item_name_km?: string | null;
-            /** Sku */
-            sku?: string | null;
-            unit_of_measure: components["schemas"]["UnitOfMeasure"];
-            /** Quantity */
-            quantity: string;
-            /** Reorder Threshold */
-            reorder_threshold: string;
-            /** Ideal Stock Quantity */
-            ideal_stock_quantity: string;
-            /**
-             * Is Low Stock
-             * @default false
-             */
-            is_low_stock?: boolean;
-            /**
-             * Is Out Of Stock
-             * @default false
-             */
-            is_out_of_stock?: boolean;
-            /** Cost Per Unit Usd */
-            cost_per_unit_usd: string;
-            /** Total Stock Value Usd */
-            total_stock_value_usd: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
         /**
          * BranchTableLiveDashboardResponse
          * @description Live real-time table floor dashboard response.
@@ -5748,84 +5697,6 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
-        /** InventoryItemCreate */
-        InventoryItemCreate: {
-            /** Name En */
-            name_en: string;
-            /** Name Km */
-            name_km?: string | null;
-            /** Sku */
-            sku?: string | null;
-            /** @default piece */
-            unit_of_measure?: components["schemas"]["UnitOfMeasure"];
-            /**
-             * Cost Per Unit Usd
-             * @default 0.00
-             */
-            cost_per_unit_usd?: number | string;
-            /**
-             * Reorder Threshold
-             * @default 0.00
-             */
-            reorder_threshold?: number | string;
-            /**
-             * Ideal Stock Quantity
-             * @default 0.00
-             */
-            ideal_stock_quantity?: number | string;
-            /** Menu Item Id */
-            menu_item_id?: string | null;
-            /**
-             * Is Active
-             * @default true
-             */
-            is_active?: boolean;
-        };
-        /** InventoryItemResponse */
-        InventoryItemResponse: {
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /**
-             * Organization Id
-             * Format: uuid
-             */
-            organization_id: string;
-            /**
-             * Business Id
-             * Format: uuid
-             */
-            business_id: string;
-            /** Name En */
-            name_en: string;
-            /** Name Km */
-            name_km?: string | null;
-            /** Sku */
-            sku?: string | null;
-            unit_of_measure: components["schemas"]["UnitOfMeasure"];
-            /** Cost Per Unit Usd */
-            cost_per_unit_usd: string;
-            /** Reorder Threshold */
-            reorder_threshold: string;
-            /** Ideal Stock Quantity */
-            ideal_stock_quantity: string;
-            /** Menu Item Id */
-            menu_item_id?: string | null;
-            /** Is Active */
-            is_active: boolean;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-        };
         /**
          * InviteAccept
          * @description Schema for an invited staff member to accept an invite and set password.
@@ -6118,6 +5989,11 @@ export interface components {
              */
             urgency_level?: string;
         };
+        /** KDSTicketRejectRequest */
+        KDSTicketRejectRequest: {
+            /** Reason */
+            reason?: string | null;
+        };
         /** KDSTicketResponse */
         KDSTicketResponse: {
             /**
@@ -6128,6 +6004,8 @@ export interface components {
             /** Order Number */
             order_number: string;
             order_type: components["schemas"]["OrderType"];
+            /** @default pending */
+            order_status?: components["schemas"]["OrderStatus"];
             /** Round Number */
             round_number: number;
             /** Table Id */
@@ -6457,46 +6335,6 @@ export interface components {
             identifier: string;
             /** Password */
             password: string;
-        };
-        /** LowStockAlertItem */
-        LowStockAlertItem: {
-            /**
-             * Branch Id
-             * Format: uuid
-             */
-            branch_id: string;
-            /** Branch Name */
-            branch_name: string;
-            /** Branch Code */
-            branch_code: string;
-            /**
-             * Inventory Item Id
-             * Format: uuid
-             */
-            inventory_item_id: string;
-            /** Item Name En */
-            item_name_en: string;
-            /** Sku */
-            sku?: string | null;
-            unit_of_measure: components["schemas"]["UnitOfMeasure"];
-            /** Current Quantity */
-            current_quantity: string;
-            /** Reorder Threshold */
-            reorder_threshold: string;
-            /** Shortage Quantity */
-            shortage_quantity: string;
-        };
-        /** LowStockAlertResponse */
-        LowStockAlertResponse: {
-            /**
-             * Business Id
-             * Format: uuid
-             */
-            business_id: string;
-            /** Total Low Stock Items */
-            total_low_stock_items: number;
-            /** Alerts */
-            alerts?: components["schemas"]["LowStockAlertItem"][];
         };
         /**
          * ManagerPinVerifyRequest
@@ -8303,6 +8141,14 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+            /** Active Session Id */
+            active_session_id?: string | null;
+            /** Session Elapsed Minutes */
+            session_elapsed_minutes?: number | null;
+            /** Session Subtotal Usd */
+            session_subtotal_usd?: number | null;
+            /** Active Orders Count */
+            active_orders_count?: number | null;
         };
         /**
          * RestaurantTableStatusUpdate
@@ -8527,6 +8373,46 @@ export interface components {
             items: components["schemas"]["OrderItemCreate"][];
         };
         /**
+         * StaffPinVerifyRequest
+         * @description Request schema to verify staff/cashier POS/KDS PIN.
+         */
+        StaffPinVerifyRequest: {
+            /**
+             * Pin Code
+             * @description 4-6 digit numeric PIN
+             */
+            pin_code: string;
+            /**
+             * Branch Id
+             * @description Optional branch context
+             */
+            branch_id?: string | null;
+            /**
+             * Terminal Type
+             * @description Optional terminal filter: 'pos' or 'kds'
+             */
+            terminal_type?: string | null;
+        };
+        /**
+         * StaffPinVerifyResponse
+         * @description Response returned upon validating a staff PIN for POS terminal sign-in.
+         */
+        StaffPinVerifyResponse: {
+            /** Valid */
+            valid: boolean;
+            /** Member Id */
+            member_id?: string | null;
+            /** User Id */
+            user_id?: string | null;
+            /** Full Name */
+            full_name?: string | null;
+            /** Role */
+            role?: string | null;
+            /** Avatar Url */
+            avatar_url?: string | null;
+            pos_permissions?: components["schemas"]["StaffPosPermissions"] | null;
+        };
+        /**
          * StaffPosPermissions
          * @description Staff POS operational and order authority permissions.
          */
@@ -8595,11 +8481,6 @@ export interface components {
          * @enum {string}
          */
         StationType: "prep_station" | "expediter";
-        /**
-         * StockAdjustmentReason
-         * @enum {string}
-         */
-        StockAdjustmentReason: "restock" | "stock_take_audit" | "spoilage_waste" | "damaged" | "transfer_out" | "transfer_in" | "other" | "recipe_depletion" | "recipe_waste";
         /**
          * SubscriptionResponse
          * @description Response schema for an organization's subscription status and usage.
@@ -8773,6 +8654,8 @@ export interface components {
             currency?: string;
             /** Ordering Url */
             ordering_url: string;
+            /** Logo Url */
+            logo_url?: string | null;
         };
         /**
          * TableQRDetailResponse
@@ -9052,11 +8935,6 @@ export interface components {
             /** Items */
             items: components["schemas"]["TopSellingItemDetail"][];
         };
-        /**
-         * UnitOfMeasure
-         * @enum {string}
-         */
-        UnitOfMeasure: "kg" | "g" | "liter" | "ml" | "piece" | "can" | "bottle" | "pack";
         /**
          * UserStatus
          * @enum {string}
@@ -10169,6 +10047,46 @@ export interface operations {
             };
         };
     };
+    leave_public_table_session_endpoint_api_v1_public_tables_sessions_leave_post: {
+        parameters: {
+            query: {
+                /** @description Branch ID from scanned QR */
+                branch_id: string;
+                /** @description Table ID from scanned QR */
+                table_id: string;
+                /** @description Verification token from scanned QR */
+                token: string;
+                /** @description Optional active session ID */
+                session_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     place_public_guest_order_endpoint_api_v1_public_tables_orders_post: {
         parameters: {
             query: {
@@ -10335,6 +10253,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GuestServiceRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_table_catalog_endpoint_api_v1_public_tables_catalog_get: {
+        parameters: {
+            query: {
+                /** @description Branch ID from scanned QR */
+                branch_id: string;
+                /** @description Table ID from scanned QR */
+                table_id: string;
+                /** @description Verification token from scanned QR */
+                token: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -12678,183 +12634,6 @@ export interface operations {
             };
         };
     };
-    list_inventory_items_endpoint_api_v1_businesses__business_id__inventory_items_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InventoryItemResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_inventory_item_endpoint_api_v1_businesses__business_id__inventory_items_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InventoryItemCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InventoryItemResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_branch_stock_endpoint_api_v1_businesses__business_id__inventory_branches__branch_id__stock_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                branch_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BranchStockResponse"][];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    adjust_branch_stock_endpoint_api_v1_businesses__business_id__inventory_branches__branch_id__stock_adjust_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-                branch_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BranchStockAdjustRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BranchStockResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_low_stock_alerts_endpoint_api_v1_businesses__business_id__inventory_alerts_low_stock_get: {
-        parameters: {
-            query?: {
-                branch_id?: string | null;
-            };
-            header?: {
-                "X-Organization-Id"?: string | null;
-            };
-            path: {
-                business_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["LowStockAlertResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_kitchen_stations_endpoint_api_v1_businesses__business_id__branches__branch_id__kitchen_stations_get: {
         parameters: {
             query?: never;
@@ -13360,6 +13139,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["KDSTicketItemResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_kds_order_endpoint_api_v1_businesses__business_id__branches__branch_id__kds_orders__order_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                business_id: string;
+                branch_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KDSTicketResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_kds_order_endpoint_api_v1_businesses__business_id__branches__branch_id__kds_orders__order_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                business_id: string;
+                branch_id: string;
+                order_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["KDSTicketRejectRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KDSTicketResponse"];
                 };
             };
             /** @description Validation Error */
@@ -15017,6 +14870,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ManagerPinVerifyResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_pos_staff_pin_api_v1_organizations__org_id__members_verify_pos_pin_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Organization-Id"?: string | null;
+            };
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffPinVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffPinVerifyResponse"];
                 };
             };
             /** @description Validation Error */

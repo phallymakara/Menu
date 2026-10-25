@@ -111,6 +111,14 @@ async def create_category(
     )
     await session.commit()
 
+    from app.services.realtime_notify_service import broadcast_menu_update
+    await broadcast_menu_update(
+        session=session,
+        business_id=business_id,
+        action="category_created",
+        details={"category_id": str(category.id), "name_en": category.name_en},
+    )
+
     logger.info(
         "Category created successfully",
         category_id=str(category.id),
@@ -290,6 +298,14 @@ async def update_category(
     )
     await session.commit()
 
+    from app.services.realtime_notify_service import broadcast_menu_update
+    await broadcast_menu_update(
+        session=session,
+        business_id=business_id,
+        action="category_updated",
+        details={"category_id": str(category_id), "updated_fields": list(update_data.keys())},
+    )
+
     logger.info(
         "Category updated successfully",
         category_id=str(category_id),
@@ -322,6 +338,14 @@ async def delete_category(
     )
     await session.commit()
 
+    from app.services.realtime_notify_service import broadcast_menu_update
+    await broadcast_menu_update(
+        session=session,
+        business_id=business_id,
+        action="category_deleted",
+        details={"category_id": str(category_id)},
+    )
+
     logger.info(
         "Category deleted successfully",
         category_id=str(category_id),
@@ -353,6 +377,13 @@ async def reorder_categories(
             cat.display_order = item.display_order
 
     await session.commit()
+
+    from app.services.realtime_notify_service import broadcast_menu_update
+    await broadcast_menu_update(
+        session=session,
+        business_id=business_id,
+        action="category_reordered",
+    )
 
     # Return refreshed flat list
     return await list_categories(

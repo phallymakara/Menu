@@ -54,10 +54,10 @@ export function sessionRoundsQuery(
   businessId: string,
   branchId: string,
   tableId: string,
-  sessionId: string
+  sessionId?: string | null
 ) {
   return queryOptions({
-    queryKey: ['pos', 'rounds', businessId, branchId, sessionId],
+    queryKey: ['pos', 'rounds', businessId, branchId, tableId, sessionId ?? 'all'],
     queryFn: async () => {
       const orders = unwrap(
         await apiFetch.GET('/api/v1/businesses/{business_id}/branches/{branch_id}/orders', {

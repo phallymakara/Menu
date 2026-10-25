@@ -20,6 +20,7 @@ from app.schemas.kds import (
     ItemRerouteRequest,
     ItemStatusBumpRequest,
     KDSTicketItemResponse,
+    KDSTicketRejectRequest,
     KDSTicketResponse,
     StationMetricsResponse,
     StationTicketBumpRequest,
@@ -154,6 +155,7 @@ def _build_kds_ticket_response(
         order_id=order.id,
         order_number=order.order_number,
         order_type=order.order_type,
+        order_status=order.status,
         round_number=order.round_number,
         table_id=order.table_id,
         table_number=order.table.table_number if order.table else None,
@@ -389,6 +391,7 @@ async def bump_item_status(
             "status": item.status.value,
             "order_status": parent_order.status.value,
             "item_name_en": item.item_name_en,
+            "item_name_km": item.item_name_km,
             "station_id": (
                 str(item.kitchen_station_id) if item.kitchen_station_id else None
             ),
@@ -573,6 +576,7 @@ async def undo_item_status(
             "status": item.status.value,
             "order_status": parent_order.status.value,
             "item_name_en": item.item_name_en,
+            "item_name_km": item.item_name_km,
             "station_id": (
                 str(item.kitchen_station_id) if item.kitchen_station_id else None
             ),
@@ -853,3 +857,213 @@ async def reroute_item_station(
         new_station_code=station.code,
     )
     return response
+
+
+async def accept_kds_order(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+) -> KDSTicketResponse:
+    """
+    Accepts a pending customer order from KDS.
+    Transitions order to PREPARING and all pending items to COOKING / PREPARING.
+    Broadcasts real-time 'order.accepted' notification to the customer session and staff rooms.
+    """
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
+
+    order_res = await session.execute(
+        select(Order)
+        .options(
+            selectinload(Order.table),
+            selectinload(Order.table_session),
+            selectinload(Order.items).selectinload(OrderItem.modifiers),
+            selectinload(Order.items).selectinload(OrderItem.station),
+            selectinload(Order.items).selectinload(OrderItem.menu_item),
+        )
+        .where(
+            Order.id == order_id,
+            Order.business_id == business_id,
+            Order.branch_id == branch_id,
+        )
+    )
+    order = order_res.scalar_one_or_none()
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found.",
+        )
+
+    now_utc = datetime.now(timezone.utc)
+    order.status = OrderStatus.PREPARING
+
+    updated_items: list[OrderItem] = []
+    for item in order.items:
+        if item.status in (OrderItemStatus.PENDING, OrderItemStatus.CONFIRMED):
+            item.status = OrderItemStatus.COOKING
+            item.cooking_started_at = now_utc
+            updated_items.append(item)
+        elif item.status != OrderItemStatus.VOIDED:
+            updated_items.append(item)
+
+    response = _build_kds_ticket_response(order, updated_items)
+    await session.commit()
+
+    # Real-time WebSocket Broadcasts
+    notify_rooms = [
+        f"branch:{branch_id}:pos",
+        f"branch:{branch_id}:expo",
+    ]
+    for item in order.items:
+        if item.kitchen_station_id:
+            room = f"branch:{branch_id}:station:{item.kitchen_station_id}"
+            if room not in notify_rooms:
+                notify_rooms.append(room)
+
+    if order.table_session_id:
+        notify_rooms.append(f"session:{order.table_session_id}")
+
+    # Send specific order.accepted event with bilingual customer message
+    await ws_manager.broadcast_to_rooms(
+        rooms=notify_rooms,
+        event="order.accepted",
+        data={
+            "order_id": str(order.id),
+            "order_number": order.order_number,
+            "table_id": str(order.table_id) if order.table_id else None,
+            "table_number": order.table.table_number if order.table else None,
+            "status": OrderStatus.PREPARING.value,
+            "message_km": "ផ្ទះបាយបានទទួលការកុម្ម៉ង់របស់អ្នកហើយ! កំពុងចាប់ផ្តើមរៀបចំជូនលោកអ្នក...",
+            "message_en": "The kitchen has accepted your order! We are preparing your food...",
+        },
+        business_id=business_id,
+        branch_id=branch_id,
+    )
+
+    # Also broadcast order.item_bumped so KDS and POS boards refresh live
+    await ws_manager.broadcast_to_rooms(
+        rooms=notify_rooms,
+        event="order.item_bumped",
+        data={
+            "order_id": str(order.id),
+            "order_status": order.status.value,
+            "target_status": OrderItemStatus.COOKING.value,
+            "bumped_count": len(updated_items),
+        },
+        business_id=business_id,
+        branch_id=branch_id,
+    )
+
+    logger.info(
+        "KDS Order accepted",
+        order_id=str(order.id),
+        order_number=order.order_number,
+        table_number=order.table.table_number if order.table else None,
+    )
+    return response
+
+
+async def reject_kds_order(
+    session: AsyncSession,
+    tenant: TenantContext,
+    business_id: UUID,
+    branch_id: UUID,
+    order_id: UUID,
+    payload: KDSTicketRejectRequest | None = None,
+) -> KDSTicketResponse:
+    """
+    Rejects a customer order from KDS.
+    Cancels the order, voids active items, and sends real-time rejection notification to customer.
+    """
+    await _enforce_kds_branch_access(session, tenant, business_id, branch_id)
+
+    order_res = await session.execute(
+        select(Order)
+        .options(
+            selectinload(Order.table),
+            selectinload(Order.table_session),
+            selectinload(Order.items).selectinload(OrderItem.modifiers),
+            selectinload(Order.items).selectinload(OrderItem.station),
+            selectinload(Order.items).selectinload(OrderItem.menu_item),
+        )
+        .where(
+            Order.id == order_id,
+            Order.business_id == business_id,
+            Order.branch_id == branch_id,
+        )
+    )
+    order = order_res.scalar_one_or_none()
+    if order is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found.",
+        )
+
+    reject_reason = (
+        payload.reason
+        if payload and payload.reason
+        else "Kitchen rejected order"
+    )
+    order.status = OrderStatus.CANCELLED
+
+    for item in order.items:
+        if item.status != OrderItemStatus.SERVED:
+            item.status = OrderItemStatus.VOIDED
+            item.void_reason = reject_reason
+
+    response = _build_kds_ticket_response(order, order.items)
+    await session.commit()
+
+    # Real-time WebSocket Broadcasts
+    notify_rooms = [
+        f"branch:{branch_id}:pos",
+        f"branch:{branch_id}:expo",
+    ]
+    for item in order.items:
+        if item.kitchen_station_id:
+            room = f"branch:{branch_id}:station:{item.kitchen_station_id}"
+            if room not in notify_rooms:
+                notify_rooms.append(room)
+
+    if order.table_session_id:
+        notify_rooms.append(f"session:{order.table_session_id}")
+
+    # Send order.rejected notification back to customer session
+    await ws_manager.broadcast_to_rooms(
+        rooms=notify_rooms,
+        event="order.rejected",
+        data={
+            "order_id": str(order.id),
+            "order_number": order.order_number,
+            "table_id": str(order.table_id) if order.table_id else None,
+            "table_number": order.table.table_number if order.table else None,
+            "status": OrderStatus.CANCELLED.value,
+            "reason": reject_reason,
+            "message_km": "សូមអភ័យទោស ការកុម្ម៉ង់របស់អ្នកត្រូវបានបដិសេធពីផ្ទះបាយ។ សូមទាក់ទងបុគ្គលិក។",
+            "message_en": "Sorry, your order was rejected by the kitchen. Please contact our staff.",
+        },
+        business_id=business_id,
+        branch_id=branch_id,
+    )
+
+    # Also broadcast order_status_update for POS and KDS
+    await ws_manager.broadcast_to_rooms(
+        rooms=notify_rooms,
+        event="order_status_update",
+        data={
+            "order_id": str(order.id),
+            "status": OrderStatus.CANCELLED.value,
+        },
+        business_id=business_id,
+        branch_id=branch_id,
+    )
+
+    logger.info(
+        "KDS Order rejected",
+        order_id=str(order.id),
+        order_number=order.order_number,
+        reason=reject_reason,
+    )
+    return response
+

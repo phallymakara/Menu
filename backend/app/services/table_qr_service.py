@@ -370,4 +370,5 @@ async def verify_public_table(
         business_name_en=business.name_en if business else "",
         currency="USD",
         ordering_url=ordering_url,
+        logo_url=business.logo_url if business else None,
     )

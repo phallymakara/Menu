@@ -118,14 +118,14 @@ async def websocket_staff_endpoint(
             return
 
     # 3. Determine Room
-    if room_type == "expo":
+    if room_type in ["expo", "station", "kds"]:
         room = f"branch:{branch_id}:expo"
-    elif room_type == "station" and station_id:
-        room = f"branch:{branch_id}:station:{station_id}"
+        await ws_manager.connect(websocket, room)
+        if room_type == "station" and station_id:
+            ws_manager.register(websocket, f"branch:{branch_id}:station:{station_id}")
     else:
         room = f"branch:{branch_id}:pos"
-
-    await ws_manager.connect(websocket, room)
+        await ws_manager.connect(websocket, room)
     try:
         while True:
             # Keep connection open and handle optional client ping/pong messages
@@ -157,7 +157,9 @@ async def websocket_guest_endpoint(
             .where(
                 TableSession.id == table_session_id,
                 TableSession.session_token == session_token,
-                TableSession.status == TableSessionStatus.ACTIVE,
+                TableSession.status.in_(
+                    [TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]
+                ),
             )
         )
         res = await session.execute(stmt)
@@ -172,8 +174,12 @@ async def websocket_guest_endpoint(
             )
             return
 
+    branch_id = table_session.branch_id
     room = f"session:{table_session_id}"
+    branch_guest_room = f"branch:{branch_id}:guests"
+
     await ws_manager.connect(websocket, room)
+    ws_manager.register(websocket, branch_guest_room)
     try:
         while True:
             data = await websocket.receive_text()
@@ -181,6 +187,8 @@ async def websocket_guest_endpoint(
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, room)
+        ws_manager.disconnect(websocket, branch_guest_room)
     except Exception as exc:
         logger.warning("Guest WS connection error", error=str(exc), room=room)
         ws_manager.disconnect(websocket, room)
+        ws_manager.disconnect(websocket, branch_guest_room)

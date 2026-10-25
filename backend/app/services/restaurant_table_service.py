@@ -1,7 +1,8 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -9,7 +10,7 @@ from app.core.exceptions import ResourceConflictError, TenantNotFoundError
 from app.core.tenant import TenantContext
 from app.models.branch import Branch
 from app.models.dining_area import DiningArea
-from app.models.enums import TableShape, TableStatus
+from app.models.enums import OrderStatus, TableSessionStatus, TableShape, TableStatus
 from app.models.restaurant_table import RestaurantTable
 from app.schemas.restaurant_table import (
     RestaurantTableBatchCreate,
@@ -65,7 +66,13 @@ async def _verify_dining_area_access(
     return area
 
 
-def _map_table_to_response(table: RestaurantTable) -> RestaurantTableResponse:
+def _map_table_to_response(
+    table: RestaurantTable,
+    active_session_id: UUID | None = None,
+    session_elapsed_minutes: int | None = None,
+    session_subtotal_usd: float | None = None,
+    active_orders_count: int | None = None,
+) -> RestaurantTableResponse:
     """Helper to map RestaurantTable ORM model to response schema."""
     return RestaurantTableResponse(
         id=table.id,
@@ -86,6 +93,10 @@ def _map_table_to_response(table: RestaurantTable) -> RestaurantTableResponse:
         dining_area_name_km=table.dining_area.name_km if table.dining_area else None,
         created_at=table.created_at,
         updated_at=table.updated_at,
+        active_session_id=active_session_id,
+        session_elapsed_minutes=session_elapsed_minutes,
+        session_subtotal_usd=session_subtotal_usd,
+        active_orders_count=active_orders_count,
     )
 
 
@@ -138,6 +149,16 @@ async def create_table(
         details={"table_number": table.table_number, "branch_id": str(branch_id)},
     )
     await session.commit()
+
+    from app.services.realtime_notify_service import broadcast_table_update
+    await broadcast_table_update(
+        branch_id=branch_id,
+        business_id=business_id,
+        table_id=table.id,
+        action="table_created",
+        table_status=table.status,
+        table_number=table.table_number,
+    )
 
     logger.info("Table created", table_id=str(table.id), number=table.table_number)
     return await get_table(session, tenant, business_id, branch_id, table.id)
@@ -225,7 +246,10 @@ async def list_tables(
 
     query = (
         select(RestaurantTable)
-        .options(selectinload(RestaurantTable.dining_area))
+        .options(
+            selectinload(RestaurantTable.dining_area),
+            selectinload(RestaurantTable.sessions),
+        )
         .where(
             RestaurantTable.branch_id == branch_id,
             RestaurantTable.business_id == business_id,
@@ -245,7 +269,71 @@ async def list_tables(
     result = await session.execute(query)
     tables = result.scalars().all()
 
-    return [_map_table_to_response(t) for t in tables]
+    now_utc = datetime.now(timezone.utc)
+
+    # Batch query non-cancelled orders for this branch to calculate subtotal & count
+    from app.models.order import Order
+
+    order_res = await session.execute(
+        select(Order.table_id, Order.table_session_id, Order.subtotal_usd).where(
+            Order.branch_id == branch_id,
+            Order.organization_id == tenant.organization_id,
+            Order.status != OrderStatus.CANCELLED,
+        )
+    )
+    all_orders = order_res.all()
+
+    session_subtotals: dict[UUID, float] = {}
+    session_order_counts: dict[UUID, int] = {}
+    table_subtotals: dict[UUID, float] = {}
+    table_order_counts: dict[UUID, int] = {}
+
+    for row in all_orders:
+        t_id, s_id, subtotal = row[0], row[1], float(row[2] or 0.0)
+        if s_id:
+            session_subtotals[s_id] = session_subtotals.get(s_id, 0.0) + subtotal
+            session_order_counts[s_id] = session_order_counts.get(s_id, 0) + 1
+        if t_id:
+            table_subtotals[t_id] = table_subtotals.get(t_id, 0.0) + subtotal
+            table_order_counts[t_id] = table_order_counts.get(t_id, 0) + 1
+
+    responses: list[RestaurantTableResponse] = []
+    for t in tables:
+        active_sess = None
+        if t.status != TableStatus.AVAILABLE:
+            active_sess = next(
+                (
+                    s
+                    for s in t.sessions
+                    if s.status in [TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]
+                ),
+                None,
+            )
+        duration_mins = None
+        subtotal = 0.0
+        orders_count = 0
+
+        if active_sess:
+            opened = (
+                active_sess.opened_at
+                if active_sess.opened_at.tzinfo
+                else active_sess.opened_at.replace(tzinfo=timezone.utc)
+            )
+            duration_mins = max(0, int((now_utc - opened).total_seconds() // 60))
+            subtotal = session_subtotals.get(active_sess.id, 0.0)
+            orders_count = session_order_counts.get(active_sess.id, 0)
+
+        responses.append(
+            _map_table_to_response(
+                table=t,
+                active_session_id=active_sess.id if active_sess else None,
+                session_elapsed_minutes=duration_mins,
+                session_subtotal_usd=round(subtotal, 2) if subtotal > 0 else 0.0,
+                active_orders_count=orders_count,
+            )
+        )
+
+    return responses
 
 
 async def get_table(
@@ -260,7 +348,10 @@ async def get_table(
     """
     result = await session.execute(
         select(RestaurantTable)
-        .options(selectinload(RestaurantTable.dining_area))
+        .options(
+            selectinload(RestaurantTable.dining_area),
+            selectinload(RestaurantTable.sessions),
+        )
         .where(
             RestaurantTable.id == table_id,
             RestaurantTable.branch_id == branch_id,
@@ -271,7 +362,48 @@ async def get_table(
     table = result.scalar_one_or_none()
     if table is None:
         raise TenantNotFoundError("Table not found.")
-    return _map_table_to_response(table)
+
+    active_sess = None
+    if table.status != TableStatus.AVAILABLE:
+        active_sess = next(
+            (
+                s
+                for s in table.sessions
+                if s.status in [TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]
+            ),
+            None,
+        )
+    duration_mins = None
+    subtotal = 0.0
+    orders_count = 0
+    if active_sess:
+        now_utc = datetime.now(timezone.utc)
+        opened = (
+            active_sess.opened_at
+            if active_sess.opened_at.tzinfo
+            else active_sess.opened_at.replace(tzinfo=timezone.utc)
+        )
+        duration_mins = max(0, int((now_utc - opened).total_seconds() // 60))
+
+        from app.models.order import Order
+
+        order_res = await session.execute(
+            select(Order.subtotal_usd).where(
+                Order.table_session_id == active_sess.id,
+                Order.status != OrderStatus.CANCELLED,
+            )
+        )
+        for row in order_res.all():
+            subtotal += float(row[0] or 0.0)
+            orders_count += 1
+
+    return _map_table_to_response(
+        table,
+        active_session_id=active_sess.id if active_sess else None,
+        session_elapsed_minutes=duration_mins,
+        session_subtotal_usd=round(subtotal, 2) if subtotal > 0 else 0.0,
+        active_orders_count=orders_count,
+    )
 
 
 async def update_table(
@@ -320,6 +452,16 @@ async def update_table(
     )
     await session.commit()
 
+    from app.services.realtime_notify_service import broadcast_table_update
+    await broadcast_table_update(
+        branch_id=branch_id,
+        business_id=business_id,
+        table_id=table_id,
+        action="table_updated",
+        table_status=table.status,
+        table_number=table.table_number,
+    )
+
     logger.info("Table updated", table_id=str(table_id))
     return await get_table(session, tenant, business_id, branch_id, table_id)
 
@@ -350,6 +492,39 @@ async def update_table_status(
     old_status = table.status
     table.status = str(payload.status)
 
+    if str(payload.status) == TableStatus.AVAILABLE:
+        from app.models.table_session import TableSession
+        from app.models.order import Order
+
+        unpaid_orders_res = await session.execute(
+            select(func.count(Order.id)).where(
+                Order.table_id == table_id,
+                Order.status != OrderStatus.CANCELLED,
+                Order.table_session_id.in_(
+                    select(TableSession.id).where(
+                        TableSession.table_id == table_id,
+                        TableSession.status.in_([TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]),
+                    )
+                ),
+            )
+        )
+        unpaid_count = unpaid_orders_res.scalar() or 0
+        if unpaid_count > 0:
+            raise ResourceConflictError(
+                "Cannot free table with unpaid orders. Please settle the bill via Cash or KHQR first."
+            )
+
+        open_sessions_res = await session.execute(
+            select(TableSession).where(
+                TableSession.table_id == table_id,
+                TableSession.status.in_([TableSessionStatus.ACTIVE, TableSessionStatus.BILL_REQUESTED]),
+            )
+        )
+        now_utc = datetime.now(timezone.utc)
+        for s in open_sessions_res.scalars().all():
+            s.status = TableSessionStatus.COMPLETED
+            s.closed_at = now_utc
+
     await session.commit()
     await session.refresh(table)
 
@@ -363,6 +538,16 @@ async def update_table_status(
         details={"old_status": old_status, "new_status": table.status},
     )
     await session.commit()
+
+    from app.services.realtime_notify_service import broadcast_table_update
+    await broadcast_table_update(
+        branch_id=branch_id,
+        business_id=business_id,
+        table_id=table_id,
+        action="status_updated",
+        table_status=table.status,
+        table_number=table.table_number,
+    )
 
     logger.info(
         "Table status changed",
@@ -408,5 +593,15 @@ async def delete_table(
         details={"table_number": table.table_number},
     )
     await session.commit()
+
+    from app.services.realtime_notify_service import broadcast_table_update
+    await broadcast_table_update(
+        branch_id=branch_id,
+        business_id=business_id,
+        table_id=table_id,
+        action="table_deleted",
+        table_status="deleted",
+        table_number=table.table_number,
+    )
 
     logger.info("Table deleted", table_id=str(table_id), number=table.table_number)

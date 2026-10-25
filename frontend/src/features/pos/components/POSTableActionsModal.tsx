@@ -1,5 +1,5 @@
 import { useState, type FC } from 'react'
-import { Users, ArrowLeftRight, Layers, FileText, Loader2 } from 'lucide-react'
+import { Check, ArrowLeftRight, Layers, FileText, Loader2, AlertCircle } from 'lucide-react'
 import { Modal } from '@/components/ui/Modal'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { POSTable } from '../types/pos.types'
@@ -10,6 +10,7 @@ import {
   useTransferTable,
   useMergeTables,
   useUnmergeTables,
+  useUpdateTableStatus,
 } from '../hooks/usePOSQueries'
 
 export interface POSTableActionsModalProps {
@@ -34,7 +35,6 @@ export const POSTableActionsModal: FC<POSTableActionsModalProps> = ({
   const { language } = useLanguageStore()
   const isKm = language === 'km'
 
-  const [guestCount, setGuestCount] = useState<number>(2)
   const [targetTableId, setTargetTableId] = useState<string>('')
   const [mergeTargetIds, setMergeTargetIds] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState<'open' | 'transfer' | 'merge' | 'close'>('open')
@@ -46,24 +46,61 @@ export const POSTableActionsModal: FC<POSTableActionsModalProps> = ({
   const transferTableMutation = useTransferTable(businessId, branchId)
   const mergeTablesMutation = useMergeTables(businessId, branchId)
   const unmergeTablesMutation = useUnmergeTables(businessId, branchId)
+  const updateTableStatusMutation = useUpdateTableStatus(businessId, branchId)
 
   if (!table) return null
 
   const isAvailable = table.status.toLowerCase() === 'available'
   const isOccupiedOrBilling =
     table.status.toLowerCase() === 'occupied' || table.status.toLowerCase() === 'bill_requested'
+  const hasUnpaidOrders =
+    (table.active_orders_count !== undefined && table.active_orders_count > 0) ||
+    (table.session_subtotal_usd !== undefined && table.session_subtotal_usd > 0)
 
   // Other available tables for transfer or merge
   const availableTargetTables = allTables.filter(
     (t) => t.id !== table.id && t.status.toLowerCase() === 'available'
   )
 
+  const handleUpdateStatus = async (newStatus: 'available' | 'occupied') => {
+    setErrorMsg(null)
+    if (newStatus === 'available' && hasUnpaidOrders) {
+      setErrorMsg(
+        isKm
+          ? 'មិនអាចដោះលែងតុនេះបានទេ ដោយសារមានការកុម្ម៉ង់ដែលមិនទាន់ទូទាត់។ សូមទូទាត់ប្រាក់ជាមុនសិន (សាច់ប្រាក់ ឬ KHQR)។'
+          : 'Cannot free table with unpaid orders. Please settle payment by Cash or KHQR first.'
+      )
+      return
+    }
+    try {
+      if (newStatus === 'available') {
+        await updateTableStatusMutation.mutateAsync({ tableId: table.id, status: 'available' })
+      } else {
+        await updateTableStatusMutation.mutateAsync({ tableId: table.id, status: 'occupied' })
+        if (!table.session_id) {
+          await openSessionMutation
+            .mutateAsync({
+              tableId: table.id,
+              payload: { guest_count: 1 },
+            })
+            .catch(() => null)
+        }
+      }
+      onSuccessAction()
+      onClose()
+    } catch {
+      setErrorMsg(
+        isKm ? 'មិនអាចផ្លាស់ប្តូរស្ថានភាពតុបានទេ។' : 'Failed to update table status.'
+      )
+    }
+  }
+
   const handleOpenSession = async () => {
     setErrorMsg(null)
     try {
       await openSessionMutation.mutateAsync({
         tableId: table.id,
-        payload: { guest_count: guestCount },
+        payload: { guest_count: 1 },
       })
       onSuccessAction()
       onClose()
@@ -144,6 +181,14 @@ export const POSTableActionsModal: FC<POSTableActionsModalProps> = ({
   }
 
   const handleCloseSession = async () => {
+    if (hasUnpaidOrders) {
+      setErrorMsg(
+        isKm
+          ? 'មិនអាចបិទតុបានទេ ដោយសារមានការកុម្ម៉ង់ដែលមិនទាន់ទូទាត់។ សូមទូទាត់ប្រាក់ជាមុនសិន (សាច់ប្រាក់ ឬ KHQR)។'
+          : 'Cannot close table with unpaid orders. Please settle bill via Cash or KHQR first.'
+      )
+      return
+    }
     setErrorMsg(null)
     try {
       await closeSessionMutation.mutateAsync({
@@ -165,7 +210,8 @@ export const POSTableActionsModal: FC<POSTableActionsModalProps> = ({
     requestBillMutation.isPending ||
     transferTableMutation.isPending ||
     mergeTablesMutation.isPending ||
-    unmergeTablesMutation.isPending
+    unmergeTablesMutation.isPending ||
+    updateTableStatusMutation.isPending
 
   return (
     <Modal
@@ -175,28 +221,70 @@ export const POSTableActionsModal: FC<POSTableActionsModalProps> = ({
       size="sm"
     >
       <div className="space-y-4 pb-2">
-        {/* Available Table: Open / Seat Guests */}
+        {/* Quick Status Toggle: Available or In Use */}
+        <div className="space-y-2 pb-3 border-b border-zinc-100 dark:border-zinc-800">
+          <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider block">
+            {isKm ? 'ប្តូរស្ថានភាពតុ (Change Status)' : 'Table Status'}:
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={isSubmitting || isAvailable || hasUnpaidOrders}
+              title={
+                hasUnpaidOrders
+                  ? isKm
+                    ? 'មិនអាចដោះលែងតុដែលមានការកុម្ម៉ង់មិនទាន់ទូទាត់ប្រាក់ទេ។ សូមទូទាត់ប្រាក់ជាមុនសិន។'
+                    : 'Cannot free table with unpaid orders. Settle bill via Cash or KHQR first.'
+                  : undefined
+              }
+              onClick={() => handleUpdateStatus('available')}
+              className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition-all ${
+                hasUnpaidOrders
+                  ? 'opacity-40 cursor-not-allowed bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-400'
+                  : isAvailable
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 text-emerald-700 dark:text-emerald-400 ring-1 ring-emerald-500/20 cursor-default'
+                    : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-emerald-400 text-zinc-700 dark:text-zinc-300 cursor-pointer'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              <span>{isKm ? 'ទំនេរ (Available)' : 'Available'}</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isSubmitting || isOccupiedOrBilling}
+              onClick={() => handleUpdateStatus('occupied')}
+              className={`py-2 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 border transition-all ${
+                isOccupiedOrBilling
+                  ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-500 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/20 cursor-default'
+                  : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-blue-400 text-zinc-700 dark:text-zinc-300 cursor-pointer'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+              <span>{isKm ? 'កំពុងប្រើ (In Use)' : 'In Use'}</span>
+            </button>
+          </div>
+
+          {/* Unpaid Orders Warning Badge */}
+          {hasUnpaidOrders && (
+            <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-1.5 leading-snug">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+              <span>
+                {isKm
+                  ? 'តុនេះមានការកុម្ម៉ង់ដែលមិនទាន់ទូទាត់ប្រាក់។ មិនអាចដោះលែងតុបានទេរហូតទាល់តែទូទាត់ប្រាក់រួច (សាច់ប្រាក់ ឬ Bakong KHQR)។'
+                  : 'This table has unpaid orders. Settle bill via Cash or Bakong KHQR before freeing table.'}
+              </span>
+            </div>
+          )}
+        </div>
+        {/* Available Table: Open Table */}
         {isAvailable && (
           <div className="space-y-3">
-            <span className="text-xs font-semibold text-zinc-700 dark:text-zinc-300 block">
-              {isKm ? 'ចំនួនភ្ញៀវអង្គុយ' : 'Number of Guests'}:
-            </span>
-            <div className="flex items-center gap-2">
-              {[1, 2, 4, 6, 8, 10].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  onClick={() => setGuestCount(num)}
-                  className={`py-1.5 px-3 rounded-lg border text-xs font-semibold transition-colors ${
-                    guestCount === num
-                      ? 'border-zinc-950 dark:border-zinc-100 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900'
-                      : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300'
-                  }`}
-                >
-                  {num}
-                </button>
-              ))}
-            </div>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {isKm
+                ? 'ចុចខាងក្រោមដើម្បីបើកដំណើរការតុនេះសម្រាប់ការកុម្ម៉ង់។'
+                : 'Click below to open this table session for ordering.'}
+            </p>
 
             <button
               type="button"
@@ -207,9 +295,9 @@ export const POSTableActionsModal: FC<POSTableActionsModalProps> = ({
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Users className="w-4 h-4" />
+                <Check className="w-4 h-4" />
               )}
-              <span>{isKm ? 'បើកតុទទួលភ្ញៀវ' : 'Seat Guests & Open Table'}</span>
+              <span>{isKm ? 'បើកតុ' : 'Open Table'}</span>
             </button>
           </div>
         )}
@@ -281,7 +369,7 @@ export const POSTableActionsModal: FC<POSTableActionsModalProps> = ({
                     <option value="">{isKm ? '-- ជ្រើសរើសតុ --' : '-- Select Table --'}</option>
                     {availableTargetTables.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.table_number} ({t.dining_area_name || 'Main Area'} - {t.capacity} seats)
+                        {t.table_number}
                       </option>
                     ))}
                   </select>
@@ -333,7 +421,6 @@ export const POSTableActionsModal: FC<POSTableActionsModalProps> = ({
                           }`}
                         >
                           <div className="font-bold">{t.table_number}</div>
-                          <div className="text-[10px] text-zinc-400">{t.capacity} seats</div>
                         </button>
                       )
                     })}

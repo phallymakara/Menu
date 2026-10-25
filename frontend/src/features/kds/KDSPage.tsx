@@ -14,7 +14,7 @@ import { KDSRecallDrawer } from './components/KDSRecallDrawer'
 import { useKDSStore } from './stores/useKDSStore'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useWebSocket } from '@/lib/websocket'
-import { playChime } from '@/lib/audio'
+import { playKitchenOrderChime } from '@/lib/audio'
 import { useBusinesses, useBranches } from '@/features/admin/hooks/useTenantQueries'
 import { useStaffMembers, useVerifyStaffPin } from '@/features/admin/hooks/useStaffQueries'
 import { POSCashierPinScreen, type POSStaffMember } from '@/features/pos/components/POSCashierPinScreen'
@@ -26,6 +26,8 @@ import {
   useUndoItemStatus,
   useRerouteItem,
   useFireCourse,
+  useAcceptKDSOrder,
+  useRejectKDSOrder,
   useStationRecallTickets,
   useStationMetrics,
 } from './hooks/useKDSQueries'
@@ -209,6 +211,8 @@ export const KDSPage: FC = () => {
   const undoItemMutation = useUndoItemStatus(tenantBizId, tenantBranchId)
   const rerouteItemMutation = useRerouteItem(tenantBizId, tenantBranchId)
   const fireCourseMutation = useFireCourse(tenantBizId, tenantBranchId)
+  const acceptOrderMutation = useAcceptKDSOrder(tenantBizId, tenantBranchId)
+  const rejectOrderMutation = useRejectKDSOrder(tenantBizId, tenantBranchId)
 
   const activeStationId = selectedStationId !== 'expo' && selectedStationId ? selectedStationId : null
   const { data: stationMetrics } = useStationMetrics(tenantBizId, tenantBranchId, activeStationId)
@@ -252,6 +256,7 @@ export const KDSPage: FC = () => {
 
         if (
           evt === 'order.created' ||
+          evt === 'order.placed' ||
           evt === 'NEW_ORDER' ||
           evt === 'order.item_bumped' ||
           evt === 'order.course_fired' ||
@@ -261,9 +266,11 @@ export const KDSPage: FC = () => {
           evt === 'ITEM_STATUS_CHANGED' ||
           evt === 'TICKET_BUMPED'
         ) {
-          if ((evt === 'order.created' || evt === 'NEW_ORDER') && !isMuted) {
-            playChime(587.33, 880, 0.5)
+          if ((evt === 'order.created' || evt === 'order.placed' || evt === 'NEW_ORDER') && !isMuted) {
+            playKitchenOrderChime()
           }
+          queryClient.invalidateQueries({ queryKey: ['kds', 'tickets', tenantBizId, tenantBranchId] })
+        } else if (evt === 'menu.updated') {
           queryClient.invalidateQueries({ queryKey: ['kds', 'tickets', tenantBizId, tenantBranchId] })
         }
       } catch {
@@ -382,6 +389,18 @@ export const KDSPage: FC = () => {
     }
   }
 
+  const handleAcceptOrder = async (orderId: string) => {
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      await acceptOrderMutation.mutateAsync(orderId)
+    }
+  }
+
+  const handleRejectOrder = async (orderId: string, reason?: string) => {
+    if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
+      await rejectOrderMutation.mutateAsync({ orderId, reason })
+    }
+  }
+
   const handleTicketRecall = (ticket: KDSTicket) => {
     setRecalledTickets(recalledTickets.filter((t) => t.order_id !== ticket.order_id))
     queryClient.setQueryData(queryTicketsKey, (old: any) => {
@@ -451,9 +470,9 @@ export const KDSPage: FC = () => {
       />
 
       {/* 2. Main Stage: Ticket Grid Viewport */}
-      <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+      <main className="flex-1 p-4 sm:p-6 overflow-y-auto flex flex-col">
         {isLoading ? (
-          <div className="h-96 flex flex-col items-center justify-center">
+          <div className="flex-1 min-h-[calc(100vh-200px)] flex flex-col items-center justify-center">
             <EmenuLoader
               size="lg"
               message={language === 'km' ? 'កំពុងទាញយកសំបុត្រពីផ្ទះបាយ...' : 'Loading kitchen tickets...'}
@@ -461,7 +480,7 @@ export const KDSPage: FC = () => {
             />
           </div>
         ) : loadError ? (
-          <div className="h-96 flex flex-col items-center justify-center gap-3 text-center max-w-md mx-auto">
+          <div className="flex-1 min-h-[calc(100vh-200px)] flex flex-col items-center justify-center gap-3 text-center max-w-md mx-auto">
             <AlertCircle className="w-10 h-10 text-rose-500" />
             <p className="text-sm text-zinc-600 dark:text-zinc-300">{loadError}</p>
             <button
@@ -473,7 +492,7 @@ export const KDSPage: FC = () => {
             </button>
           </div>
         ) : filteredTickets.length === 0 ? (
-          <div className="h-96 flex flex-col items-center justify-center gap-2 text-center">
+          <div className="flex-1 min-h-[calc(100vh-200px)] flex flex-col items-center justify-center gap-2 text-center">
             <p className="text-base font-bold text-zinc-800 dark:text-zinc-200">
               {language === 'km' ? 'គ្មានការកុម្ម៉ង់សកម្មក្នុងផ្ទះបាយទេ' : 'No Active Kitchen Orders'}
             </p>
@@ -494,6 +513,8 @@ export const KDSPage: FC = () => {
                 onUndoItem={handleItemUndo}
                 onFireCourse={handleFireCourse}
                 onRerouteItem={handleRerouteItem}
+                onAcceptOrder={handleAcceptOrder}
+                onRejectOrder={handleRejectOrder}
                 stations={stations}
               />
             ))}

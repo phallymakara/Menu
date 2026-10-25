@@ -25,7 +25,9 @@ uv sync
 uv run alembic upgrade head
 
 # 4. Start development server
-uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uv run menu
+# Or customize host/port if needed:
+# uv run menu --host 0.0.0.0 --port 8000
 ```
 
 - **Swagger UI:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
