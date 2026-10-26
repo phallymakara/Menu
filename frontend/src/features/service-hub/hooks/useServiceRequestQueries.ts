@@ -102,14 +102,14 @@ export interface GuestTableSession {
   tableId: string | null
   sessionId: string | null
   sessionToken: string | null
+  qrToken?: string | null
 }
 
 function isGuestSessionReady(session: GuestTableSession): boolean {
   return (
     isUuid(session.branchId) &&
     isUuid(session.tableId) &&
-    !!session.sessionId &&
-    !!session.sessionToken
+    (!!session.sessionToken || !!session.qrToken)
   )
 }
 
@@ -120,15 +120,25 @@ function isGuestSessionReady(session: GuestTableSession): boolean {
  * token is rejected (the session was closed).
  */
 export function useGuestServiceRequests(session: GuestTableSession) {
-  const { branchId, tableId, sessionId, sessionToken } = session
+  const { branchId, tableId, sessionId, sessionToken, qrToken } = session
   return useQuery({
-    queryKey: serviceRequestKeys.guest(sessionId),
+    queryKey: serviceRequestKeys.guest(sessionId || qrToken),
     queryFn: async (): Promise<GuestServiceRequest[]> => {
-      if (!isUuid(branchId) || !isUuid(tableId) || !sessionToken) return []
+      if (!isUuid(branchId) || !isUuid(tableId) || (!sessionToken && !qrToken)) return []
+      const headers: Record<string, string> = {}
+      if (sessionToken) {
+        headers[TABLE_SESSION_TOKEN_HEADER] = sessionToken
+      }
       return unwrap(
         await apiFetch.GET('/api/v1/public/tables/service-requests', {
-          params: { query: { branch_id: branchId, table_id: tableId } },
-          headers: { [TABLE_SESSION_TOKEN_HEADER]: sessionToken },
+          params: {
+            query: {
+              branch_id: branchId,
+              table_id: tableId,
+              token: qrToken || undefined,
+            },
+          },
+          headers,
         })
       )
     },
@@ -143,21 +153,31 @@ export function useGuestServiceRequests(session: GuestTableSession) {
   })
 }
 
-/** Raises a request from the guest's table session. */
+/** Raises a request from the guest's table session or scanned QR. */
 export function useCreateGuestServiceRequest(session: GuestTableSession) {
   const queryClient = useQueryClient()
-  const { branchId, tableId, sessionId, sessionToken } = session
-  const queryKey = serviceRequestKeys.guest(sessionId)
+  const { branchId, tableId, sessionId, sessionToken, qrToken } = session
+  const queryKey = serviceRequestKeys.guest(sessionId || qrToken)
 
   return useMutation({
     mutationFn: async (body: GuestServiceRequestCreate): Promise<GuestServiceRequest> => {
-      if (!isUuid(branchId) || !isUuid(tableId) || !sessionToken) {
-        throw new Error('The table session is not ready yet')
+      if (!isUuid(branchId) || !isUuid(tableId) || (!sessionToken && !qrToken)) {
+        throw new Error('The table information is not ready yet')
+      }
+      const headers: Record<string, string> = {}
+      if (sessionToken) {
+        headers[TABLE_SESSION_TOKEN_HEADER] = sessionToken
       }
       return unwrap(
         await apiFetch.POST('/api/v1/public/tables/service-requests', {
-          params: { query: { branch_id: branchId, table_id: tableId } },
-          headers: { [TABLE_SESSION_TOKEN_HEADER]: sessionToken },
+          params: {
+            query: {
+              branch_id: branchId,
+              table_id: tableId,
+              token: qrToken || undefined,
+            },
+          },
+          headers,
           body,
         })
       )
@@ -171,3 +191,4 @@ export function useCreateGuestServiceRequest(session: GuestTableSession) {
     onSettled: () => queryClient.invalidateQueries({ queryKey }),
   })
 }
+

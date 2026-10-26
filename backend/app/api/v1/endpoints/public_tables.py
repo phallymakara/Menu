@@ -270,15 +270,16 @@ def _invalid_guest_session(exc: InvalidTokenError) -> HTTPException:
 async def create_public_service_request_endpoint(
     branch_id: Annotated[UUID, Query(description="Branch ID from scanned QR")],
     table_id: Annotated[UUID, Query(description="Table ID from scanned QR")],
-    session_token: TableSessionToken,
     payload: GuestServiceRequestCreate,
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    session_token: TableSessionToken = None,
+    token: Annotated[str | None, Query(description="Verification token from scanned QR")] = None,
 ) -> GuestServiceRequestResponse:
     """
-    Raises a service request from the guest's live table session.
+    Raises a service request from the guest's live table session or scanned QR.
 
-    Only an active or bill-requested session of this table can be used. Returns 409
-    when the session already has an open request of the same type.
+    Works whether the table is currently in use or free. Returns 409
+    when the table already has an open request of the same type.
     """
     try:
         return await create_guest_service_request(
@@ -287,6 +288,7 @@ async def create_public_service_request_endpoint(
             table_id=table_id,
             session_token=session_token,
             payload=payload,
+            qr_token=token,
         )
     except InvalidTokenError as exc:
         raise _invalid_guest_session(exc) from exc
@@ -306,8 +308,9 @@ async def create_public_service_request_endpoint(
 async def list_public_service_requests_endpoint(
     branch_id: Annotated[UUID, Query(description="Branch ID from scanned QR")],
     table_id: Annotated[UUID, Query(description="Table ID from scanned QR")],
-    session_token: TableSessionToken,
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    session_token: TableSessionToken = None,
+    token: Annotated[str | None, Query(description="Verification token from scanned QR")] = None,
 ) -> list[GuestServiceRequestResponse]:
     """Lists the requests raised during the guest's own table session, newest first."""
     try:
@@ -316,9 +319,11 @@ async def list_public_service_requests_endpoint(
             branch_id=branch_id,
             table_id=table_id,
             session_token=session_token,
+            qr_token=token,
         )
     except InvalidTokenError as exc:
         raise _invalid_guest_session(exc) from exc
+
 
 
 @router.get(

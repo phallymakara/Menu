@@ -94,8 +94,11 @@ export interface PlacedOrderRound {
   round_number: number
   placed_at: string
   round_subtotal_usd: number
+  status?: string | null
+  reject_reason?: string | null
   items: PlacedOrderItem[]
 }
+
 
 export interface TableContextInfo {
   table_id: string

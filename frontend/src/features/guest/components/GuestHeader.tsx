@@ -81,10 +81,12 @@ export const GuestHeader: FC<GuestHeaderProps> = ({
 
           <button
             onClick={onCallWaiter}
-            aria-label="Call Waiter"
-            className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors"
+            aria-label={language === 'km' ? 'ហៅបុគ្គលិក' : 'Call Staff'}
+            title={language === 'km' ? 'ហៅបុគ្គលិក / សេវាកម្ម' : 'Call Staff / Service'}
+            className="px-2.5 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700/80 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 text-amber-800 dark:text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs active:scale-95 cursor-pointer"
           >
-            <BellRing className="w-4 h-4 text-zinc-500" />
+            <BellRing className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            <span className="hidden xs:inline">{language === 'km' ? 'ហៅបុគ្គលិក' : 'Call Staff'}</span>
           </button>
 
           <LanguageSwitcher />

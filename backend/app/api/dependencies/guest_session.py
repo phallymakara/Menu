@@ -12,11 +12,13 @@ TABLE_SESSION_TOKEN_HEADER = "X-Table-Session-Token"
 table_session_token_scheme = APIKeyHeader(
     name=TABLE_SESSION_TOKEN_HEADER,
     scheme_name="TableSessionToken",
+    auto_error=False,
     description=(
         "Session token returned when the guest's table session was opened "
         "(``session_token`` in the open-session response)."
     ),
 )
 
-TableSessionToken = Annotated[str, Security(table_session_token_scheme)]
-"""The raw session token sent by the guest; a missing header is rejected with 401."""
+TableSessionToken = Annotated[str | None, Security(table_session_token_scheme)]
+"""The raw session token sent by the guest, or None if not provided."""
+

@@ -22,6 +22,7 @@ interface GuestSessionState {
   setOrderRounds: (rounds: PlacedOrderRound[]) => void
   addOrderRound: (round: PlacedOrderRound) => void
   updateItemStatus: (itemId: string, status: OrderItemStatus) => void
+  updateRoundStatus: (roundId: string, status: string, reason?: string) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   resetSession: () => void
@@ -72,6 +73,21 @@ export const useGuestSessionStore = create<GuestSessionState>((set) => ({
       })),
     }))
   },
+
+  updateRoundStatus: (roundId, status, reason) => {
+    set((state) => ({
+      orderRounds: state.orderRounds.map((round) =>
+        round.id === roundId
+          ? {
+              ...round,
+              status,
+              ...(reason !== undefined ? { reject_reason: reason } : {}),
+            }
+          : round
+      ),
+    }))
+  },
+
 
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error }),

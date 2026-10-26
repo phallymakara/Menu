@@ -33,6 +33,7 @@ export interface KDSTicketItemModifier {
   name_en: string
   name_km?: string | null
   quantity: number
+  price?: number
 }
 
 export interface KDSTicketItem {
@@ -50,6 +51,9 @@ export interface KDSTicketItem {
   kitchen_station_id?: string | null
   station_name?: string | null
   station_code?: string | null
+  image_url?: string | null
+  unit_price?: number | null
+  subtotal_usd?: number | null
   modifiers: KDSTicketItemModifier[]
   fired_at?: string | null
   cooking_started_at?: string | null
@@ -72,14 +76,18 @@ export interface KDSTicket {
   table_session_id?: string | null
   session_code?: string | null
   guest_notes?: string | null
+  subtotal_usd?: number | null
+  total_usd?: number | null
   created_at: string
   elapsed_minutes: number
   max_target_prep_minutes: number
   is_ticket_overdue: boolean
   ticket_urgency: UrgencyLevel
   has_held_items: boolean
+  order_source?: string | null
   items: KDSTicketItem[]
 }
+
 
 export interface StationMetrics {
   station_id: string

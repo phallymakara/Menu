@@ -10,13 +10,20 @@ import {
   MessageSquareQuote,
   Utensils,
   XCircle,
+  ShoppingBag,
+  X,
 } from 'lucide-react'
+
+import { Modal } from '@/components/ui/Modal'
+import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay'
 import { KDSTicket, KDSTicketItem, OrderItemStatus } from '../types/kds.types'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { playSuccessSound } from '@/lib/audio'
 
+
 export interface KDSTicketCardProps {
   ticket: KDSTicket
+  index?: number
   onBumpItem: (orderItemId: string, targetStatus: OrderItemStatus) => Promise<void>
   onBumpTicket: (orderId: string) => Promise<void>
   onUndoItem?: (orderItemId: string) => Promise<void>
@@ -29,6 +36,7 @@ export interface KDSTicketCardProps {
 
 export const KDSTicketCard: FC<KDSTicketCardProps> = ({
   ticket,
+  index = 0,
   onBumpItem,
   onBumpTicket,
   onUndoItem,
@@ -49,7 +57,24 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
   const [isBumpingTicket, setIsBumpingTicket] = useState(false)
   const [isAccepting, setIsAccepting] = useState(false)
   const [isRejecting, setIsRejecting] = useState(false)
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false)
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false)
+  const [selectedReason, setSelectedReason] = useState<string>('Out of ingredients')
+  const [customReason, setCustomReason] = useState('')
   const [inlineError, setInlineError] = useState<string | null>(null)
+
+
+  const isGuestOrder =
+    ticket.order_source === 'guest_qr' ||
+    Boolean(ticket.order_source && ticket.order_source.toLowerCase().includes('guest'))
+
+  const isPendingOrder =
+    ticket.order_status?.toLowerCase() === 'pending' ||
+    (ticket.items.length > 0 &&
+      ticket.items.every((i) => {
+        const st = i.status.toLowerCase()
+        return st === 'pending' || st === 'held' || st === 'queued'
+      }))
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -58,6 +83,17 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
     }, 1000)
     return () => clearInterval(timer)
   }, [ticket.created_at])
+
+  useEffect(() => {
+    if (!isReviewModalOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsReviewModalOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isReviewModalOpen])
 
   // Format Elapsed Time MM:SS
   const formatTimer = (totalSecs: number) => {
@@ -83,6 +119,15 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
 
   // Item bump handler
   const handleItemClick = async (item: KDSTicketItem) => {
+    if (isPendingOrder) {
+      setInlineError(
+        language === 'km'
+          ? 'សូមចុច "ទទួលយក (Accept)" ឬ "បដិសេធ (Reject)" ការកុម្ម៉ង់ជាមុនសិន'
+          : 'Please accept or reject this order ticket first.'
+      )
+      return
+    }
+
     setInlineError(null)
     setBumpingItemId(item.id)
 
@@ -127,14 +172,6 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
     }
   }
 
-  const isPendingOrder =
-    ticket.order_status?.toLowerCase() === 'pending' ||
-    (ticket.items.length > 0 &&
-      ticket.items.every((i) => {
-        const st = i.status.toLowerCase()
-        return st === 'pending' || st === 'held' || st === 'queued'
-      }))
-
   const handleAcceptOrder = async () => {
     if (!onAcceptOrder) return
     setIsAccepting(true)
@@ -149,12 +186,14 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
     }
   }
 
-  const handleRejectOrder = async () => {
+  const handleRejectOrderConfirm = async () => {
     if (!onRejectOrder) return
+    const finalReason = selectedReason === 'other' ? (customReason.trim() || 'Kitchen rejected order') : selectedReason
     setIsRejecting(true)
+    setIsRejectModalOpen(false)
     setInlineError(null)
     try {
-      await onRejectOrder(ticket.order_id)
+      await onRejectOrder(ticket.order_id, finalReason)
     } catch {
       setInlineError(language === 'km' ? 'មិនអាចបដិសេធការកុម្ម៉ង់បានទេ' : 'Failed to reject order.')
     } finally {
@@ -170,7 +209,435 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
 
   const allItemsReady = totalItemsCount > 0 && readyItemsCount === totalItemsCount
 
-  // Docket container styling based on urgency & completion
+  // 3-color status tier for incoming orders:
+  // - First incoming (< 15 mins): GREEN
+  // - Longer than 15 mins (15 - 25 mins): YELLOW
+  // - Longer than 25 mins (> 25 mins): RED
+  const incomingTier: 'green' | 'yellow' | 'red' =
+    elapsedMins < 15 ? 'green' : elapsedMins < 25 ? 'yellow' : 'red'
+
+  const tierStyles = {
+    green: {
+      card: 'border-emerald-500/80 dark:border-emerald-500 shadow-md shadow-emerald-500/10 ring-1 ring-emerald-500/20',
+      strip: 'bg-emerald-500',
+      filledContainer:
+        'bg-emerald-600 hover:bg-emerald-700 text-white border-2 border-emerald-400/80 shadow-lg shadow-emerald-600/25 ring-2 ring-emerald-400/20',
+      banner: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-900 dark:text-emerald-200',
+      bannerBadge: 'bg-emerald-600 text-white',
+      bannerDotPing: 'bg-emerald-400',
+      bannerDot: 'bg-emerald-500',
+      timerBadge:
+        'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 font-bold',
+      progress: 'bg-emerald-500',
+    },
+    yellow: {
+      card: 'border-amber-400 dark:border-amber-500 shadow-md shadow-amber-500/10 ring-1 ring-amber-400/20',
+      strip: 'bg-amber-400',
+      filledContainer:
+        'bg-amber-400 hover:bg-amber-500 text-amber-950 border-2 border-amber-300 shadow-lg shadow-amber-400/25 ring-2 ring-amber-300/30',
+      banner: 'bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200',
+      bannerBadge: 'bg-amber-500 text-white',
+      bannerDotPing: 'bg-amber-400',
+      bannerDot: 'bg-amber-500',
+      timerBadge:
+        'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700 font-bold',
+      progress: 'bg-amber-500',
+    },
+    red: {
+      card: 'border-rose-500 dark:border-rose-600 shadow-lg shadow-rose-500/20 ring-2 ring-rose-500/30',
+      strip: 'bg-rose-500',
+      filledContainer:
+        'bg-rose-600 hover:bg-rose-700 text-white border-2 border-rose-400/80 shadow-lg shadow-rose-600/30 ring-2 ring-rose-400/30',
+      banner: 'bg-rose-500/15 border-rose-500/35 text-rose-900 dark:text-rose-200',
+      bannerBadge: 'bg-rose-600 text-white font-extrabold',
+      bannerDotPing: 'bg-rose-400',
+      bannerDot: 'bg-rose-500',
+      timerBadge:
+        'bg-rose-500 text-white font-extrabold shadow-xs border border-rose-600',
+      progress: 'bg-rose-500',
+    },
+  }[incomingTier]
+
+  const orderNotes = ticket.guest_notes || (ticket as any).notes || ''
+
+  // Right-Side Slide-Over Drawer (Styled matching POSOrderDrawer)
+  const renderReviewDrawer = () => {
+    if (!isReviewModalOpen) return null
+
+    return (
+      <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
+        {/* Backdrop */}
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in"
+          onClick={() => setIsReviewModalOpen(false)}
+          aria-hidden="true"
+        />
+
+        <div className="fixed inset-y-0 right-0 flex items-center justify-end p-4 sm:p-6">
+          {/* POSOrderDrawer-style panel */}
+          <div className="w-full max-w-3xl sm:max-w-4xl rounded-[22px] sm:rounded-[24px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 h-[calc(100vh-24px)] max-h-[900px] flex flex-col justify-between shadow-2xl animate-in slide-in-from-right duration-300">
+
+            {/* 1. Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-base text-zinc-950 dark:text-zinc-50">
+                  {ticket.table_number || (language === 'km' ? 'យកទៅផ្ទះ' : 'Takeaway')}
+                </h3>
+                <span className="font-mono text-xs font-bold text-zinc-500 dark:text-zinc-400">
+                  #{ticket.order_number.slice(-4)}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className={`px-2 py-0.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1 shadow-xs ${tierStyles.timerBadge}`}>
+                  <Clock className="w-3 h-3" />
+                  <span>{formatTimer(elapsedSecs)}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsReviewModalOpen(false)}
+                  className="p-1.5 rounded-lg text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Scrollable Body */}
+            <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1 overscroll-contain">
+              {/* Guest Notes */}
+              {orderNotes && orderNotes.trim() && (
+                <div className="p-3.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 space-y-1 shadow-2xs">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 dark:text-amber-300">
+                    <MessageSquareQuote className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                    <span>{language === 'km' ? 'ចំណាំរបស់ភ្ញៀវ' : 'Guest Notes'}</span>
+                  </div>
+                  <p className="text-xs text-amber-900 dark:text-amber-200 font-medium pl-5.5">
+                    {orderNotes}
+                  </p>
+                </div>
+              )}
+
+              {/* Items List */}
+              {totalItemsCount === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center py-10 text-center text-xs text-zinc-400 space-y-2">
+                  <ShoppingBag className="w-8 h-8 mx-auto text-zinc-300 dark:text-zinc-700 opacity-40" />
+                  <p className="font-medium text-zinc-400 dark:text-zinc-500">
+                    {language === 'km' ? '0 មុខម្ហូបក្នុងកន្ត្រក' : '0 items in cart'}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
+                  {ticket.items.map((item, idx) => {
+                    const displayName =
+                      language === 'km'
+                        ? (item as any).item_name_km || (item as any).name_km || (item as any).item_name_en || (item as any).name_en
+                        : (item as any).item_name_en || (item as any).name_en || (item as any).item_name_km || (item as any).name_km
+                    const variantName =
+                      language === 'km'
+                        ? (item as any).variant_name_km || (item as any).variant_name_en
+                        : (item as any).variant_name_en || (item as any).variant_name_km
+                    const itemPrice =
+                      (item as any).subtotal_usd ??
+                      (item as any).subtotal_price ??
+                      ((item as any).unit_price ? (item as any).unit_price * item.quantity : undefined)
+                    const modifiersSummary =
+                      item.modifiers && item.modifiers.length > 0
+                        ? item.modifiers
+                            .map((m: any) => (language === 'km' && m.name_km ? m.name_km : m.name_en))
+                            .join(', ')
+                        : null
+
+                    return (
+                      <div
+                        key={item.id || idx}
+                        className="py-2 flex items-start justify-between gap-3 border-b border-zinc-100 dark:border-zinc-800/60 last:border-b-0"
+                      >
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                            <span className="font-mono text-zinc-500 dark:text-zinc-400 shrink-0">
+                              {item.quantity}x
+                            </span>
+                            <span className="truncate">{displayName}</span>
+                          </div>
+
+                          {variantName && (
+                            <span className="text-[11px] text-zinc-500 block">({variantName})</span>
+                          )}
+
+                          {modifiersSummary && (
+                            <span className="text-[11px] text-zinc-500 dark:text-zinc-400 block leading-relaxed">
+                              + {modifiersSummary}
+                            </span>
+                          )}
+
+                          {item.special_instructions && (
+                            <span className="text-[11px] text-amber-600 dark:text-amber-400 italic block">
+                              * {item.special_instructions}
+                            </span>
+                          )}
+                        </div>
+
+                        {itemPrice !== undefined && itemPrice !== null && (
+                          <div className="shrink-0 text-right">
+                            <CurrencyDisplay amountUSD={itemPrice} className="font-bold text-xs" />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Footer: Financial summary + Action buttons */}
+            <div className="shrink-0 pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
+              {/* Financial breakdown */}
+              {ticket.subtotal_usd !== undefined && ticket.subtotal_usd !== null && (
+                <div className="space-y-1.5 text-xs">
+                  <div className="flex justify-between text-zinc-500">
+                    <span>{language === 'km' ? 'សរុបបឋម' : 'Subtotal'}:</span>
+                    <CurrencyDisplay amountUSD={ticket.subtotal_usd} />
+                  </div>
+                  {ticket.total_usd !== undefined && ticket.total_usd !== null && (
+                    <div className="flex justify-between font-bold text-sm text-zinc-950 dark:text-zinc-50 pt-1 border-t border-zinc-200 dark:border-zinc-800">
+                      <span>{language === 'km' ? 'សរុប' : 'Total'}:</span>
+                      <CurrencyDisplay amountUSD={ticket.total_usd} className="font-bold text-base" />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {inlineError && (
+                <p className="text-[11px] text-red-500 font-medium text-center">{inlineError}</p>
+              )}
+
+              {/* Accept / Reject buttons */}
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  {onRejectOrder && (
+                    <button
+                      type="button"
+                      onClick={() => setIsRejectModalOpen(true)}
+                      disabled={isRejecting || isAccepting}
+                      className="py-2.5 px-3 rounded-xl text-xs font-bold border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <XCircle className="w-4 h-4 text-red-500" />
+                      <span>{language === 'km' ? 'បដិសេធ' : 'Reject'}</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleAcceptOrder()
+                      setIsReviewModalOpen(false)
+                    }}
+                    disabled={isAccepting || isRejecting}
+                    className="py-2.5 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-md"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>
+                      {isAccepting
+                        ? language === 'km' ? 'កំពុងទទួល...' : 'Accepting...'
+                        : language === 'km' ? 'ទទួលយក' : 'Accept'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderRejectModal = () => (
+    <Modal
+      isOpen={isRejectModalOpen}
+      onClose={() => setIsRejectModalOpen(false)}
+      title={language === 'km' ? 'បដិសេធការកុម្ម៉ង់ (Reject Order)' : 'Reject Customer Order'}
+      description={
+        language === 'km'
+          ? `ជ្រើសរើសមូលហេតុនៃការបដិសេធការកុម្ម៉ង់សម្រាប់ ${
+              ticket.table_number
+                ? `តុ ${ticket.table_number}`
+                : `Order #${ticket.order_number.slice(-4)}`
+            }។ ការជូនដំណឹងនឹងត្រូវផ្ញើទៅភ្ញៀវភ្លាមៗ។`
+          : `Select a reason for rejecting order for ${
+              ticket.table_number
+                ? `Table ${ticket.table_number}`
+                : `Order #${ticket.order_number.slice(-4)}`
+            }. A real-time notification will be sent to the customer.`
+      }
+      size="sm"
+    >
+      <div className="space-y-4 pt-2">
+        <div className="space-y-2">
+          {[
+            {
+              id: 'ingredients',
+              label_km: 'អស់គ្រឿងផ្សំ (Out of ingredients)',
+              label_en: 'Out of ingredients',
+              value: 'Out of ingredients',
+            },
+            {
+              id: 'capacity',
+              label_km: 'ផ្ទះបាយរវល់ខ្លាំង / លើសចំណុះ (Kitchen busy)',
+              label_en: 'Kitchen at capacity',
+              value: 'Kitchen at capacity',
+            },
+            {
+              id: 'unavailable',
+              label_km: 'មុខម្ហូបមិនមាន / បិទលក់ (Item unavailable)',
+              label_en: 'Item unavailable',
+              value: 'Item unavailable',
+            },
+            {
+              id: 'other',
+              label_km: 'ផ្សេងៗ (Other reason)',
+              label_en: 'Other reason',
+              value: 'other',
+            },
+          ].map((r) => (
+            <label
+              key={r.id}
+              className={`flex items-center gap-3 p-3 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                selectedReason === r.value
+                  ? 'border-red-500 bg-red-50/50 dark:bg-red-950/30 text-red-700 dark:text-red-300 ring-1 ring-red-500/20'
+                  : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 text-zinc-700 dark:text-zinc-300'
+              }`}
+            >
+              <input
+                type="radio"
+                name={`reject-reason-${ticket.order_id}`}
+                value={r.value}
+                checked={selectedReason === r.value}
+                onChange={() => setSelectedReason(r.value)}
+                className="accent-red-600"
+              />
+              <span>{language === 'km' ? r.label_km : r.label_en}</span>
+            </label>
+          ))}
+
+          {selectedReason === 'other' && (
+            <input
+              type="text"
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+              placeholder={language === 'km' ? 'បញ្ជាក់មូលហេតុ...' : 'Specify reason...'}
+              className="w-full mt-2 px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:ring-2 focus:ring-red-500/20 focus:border-red-500 outline-none"
+              autoFocus
+            />
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+          <button
+            type="button"
+            onClick={() => setIsRejectModalOpen(false)}
+            className="px-4 py-2 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 cursor-pointer"
+          >
+            {language === 'km' ? 'បោះបង់' : 'Cancel'}
+          </button>
+          <button
+            type="button"
+            onClick={handleRejectOrderConfirm}
+            disabled={isRejecting}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+          >
+            <XCircle className="w-4 h-4" />
+            <span>
+              {isRejecting
+                ? language === 'km'
+                  ? 'កំពុងបដិសេធ...'
+                  : 'Rejecting...'
+                : language === 'km'
+                ? 'បញ្ជាក់ការបដិសេធ'
+                : 'Confirm Reject'}
+            </span>
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+
+  // =========================================================================
+  // 1. SIMPLE CONTAINER VIEW FOR INCOMING ORDERS (Pending Kitchen Approval)
+  // =========================================================================
+  if (isPendingOrder) {
+    const tableName = ticket.table_number
+      ? `Table ${ticket.table_number}`
+      : language === 'km'
+      ? 'យកទៅផ្ទះ'
+      : 'Takeaway'
+
+    return (
+      <>
+        {renderReviewDrawer()}
+        {renderRejectModal()}
+
+        <button
+          type="button"
+          onClick={() => setIsReviewModalOpen(true)}
+          className={`relative w-full max-w-[170px] sm:max-w-[190px] rounded-3xl ${tierStyles.filledContainer} py-2.5 px-3 text-center min-h-[120px] flex flex-col items-center justify-center gap-1 shadow-sm overflow-hidden cursor-pointer`}
+        >
+          {/* Sequential Order Number */}
+          <span className="font-mono font-black text-2xl sm:text-3xl leading-none tracking-tight opacity-95">
+            {String(index + 1).padStart(2, '0')}
+          </span>
+          {/* Table Name */}
+          <h3 className="text-[11px] sm:text-xs font-bold tracking-tight leading-tight opacity-90">
+            {tableName}
+          </h3>
+          {/* Time */}
+          <span className="flex items-center gap-1 text-[10px] font-mono opacity-75">
+            <Clock className="w-2.5 h-2.5" />
+            {formatTimeOnly(ticket.created_at)}
+          </span>
+        </button>
+      </>
+    )
+  }
+  // Render simple container for active (non-pending) tickets
+  if (!isPendingOrder) {
+    const tableName = ticket.table_number
+      ? `Table ${ticket.table_number}`
+      : language === 'km'
+      ? 'យកទៅផ្ទះ'
+      : 'Takeaway';
+    return (
+      <>
+        {renderReviewDrawer()}
+        {renderRejectModal()}
+        <button
+          type="button"
+          onClick={() => setIsReviewModalOpen(true)}
+          className={`relative w-full max-w-[170px] sm:max-w-[190px] rounded-3xl ${tierStyles.filledContainer} py-2.5 px-3 text-center min-h-[120px] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center gap-1 shadow-sm overflow-hidden`}
+        >
+          {/* Sequential Order Number */}
+          <span className="font-mono font-black text-2xl sm:text-3xl leading-none tracking-tight opacity-95">
+            {String(index + 1).padStart(2, '0')}
+          </span>
+          {/* Table Name */}
+          <h3 className="text-[11px] sm:text-xs font-bold tracking-tight leading-tight opacity-90">
+            {tableName}
+          </h3>
+          {/* Time */}
+          <span className="flex items-center gap-1 text-[10px] font-mono opacity-75">
+            <Clock className="w-2.5 h-2.5" />
+            {formatTimeOnly(ticket.created_at)}
+          </span>
+        </button>
+      </>
+    );
+  }
+
+
+  // =========================================================================
+  // 2. ACTIVE TICKET VIEW (Once Accepted, Kitchen Cooks & Bumps Items)
+  // =========================================================================
   const cardBorderColor = allItemsReady
     ? 'border-emerald-500/80 dark:border-emerald-500 shadow-emerald-500/10'
     : isOverdue
@@ -195,13 +662,33 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
 
   return (
     <div
-      className={`relative rounded-2xl border-2 ${cardBorderColor} bg-white dark:bg-zinc-900 shadow-sm flex flex-col justify-between overflow-hidden transition-all duration-200`}
+      className="relative rounded-3xl border border-gray-300 bg-white dark:bg-zinc-900 shadow-sm flex flex-col justify-between overflow-hidden min-h-[200px]"
     >
       {/* Top Ticket Docket Strip */}
       <div className={`h-1.5 w-full ${docketStripColor}`} />
 
       {/* 1. Receipt Header */}
       <div className="p-3.5 bg-zinc-50/70 dark:bg-zinc-900/60 border-b-2 border-dashed border-zinc-200 dark:border-zinc-800 space-y-2">
+        {/* Pending Approval / Customer QR Order Banner */}
+        {isPendingOrder && (
+          <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+              <span className="text-xs font-bold truncate">
+                {isGuestOrder
+                  ? (language === 'km' ? '🔔 ការកុម្ម៉ង់ថ្មីពីភ្ញៀវតាមតុ' : '🔔 New Customer QR Order')
+                  : (language === 'km' ? '🔔 រង់ចាំផ្ទះបាយទទួល' : '🔔 Pending Approval')}
+              </span>
+            </div>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-amber-500 text-white shrink-0">
+              {language === 'km' ? 'ត្រូវសម្រេច' : 'Action'}
+            </span>
+          </div>
+        )}
+
         <div className="flex items-center justify-between gap-2">
           {/* Table / Order Docket Identifier */}
           <div className="flex items-center gap-2 min-w-0">
@@ -243,6 +730,7 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
           </div>
         )}
       </div>
+
 
       {/* 2. Receipt Ordered Items (Main Focus) */}
       <div className="p-3.5 divide-y divide-dashed divide-zinc-200 dark:divide-zinc-800 space-y-2.5 flex-1 max-h-[380px] overflow-y-auto">
@@ -431,61 +919,35 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
           </button>
         )}
 
-        {/* Action Button: Accept/Reject for Pending Orders, Bump for Active Orders */}
-        {isPendingOrder && onAcceptOrder ? (
-          <div className="flex items-center gap-2">
-            {onRejectOrder && (
-              <button
-                type="button"
-                onClick={handleRejectOrder}
-                disabled={isRejecting || isAccepting}
-                className="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 active:scale-[0.99] disabled:opacity-50 cursor-pointer"
-                title={language === 'km' ? 'បដិសេធការកុម្ម៉ង់' : 'Reject Order'}
-              >
-                <XCircle className="w-4 h-4 shrink-0 text-red-500" />
-                <span>
-                  {isRejecting
-                    ? (language === 'km' ? 'កំពុងបដិសេធ...' : 'Rejecting...')
-                    : (language === 'km' ? 'បដិសេធ' : 'Reject')}
-                </span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={handleAcceptOrder}
-              disabled={isAccepting || isRejecting}
-              className="flex-[1.5] py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500/20 active:scale-[0.99] disabled:opacity-50 shadow-sm cursor-pointer"
-              title={language === 'km' ? 'ទទួលយកការកុម្ម៉ង់' : 'Accept Order'}
-            >
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>
-                {isAccepting
-                  ? (language === 'km' ? 'កំពុងទទួល...' : 'Accepting...')
-                  : (language === 'km' ? 'ទទួលយក (Accept)' : 'Accept Order')}
-              </span>
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={handleTicketBump}
-            disabled={isBumpingTicket}
-            className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.99] shadow-sm ${
-              allItemsReady
-                ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500/20'
-                : 'bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900'
-            } disabled:opacity-50 cursor-pointer`}
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>
-              {isBumpingTicket
-                ? (language === 'km' ? 'កំពុងបញ្ចប់...' : 'Bumping...')
-                : allItemsReady
-                ? (language === 'km' ? 'រួចរាល់ទាំងអស់ (Serve Ticket)' : 'Complete & Serve')
-                : (language === 'km' ? 'បញ្ចប់សំបុត្រ (Bump All)' : 'Bump Ticket')}
-            </span>
-          </button>
-        )}
+        {/* Action Button: Bump for Active Orders */}
+        <button
+          onClick={handleTicketBump}
+          disabled={isBumpingTicket}
+          className={`w-full py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-[0.99] shadow-sm ${
+            allItemsReady
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500/20'
+              : 'bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900'
+          } disabled:opacity-50 cursor-pointer`}
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>
+            {isBumpingTicket
+              ? language === 'km'
+                ? 'កំពុងបញ្ចប់...'
+                : 'Bumping...'
+              : allItemsReady
+              ? language === 'km'
+                ? 'រួចរាល់ទាំងអស់ (Serve Ticket)'
+                : 'Complete & Serve'
+              : language === 'km'
+              ? 'បញ្ចប់សំបុត្រ (Bump All)'
+              : 'Bump Ticket'}
+          </span>
+        </button>
       </div>
+
+      {renderRejectModal()}
     </div>
   )
 }
+

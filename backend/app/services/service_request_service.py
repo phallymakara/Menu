@@ -167,35 +167,89 @@ async def _resolve_guest_session(
     session: AsyncSession,
     branch_id: UUID,
     table_id: UUID,
-    session_token: str,
+    session_token: str | None = None,
+    qr_token: str | None = None,
+    auto_create_session: bool = False,
 ) -> tuple[TableSession, RestaurantTable]:
     """
-    Returns the live session the token belongs to, with its table.
+    Returns the live session the guest belongs to, with its table.
 
-    The token must belong to an ACTIVE or BILL_REQUESTED session of the given table
-    at the given branch. Unknown tokens and closed sessions are rejected alike, so
-    the response does not reveal whether a token was ever valid.
+    Accepts either an active session token or a verified table QR token.
+    If the table is occupied (in_use), connects to the existing active session.
+    If the table is available (free) and auto_create_session is True, opens a
+    new active session so the customer's request can be serviced immediately.
     """
-    result = await session.execute(
-        select(TableSession, RestaurantTable)
-        .join(RestaurantTable, RestaurantTable.id == TableSession.table_id)
-        .where(
-            TableSession.session_token == session_token,
-            TableSession.table_id == table_id,
-            TableSession.branch_id == branch_id,
-            TableSession.status.in_(GUEST_SESSION_STATUSES),
+    # 1. If session_token was provided, check if it matches an active TableSession
+    if session_token:
+        result = await session.execute(
+            select(TableSession, RestaurantTable)
+            .join(RestaurantTable, RestaurantTable.id == TableSession.table_id)
+            .where(
+                TableSession.session_token == session_token,
+                TableSession.table_id == table_id,
+                TableSession.branch_id == branch_id,
+                TableSession.status.in_(GUEST_SESSION_STATUSES),
+            )
         )
+        row = result.first()
+        if row is not None:
+            table_session, table = row._tuple()
+            return table_session, table
+
+    # 2. Check QR verification token if provided (e.g. from QR scan when table is free or in-use)
+    # Also check if session_token happens to be the table's qr_code_token
+    token_to_check = qr_token
+    if not token_to_check and session_token:
+        tbl_res = await session.execute(
+            select(RestaurantTable.qr_code_token).where(
+                RestaurantTable.id == table_id,
+                RestaurantTable.branch_id == branch_id,
+            )
+        )
+        t_qr = tbl_res.scalar_one_or_none()
+        if t_qr and session_token == t_qr:
+            token_to_check = session_token
+
+    if token_to_check:
+        from app.services.table_session_service import _get_guest_table, _open_or_join_session
+        from app.schemas.table_session import TableSessionOpenRequest
+
+        try:
+            table = await _get_guest_table(session, branch_id, table_id, token_to_check)
+        except Exception:
+            table = None
+
+        if table is not None:
+            # Check for existing active or bill_requested session for this table (table is in-use)
+            sess_result = await session.execute(
+                select(TableSession)
+                .where(
+                    TableSession.table_id == table.id,
+                    TableSession.status.in_(GUEST_SESSION_STATUSES),
+                )
+                .order_by(TableSession.opened_at.desc())
+            )
+            table_session = sess_result.scalars().first()
+            if table_session is not None:
+                return table_session, table
+
+            # Table is free (available); if auto_create_session, open a new session for the guest
+            if auto_create_session:
+                table_session, _ = await _open_or_join_session(
+                    session=session,
+                    table=table,
+                    payload=TableSessionOpenRequest(guest_count=2, notes="Customer service call"),
+                    opened_by_type="guest",
+                    opened_by_user_id=None,
+                )
+                return table_session, table
+
+    logger.warning(
+        "Guest service request rejected: no live table session for token",
+        branch_id=str(branch_id),
+        table_id=str(table_id),
     )
-    row = result.first()
-    if row is None:
-        logger.warning(
-            "Guest service request rejected: no live table session for token",
-            branch_id=str(branch_id),
-            table_id=str(table_id),
-        )
-        raise InvalidTokenError(_INVALID_GUEST_SESSION)
-    table_session, table = row._tuple()
-    return table_session, table
+    raise InvalidTokenError(_INVALID_GUEST_SESSION)
 
 
 async def _find_open_request_id(
@@ -220,17 +274,24 @@ async def create_guest_service_request(
     session: AsyncSession,
     branch_id: UUID,
     table_id: UUID,
-    session_token: str,
+    session_token: str | None,
     payload: GuestServiceRequestCreate,
+    qr_token: str | None = None,
 ) -> GuestServiceRequestResponse:
     """
-    Raises a new service request from the guest's live table session.
+    Raises a new service request from the guest's live table session or scanned QR.
 
+    Works whether the table is in-use or free.
     Rejects the request with ``ResourceConflictError`` when the session already has
     an open request of the same type, so repeated taps cannot flood the staff queue.
     """
     table_session, table = await _resolve_guest_session(
-        session, branch_id, table_id, session_token
+        session,
+        branch_id,
+        table_id,
+        session_token=session_token,
+        qr_token=qr_token,
+        auto_create_session=True,
     )
     # Read these now: a rollback below expires every loaded instance.
     table_session_id = table_session.id
@@ -291,12 +352,19 @@ async def list_guest_service_requests(
     session: AsyncSession,
     branch_id: UUID,
     table_id: UUID,
-    session_token: str,
+    session_token: str | None = None,
+    qr_token: str | None = None,
 ) -> list[GuestServiceRequestResponse]:
     """Lists the requests raised during the guest's own table session, newest first."""
     table_session, _ = await _resolve_guest_session(
-        session, branch_id, table_id, session_token
+        session,
+        branch_id,
+        table_id,
+        session_token=session_token,
+        qr_token=qr_token,
+        auto_create_session=False,
     )
+
     result = await session.execute(
         select(ServiceRequest)
         .options(selectinload(ServiceRequest.table))
@@ -308,6 +376,8 @@ async def list_guest_service_requests(
         _to_guest_response(request, request.table.table_number)
         for request in result.scalars()
     ]
+
+
 
 
 # ==============================================================================

@@ -1,5 +1,5 @@
 /// <reference types="vitest/config" />
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig, loadEnv, createLogger } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import os from 'os'
@@ -16,6 +16,20 @@ function getLocalIp(): string {
   return 'localhost'
 }
 
+const customLogger = createLogger()
+const originalError = customLogger.error.bind(customLogger)
+customLogger.error = (msg, options) => {
+  // Ignore harmless WebSocket disconnection errors caused by browser refresh or HMR reloads
+  if (
+    typeof msg === 'string' &&
+    msg.includes('ws proxy') &&
+    (msg.includes('ECONNRESET') || msg.includes('socket has been ended') || msg.includes('EPIPE'))
+  ) {
+    return
+  }
+  originalError(msg, options)
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -24,6 +38,7 @@ export default defineConfig(({ mode }) => {
   const port = Number(env.PORT) || 3000
 
   return {
+    customLogger,
     define: {
       __DEV_LAN_IP__: JSON.stringify(getLocalIp()),
     },

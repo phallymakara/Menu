@@ -187,6 +187,7 @@ export const GuestOrderPage: FC = () => {
     addOrderRound,
     setOrderRounds,
     updateItemStatus,
+    updateRoundStatus,
   } = useGuestSessionStore()
 
   // State
@@ -242,12 +243,13 @@ export const GuestOrderPage: FC = () => {
   )
   const { data: sessionBillData } = useGuestSessionBill(!isDemo ? sessionToken : null)
 
-  // Service hub: live requests of this table session. The demo route keeps one local request.
+  // Service hub: live requests of this table session. Works whether table is in-use or free.
   const guestTableSession = {
     branchId: !isDemo ? effectiveBranchId : null,
     tableId: !isDemo ? effectiveTableId : null,
     sessionId: !isDemo ? sessionId : null,
     sessionToken: !isDemo ? sessionToken : null,
+    qrToken: !isDemo ? effectiveToken : null,
   }
   const { data: guestServiceRequests } = useGuestServiceRequests(guestTableSession)
   const createServiceRequestMutation = useCreateGuestServiceRequest(guestTableSession)
@@ -433,6 +435,8 @@ export const GuestOrderPage: FC = () => {
         round_number: o.round_number || idx + 1,
         placed_at: o.created_at || new Date().toISOString(),
         round_subtotal_usd: Number(o.subtotal_usd) || 0,
+        status: o.status,
+        reject_reason: o.reject_reason || null,
         items: (o.items || []).map((it: any) => ({
           id: it.id,
           item_name_en: it.item_name_en,
@@ -509,6 +513,9 @@ export const GuestOrderPage: FC = () => {
             )
           }
         } else if (evt === 'order.accepted') {
+          if (data?.order_id) {
+            updateRoundStatus(data.order_id, 'preparing')
+          }
           queryClient.invalidateQueries({ queryKey: ['guest', 'session-orders'] })
           queryClient.invalidateQueries({ queryKey: ['guest', 'orders'] })
           queryClient.invalidateQueries({ queryKey: ['guest', 'bill'] })
@@ -519,19 +526,24 @@ export const GuestOrderPage: FC = () => {
               ? (data?.message_km || 'ផ្ទះបាយបានទទួលការកុម្ម៉ង់របស់អ្នកហើយ! កំពុងចាប់ផ្តើមរៀបចំជូនលោកអ្នក...')
               : (data?.message_en || 'The kitchen has accepted your order! We are preparing your food...')
           )
-          setTimeout(() => setNotificationMsg(null), 6000)
+          setTimeout(() => setNotificationMsg(null), 7000)
         } else if (evt === 'order.rejected') {
+          if (data?.order_id) {
+            updateRoundStatus(data.order_id, 'cancelled', data?.reason)
+          }
           queryClient.invalidateQueries({ queryKey: ['guest', 'session-orders'] })
           queryClient.invalidateQueries({ queryKey: ['guest', 'orders'] })
           queryClient.invalidateQueries({ queryKey: ['guest', 'bill'] })
           playChime(350, 220, 0.5)
           setNotificationType('error')
-          setNotificationMsg(
-            language === 'km'
-              ? (data?.message_km || 'សូមអភ័យទោស ការកុម្ម៉ង់របស់អ្នកត្រូវបានបដិសេធពីផ្ទះបាយ។ សូមទាក់ទងបុគ្គលិក។')
-              : (data?.message_en || 'Sorry, your order was rejected by the kitchen. Please contact staff.')
-          )
-          setTimeout(() => setNotificationMsg(null), 8000)
+          const baseMsg = language === 'km'
+            ? (data?.message_km || 'សូមអភ័យទោស ការកុម្ម៉ង់របស់អ្នកត្រូវបានបដិសេធពីផ្ទះបាយ។')
+            : (data?.message_en || 'Sorry, your order was rejected by the kitchen.')
+          const reasonNote = data?.reason
+            ? (language === 'km' ? ` (មូលហេតុ៖ ${data.reason})` : ` (Reason: ${data.reason})`)
+            : ''
+          setNotificationMsg(`${baseMsg}${reasonNote}`)
+          setTimeout(() => setNotificationMsg(null), 9000)
         } else if (
           evt === 'order.created' ||
           evt === 'order.placed' ||
@@ -702,6 +714,7 @@ const toBackendCourseStage = (stage?: CourseStage | string): 'drinks' | 'starter
         round_number: placedOrder.round_number || orderRounds.length + 1,
         placed_at: placedOrder.created_at || new Date().toISOString(),
         round_subtotal_usd: Number(placedOrder.subtotal_usd) || cartItems.reduce((sum, i) => sum + i.total_price_usd, 0),
+        status: placedOrder.status || 'pending',
         items: (placedOrder.items || []).map((it: any) => ({
           id: it.id,
           item_name_en: it.item_name_en,

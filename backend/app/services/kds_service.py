@@ -122,6 +122,9 @@ def _map_order_item_to_kds_item(item: OrderItem) -> KDSTicketItemResponse:
         station_name=station.name_en if station else None,
         station_code=station.code if station else None,
         station_color_hex=station.color_hex if station else None,
+        image_url=item.menu_item.image_url if item.menu_item else None,
+        unit_price=float(item.unit_price) if item.unit_price is not None else None,
+        subtotal_usd=float(item.subtotal_price) if item.subtotal_price is not None else None,
         modifiers=[
             OrderItemModifierResponse.model_validate(mod) for mod in item.modifiers
         ],
@@ -151,6 +154,10 @@ def _build_kds_ticket_response(
     )
     has_held = any(i.status == OrderItemStatus.HELD for i in items)
 
+    subtotal = float(order.subtotal_usd) if order.subtotal_usd is not None else None
+    tax = float(order.tax_amount_usd) if order.tax_amount_usd is not None else 0.0
+    total = (subtotal + tax) if subtotal is not None else None
+
     return KDSTicketResponse(
         order_id=order.id,
         order_number=order.order_number,
@@ -164,14 +171,22 @@ def _build_kds_ticket_response(
             order.table_session.session_code if order.table_session else None
         ),
         guest_notes=order.guest_notes,
+        subtotal_usd=subtotal,
+        total_usd=total,
         created_at=order.created_at,
         elapsed_minutes=elapsed,
         max_target_prep_minutes=max_target_prep,
         is_ticket_overdue=is_ticket_overdue,
         ticket_urgency=ticket_urgency,
         has_held_items=has_held,
+        order_source=(
+            order.order_source.value
+            if hasattr(order.order_source, "value")
+            else (str(order.order_source) if order.order_source else None)
+        ),
         items=kds_items,
     )
+
 
 
 async def get_station_tickets(

@@ -790,14 +790,19 @@ async def get_table_session_orders_summary(
     )
     orders = list(orders_res.scalars().all())
 
-    # Aggregate totals
-    total_subtotal_usd = sum((o.subtotal_usd for o in orders), Decimal("0.00"))
-    total_subtotal_khr = sum((o.subtotal_khr for o in orders), Decimal("0.00"))
-    total_tax_usd = sum((o.tax_amount_usd for o in orders), Decimal("0.00"))
-    total_sc_usd = sum((o.service_charge_amount_usd for o in orders), Decimal("0.00"))
-    grand_total_usd = sum((o.total_amount_usd for o in orders), Decimal("0.00"))
-    grand_total_khr = sum((o.total_amount_khr for o in orders), Decimal("0.00"))
-    total_items_count = sum(sum(item.quantity for item in o.items) for o in orders)
+    # Aggregate totals (excluding cancelled orders)
+    active_orders = [o for o in orders if o.status != OrderStatus.CANCELLED]
+    total_subtotal_usd = sum((o.subtotal_usd for o in active_orders), Decimal("0.00"))
+    total_subtotal_khr = sum((o.subtotal_khr for o in active_orders), Decimal("0.00"))
+    total_tax_usd = sum((o.tax_amount_usd for o in active_orders), Decimal("0.00"))
+    total_sc_usd = sum((o.service_charge_amount_usd for o in active_orders), Decimal("0.00"))
+    grand_total_usd = sum((o.total_amount_usd for o in active_orders), Decimal("0.00"))
+    grand_total_khr = sum((o.total_amount_khr for o in active_orders), Decimal("0.00"))
+    total_items_count = sum(
+        sum(item.quantity for item in o.items if item.status != OrderItemStatus.VOIDED)
+        for o in active_orders
+    )
+
 
     return TableSessionOrdersSummaryResponse(
         table_session_id=table_session.id,

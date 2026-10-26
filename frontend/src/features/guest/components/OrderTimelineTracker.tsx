@@ -46,12 +46,37 @@ export const OrderTimelineTracker: FC<OrderTimelineTrackerProps> = ({
             key={round.id}
             className="p-3.5 rounded-lg border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-50/50 dark:bg-zinc-900/50 space-y-2.5"
           >
-            <div className="flex items-center justify-between text-xs pb-1">
-              <span className="font-semibold text-zinc-800 dark:text-zinc-200">
-                {language === 'km' ? `ជុំទី #${round.round_number}` : `Round #${round.round_number}`}
-              </span>
+            <div className="flex items-center justify-between text-xs pb-1 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-zinc-800 dark:text-zinc-200">
+                  {language === 'km' ? `ជុំទី #${round.round_number}` : `Round #${round.round_number}`}
+                </span>
+                {round.status?.toLowerCase() === 'pending' ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    {language === 'km' ? 'រង់ចាំផ្ទះបាយទទួល' : 'Awaiting Kitchen'}
+                  </span>
+                ) : round.status?.toLowerCase() === 'cancelled' ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    {language === 'km' ? 'បដិសេធ' : 'Rejected'}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    {language === 'km' ? 'ផ្ទះបាយបានទទួល' : 'Accepted'}
+                  </span>
+                )}
+              </div>
               <CurrencyDisplay amountUSD={round.round_subtotal_usd} className="font-bold text-xs" />
             </div>
+
+            {round.reject_reason && round.status?.toLowerCase() === 'cancelled' && (
+              <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 text-[11px] text-rose-700 dark:text-rose-300 font-medium border border-rose-200/60 dark:border-rose-900/40">
+                {language === 'km' ? `មូលហេតុបដិសេធ៖ ${round.reject_reason}` : `Rejection reason: ${round.reject_reason}`}
+              </div>
+            )}
+
 
             {/* Item Lines */}
             <div className="space-y-2">

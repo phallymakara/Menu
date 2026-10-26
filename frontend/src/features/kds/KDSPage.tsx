@@ -503,11 +503,12 @@ export const KDSPage: FC = () => {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 items-start">
-            {filteredTickets.map((ticket) => (
+          <div className="flex flex-wrap gap-3 items-start content-start">
+            {filteredTickets.map((ticket, idx) => (
               <KDSTicketCard
                 key={ticket.order_id}
                 ticket={ticket}
+                index={idx}
                 onBumpItem={handleItemStatusBump}
                 onBumpTicket={handleTicketBump}
                 onUndoItem={handleItemUndo}

@@ -23,6 +23,9 @@ class KDSTicketItemResponse(BaseModel):
     station_name: str | None = None
     station_code: str | None = None
     station_color_hex: str | None = None
+    image_url: str | None = None
+    unit_price: float | None = None
+    subtotal_usd: float | None = None
     modifiers: list[OrderItemModifierResponse] = Field(default_factory=list)
     fired_at: datetime | None = None
     cooking_started_at: datetime | None = None
@@ -49,15 +52,19 @@ class KDSTicketResponse(BaseModel):
     table_session_id: UUID | None = None
     session_code: str | None = None
     guest_notes: str | None = None
+    subtotal_usd: float | None = None
+    total_usd: float | None = None
     created_at: datetime
     elapsed_minutes: int
     max_target_prep_minutes: int = 15
     is_ticket_overdue: bool = False
     ticket_urgency: str = "normal"
     has_held_items: bool
+    order_source: str | None = None
     items: list[KDSTicketItemResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
+
 
 
 class ItemStatusBumpRequest(BaseModel):

@@ -664,3 +664,56 @@ async def test_request_bill_broadcasts_bill_requested_to_pos(hub):
     assert data["table_id"] == str(hub.table.id)
     assert data["table_number"] == "T-01"
     assert data["bill_requested_at"] is not None
+
+
+@pytest.mark.anyio
+async def test_guest_can_send_service_request_on_free_table_using_qr_token(hub):
+    """Customer scanning a free (available) table QR code can send service request as normal."""
+    free_table = RestaurantTable(
+        organization_id=hub.org.id,
+        business_id=hub.biz.id,
+        branch_id=hub.branch.id,
+        table_number="FREE-01",
+        status=TableStatus.AVAILABLE,
+    )
+    hub.session.add(free_table)
+    await hub.session.commit()
+    await hub.session.refresh(free_table)
+
+    params = {
+        "branch_id": str(hub.branch.id),
+        "table_id": str(free_table.id),
+        "token": free_table.qr_code_token,
+    }
+    body = {"request_type": "water", "note": "Please bring cold water"}
+
+    resp = await hub.client.post(PUBLIC_URL, params=params, json=body)
+    assert resp.status_code == status.HTTP_201_CREATED
+    data = resp.json()
+    assert data["request_type"] == "water"
+    assert data["note"] == "Please bring cold water"
+    assert data["table_number"] == "FREE-01"
+    assert data["status"] == "open"
+
+    # Verify that a session was automatically opened and table is now occupied
+    await hub.session.refresh(free_table)
+    assert free_table.status == TableStatus.OCCUPIED
+
+
+@pytest.mark.anyio
+async def test_guest_can_send_service_request_on_occupied_table_using_qr_token(hub):
+    """Customer scanning an in-use (occupied) table QR code can send service request as normal."""
+    params = {
+        "branch_id": str(hub.branch.id),
+        "table_id": str(hub.table.id),
+        "token": hub.table.qr_code_token,
+    }
+    body = {"request_type": "call_staff"}
+
+    resp = await hub.client.post(PUBLIC_URL, params=params, json=body)
+    assert resp.status_code == status.HTTP_201_CREATED
+    data = resp.json()
+    assert data["request_type"] == "call_staff"
+    assert data["table_number"] == hub.table.table_number
+    assert data["status"] == "open"
+
