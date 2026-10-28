@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { useLanguageStore } from '@/stores/useLanguageStore'
 import { useKDSStore } from './stores/useKDSStore'
@@ -144,9 +144,11 @@ describe('KDSPage render stability', () => {
     // Verify header loads
     expect(await screen.findByText('Taste of Cambodia')).toBeInTheDocument()
 
-    // Verify ticket renders cleanly without infinite loop
+    // Verify ticket container renders cleanly without infinite loop
+    expect(await screen.findByText('Table T-05')).toBeInTheDocument()
+
+    // Click container button to open slide-over drawer and verify items
+    fireEvent.click(screen.getByText('Table T-05'))
     expect(await screen.findByText('Grilled Salmon')).toBeInTheDocument()
-    expect(screen.getByText('Table T-05')).toBeInTheDocument()
-    expect(screen.getByText('(R#1)')).toBeInTheDocument()
   })
 })

@@ -192,16 +192,23 @@ export const KDSPage: FC = () => {
     }))
   }, [rawStations])
 
+  const [rejectedOrders, setRejectedOrders] = useState<Record<string, KDSTicket>>({})
+
   // Purely derived tickets list (0 effects, 0 risk of infinite re-renders)
   const tickets: KDSTicket[] = useMemo(() => {
-    if (!rawTickets) return []
-    const ticketList = Array.isArray(rawTickets)
+    const ticketList: KDSTicket[] = !rawTickets
+      ? []
+      : Array.isArray(rawTickets)
       ? (rawTickets as any[])
       : (rawTickets as any)?.tickets && Array.isArray((rawTickets as any).tickets)
       ? (rawTickets as any).tickets
       : []
-    return ticketList as KDSTicket[]
-  }, [rawTickets])
+
+    const serverOrderIds = new Set(ticketList.map((t) => t.order_id))
+    const extraRejected = Object.values(rejectedOrders).filter((t) => !serverOrderIds.has(t.order_id))
+
+    return [...ticketList, ...extraRejected]
+  }, [rawTickets, rejectedOrders])
 
   const [isSwitchingBranch, setIsSwitchingBranch] = useState(false)
   const isLoading = isSwitchingBranch || ((isStationsLoading || isTicketsLoading) && tickets.length === 0)
@@ -390,12 +397,54 @@ export const KDSPage: FC = () => {
   }
 
   const handleAcceptOrder = async (orderId: string) => {
+    setRejectedOrders((prev) => {
+      const copy = { ...prev }
+      delete copy[orderId]
+      return copy
+    })
+    queryClient.setQueryData(queryTicketsKey, (old: any) => {
+      if (!old) return old
+      const list = Array.isArray(old) ? old : old?.tickets || []
+      return list.map((t: any) =>
+        t.order_id === orderId
+          ? {
+              ...t,
+              order_status: 'preparing',
+              items: (t.items || []).map((i: any) => ({
+                ...i,
+                status:
+                  i.status === 'pending' || i.status === 'held' || i.status === 'queued'
+                    ? 'cooking'
+                    : i.status,
+              })),
+            }
+          : t
+      )
+    })
     if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       await acceptOrderMutation.mutateAsync(orderId)
     }
   }
 
   const handleRejectOrder = async (orderId: string, reason?: string) => {
+    const targetTicket = tickets.find((t) => t.order_id === orderId)
+    if (targetTicket) {
+      setRejectedOrders((prev) => ({
+        ...prev,
+        [orderId]: {
+          ...targetTicket,
+          order_status: 'cancelled',
+          guest_notes: reason
+            ? `${targetTicket.guest_notes ? targetTicket.guest_notes + ' | ' : ''}Rejected: ${reason}`
+            : targetTicket.guest_notes,
+          items: (targetTicket.items || []).map((i) => ({
+            ...i,
+            status: 'voided' as any,
+            void_reason: reason,
+          })),
+        },
+      }))
+    }
     if (isUuid(tenantBizId) && isUuid(tenantBranchId)) {
       await rejectOrderMutation.mutateAsync({ orderId, reason })
     }

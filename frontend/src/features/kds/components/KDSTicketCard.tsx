@@ -62,7 +62,7 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
   const [selectedReason, setSelectedReason] = useState<string>('Out of ingredients')
   const [customReason, setCustomReason] = useState('')
   const [inlineError, setInlineError] = useState<string | null>(null)
-
+  const [localStatus, setLocalStatus] = useState<'pending' | 'accepted' | 'rejected' | null>(null)
 
   const isGuestOrder =
     ticket.order_source === 'guest_qr' ||
@@ -72,9 +72,46 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
     ticket.order_status?.toLowerCase() === 'pending' ||
     (ticket.items.length > 0 &&
       ticket.items.every((i) => {
-        const st = i.status.toLowerCase()
+        const st = i.status?.toLowerCase()
         return st === 'pending' || st === 'held' || st === 'queued'
       }))
+
+  const effectiveStatus: 'pending' | 'accepted' | 'rejected' = (() => {
+    if (localStatus) return localStatus
+
+    const orderSt = (ticket.order_status || '').toLowerCase()
+    if (orderSt === 'cancelled' || orderSt === 'rejected') return 'rejected'
+    if (
+      orderSt === 'preparing' ||
+      orderSt === 'cooking' ||
+      orderSt === 'confirmed' ||
+      orderSt === 'ready_to_serve' ||
+      orderSt === 'served' ||
+      orderSt === 'accepted'
+    ) {
+      return 'accepted'
+    }
+
+    if (ticket.items && ticket.items.length > 0) {
+      const allVoided = ticket.items.every((i) => i.status?.toLowerCase() === 'voided')
+      if (allVoided) return 'rejected'
+
+      const anyActive = ticket.items.some((i) => {
+        const st = (i.status || '').toLowerCase()
+        return (
+          st === 'cooking' ||
+          st === 'preparing' ||
+          st === 'ready_to_serve' ||
+          st === 'ready' ||
+          st === 'served'
+        )
+      })
+      if (anyActive) return 'accepted'
+    }
+
+    if (isPendingOrder) return 'pending'
+    return 'accepted'
+  })()
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -175,11 +212,16 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
   const handleAcceptOrder = async () => {
     if (!onAcceptOrder) return
     setIsAccepting(true)
+    setLocalStatus('accepted')
     setInlineError(null)
     try {
       await onAcceptOrder(ticket.order_id)
       playSuccessSound()
+      setTimeout(() => {
+        setIsReviewModalOpen(false)
+      }, 700)
     } catch {
+      setLocalStatus(null)
       setInlineError(language === 'km' ? 'មិនអាចទទួលការកុម្ម៉ង់បានទេ' : 'Failed to accept order.')
     } finally {
       setIsAccepting(false)
@@ -190,11 +232,16 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
     if (!onRejectOrder) return
     const finalReason = selectedReason === 'other' ? (customReason.trim() || 'Kitchen rejected order') : selectedReason
     setIsRejecting(true)
+    setLocalStatus('rejected')
     setIsRejectModalOpen(false)
     setInlineError(null)
     try {
       await onRejectOrder(ticket.order_id, finalReason)
+      setTimeout(() => {
+        setIsReviewModalOpen(false)
+      }, 700)
     } catch {
+      setLocalStatus(null)
       setInlineError(language === 'km' ? 'មិនអាចបដិសេធការកុម្ម៉ង់បានទេ' : 'Failed to reject order.')
     } finally {
       setIsRejecting(false)
@@ -266,33 +313,29 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
 
     return (
       <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true">
-        {/* Backdrop */}
+        {/* Backdrop (transparent, no dark shadow/dimming outside) */}
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity duration-300 animate-in fade-in"
+          className="fixed inset-0 bg-transparent"
           onClick={() => setIsReviewModalOpen(false)}
           aria-hidden="true"
         />
 
-        <div className="fixed inset-y-0 right-0 flex items-center justify-end p-4 sm:p-6">
-          {/* POSOrderDrawer-style panel */}
-          <div className="w-full max-w-3xl sm:max-w-4xl rounded-[22px] sm:rounded-[24px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 h-[calc(100vh-24px)] max-h-[900px] flex flex-col justify-between shadow-2xl animate-in slide-in-from-right duration-300">
+        <div className="fixed inset-y-0 right-0 flex items-center justify-end p-4 sm:p-6 pointer-events-none">
+          {/* Compact panel with fixed width and no shadow */}
+          <div className="w-[calc(100vw-32px)] sm:w-[395px] md:w-[410px] pointer-events-auto rounded-[22px] sm:rounded-[24px] border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 h-[calc(100vh-24px)] max-h-[920px] flex flex-col justify-between shadow-none animate-in slide-in-from-right duration-300">
 
             {/* 1. Header */}
             <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-base text-zinc-950 dark:text-zinc-50">
+              <div className="flex items-center gap-2.5">
+                <h3 className="font-extrabold text-lg text-zinc-950 dark:text-zinc-50">
                   {ticket.table_number || (language === 'km' ? 'យកទៅផ្ទះ' : 'Takeaway')}
                 </h3>
-                <span className="font-mono text-xs font-bold text-zinc-500 dark:text-zinc-400">
+                <span className="font-mono text-sm font-bold text-zinc-500 dark:text-zinc-400">
                   #{ticket.order_number.slice(-4)}
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
-                <div className={`px-2 py-0.5 rounded-lg text-xs font-mono font-bold flex items-center gap-1 shadow-xs ${tierStyles.timerBadge}`}>
-                  <Clock className="w-3 h-3" />
-                  <span>{formatTimer(elapsedSecs)}</span>
-                </div>
                 <button
                   type="button"
                   onClick={() => setIsReviewModalOpen(false)}
@@ -420,28 +463,46 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsRejectModalOpen(true)}
-                      disabled={isRejecting || isAccepting}
-                      className="py-2.5 px-3 rounded-xl text-xs font-bold border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                      disabled={isRejecting || isAccepting || effectiveStatus === 'accepted' || effectiveStatus === 'rejected'}
+                      className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-all flex items-center justify-center shadow-none select-none ${
+                        effectiveStatus === 'rejected'
+                          ? 'border-red-400 bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 pointer-events-none cursor-not-allowed opacity-80'
+                          : effectiveStatus === 'accepted'
+                          ? 'border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800 text-zinc-400 pointer-events-none cursor-not-allowed opacity-40'
+                          : 'border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/60 cursor-pointer disabled:opacity-50 disabled:pointer-events-none'
+                      }`}
                     >
-                      <XCircle className="w-4 h-4 text-red-500" />
-                      <span>{language === 'km' ? 'បដិសេធ' : 'Reject'}</span>
+                      <span>
+                        {isRejecting
+                          ? (language === 'km' ? 'កំពុងបដិសេធ...' : 'Rejecting...')
+                          : effectiveStatus === 'rejected'
+                          ? (language === 'km' ? 'បានបដិសេធ' : 'Rejected')
+                          : (language === 'km' ? 'បដិសេធ' : 'Reject')}
+                      </span>
                     </button>
                   )}
 
                   <button
                     type="button"
                     onClick={async () => {
+                      if (effectiveStatus === 'accepted' || effectiveStatus === 'rejected') return
                       await handleAcceptOrder()
-                      setIsReviewModalOpen(false)
                     }}
-                    disabled={isAccepting || isRejecting}
-                    className="py-2.5 px-3 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-md"
+                    disabled={isAccepting || isRejecting || effectiveStatus === 'accepted' || effectiveStatus === 'rejected'}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center transition-all shadow-none select-none ${
+                      effectiveStatus === 'accepted'
+                        ? 'bg-emerald-600 text-white pointer-events-none cursor-not-allowed opacity-85'
+                        : effectiveStatus === 'rejected'
+                        ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 pointer-events-none cursor-not-allowed opacity-40'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:pointer-events-none'
+                    }`}
                   >
-                    <CheckCircle2 className="w-4 h-4" />
                     <span>
                       {isAccepting
-                        ? language === 'km' ? 'កំពុងទទួល...' : 'Accepting...'
-                        : language === 'km' ? 'ទទួលយក' : 'Accept'}
+                        ? (language === 'km' ? 'កំពុងទទួល...' : 'Accepting...')
+                        : effectiveStatus === 'accepted'
+                        ? 'Accepted'
+                        : (language === 'km' ? 'ទទួលយក' : 'Accept')}
                     </span>
                   </button>
                 </div>
@@ -564,75 +625,80 @@ export const KDSTicketCard: FC<KDSTicketCardProps> = ({
   )
 
   // =========================================================================
-  // 1. SIMPLE CONTAINER VIEW FOR INCOMING ORDERS (Pending Kitchen Approval)
   // =========================================================================
-  if (isPendingOrder) {
-    const tableName = ticket.table_number
-      ? `Table ${ticket.table_number}`
-      : language === 'km'
-      ? 'យកទៅផ្ទះ'
-      : 'Takeaway'
+  // 1. SIMPLE CONTAINER VIEW FOR ORDERS (Pending, Accepted, Rejected)
+  // =========================================================================
+  const tableName = ticket.table_number
+    ? `Table ${ticket.table_number}`
+    : language === 'km'
+    ? 'យកទៅផ្ទះ'
+    : 'Takeaway'
 
-    return (
-      <>
-        {renderReviewDrawer()}
-        {renderRejectModal()}
+  // Not fill color outside: clean card background with status-coded border, no shadow
+  const containerBorderStyle =
+    effectiveStatus === 'rejected'
+      ? 'border-2 border-rose-500 dark:border-rose-500'
+      : effectiveStatus === 'accepted'
+      ? 'border-2 border-emerald-500 dark:border-emerald-500'
+      : incomingTier === 'red'
+      ? 'border-2 border-rose-500 dark:border-rose-500'
+      : incomingTier === 'yellow'
+      ? 'border-2 border-amber-400 dark:border-amber-500'
+      : 'border-2 border-emerald-500 dark:border-emerald-500'
 
-        <button
-          type="button"
-          onClick={() => setIsReviewModalOpen(true)}
-          className={`relative w-full max-w-[170px] sm:max-w-[190px] rounded-3xl ${tierStyles.filledContainer} py-2.5 px-3 text-center min-h-[120px] flex flex-col items-center justify-center gap-1 shadow-sm overflow-hidden cursor-pointer`}
-        >
-          {/* Sequential Order Number */}
-          <span className="font-mono font-black text-2xl sm:text-3xl leading-none tracking-tight opacity-95">
-            {String(index + 1).padStart(2, '0')}
-          </span>
-          {/* Table Name */}
-          <h3 className="text-[11px] sm:text-xs font-bold tracking-tight leading-tight opacity-90">
-            {tableName}
-          </h3>
-          {/* Time */}
-          <span className="flex items-center gap-1 text-[10px] font-mono opacity-75">
+  return (
+    <>
+      {renderReviewDrawer()}
+      {renderRejectModal()}
+
+      <button
+        type="button"
+        onClick={() => setIsReviewModalOpen(true)}
+        className={`relative w-[170px] sm:w-[185px] shrink-0 rounded-3xl bg-white dark:bg-zinc-900 ${containerBorderStyle} py-3.5 px-3 text-center min-h-[135px] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] hover:bg-zinc-50 dark:hover:bg-zinc-800/80 cursor-pointer flex flex-col items-center justify-center gap-1.5 shadow-none overflow-hidden`}
+      >
+        {/* Sequential Order Number */}
+        <span className="font-mono font-black text-3xl sm:text-4xl text-zinc-950 dark:text-zinc-50 leading-none tracking-tight">
+          {String(index + 1).padStart(2, '0')}
+        </span>
+
+        {/* Table Name */}
+        <h3 className="text-xs sm:text-sm font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight leading-tight truncate max-w-full">
+          {tableName}
+        </h3>
+
+        {/* Order Number & Created Time */}
+        <div className="flex items-center gap-1.5 text-[11px] font-mono text-zinc-400 dark:text-zinc-500">
+          <span>#{ticket.order_number.slice(-4)}</span>
+          <span>•</span>
+          <span className="flex items-center gap-0.5">
             <Clock className="w-2.5 h-2.5" />
             {formatTimeOnly(ticket.created_at)}
           </span>
-        </button>
-      </>
-    )
-  }
-  // Render simple container for active (non-pending) tickets
-  if (!isPendingOrder) {
-    const tableName = ticket.table_number
-      ? `Table ${ticket.table_number}`
-      : language === 'km'
-      ? 'យកទៅផ្ទះ'
-      : 'Takeaway';
-    return (
-      <>
-        {renderReviewDrawer()}
-        {renderRejectModal()}
-        <button
-          type="button"
-          onClick={() => setIsReviewModalOpen(true)}
-          className={`relative w-full max-w-[170px] sm:max-w-[190px] rounded-3xl ${tierStyles.filledContainer} py-2.5 px-3 text-center min-h-[120px] transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer flex flex-col items-center justify-center gap-1 shadow-sm overflow-hidden`}
-        >
-          {/* Sequential Order Number */}
-          <span className="font-mono font-black text-2xl sm:text-3xl leading-none tracking-tight opacity-95">
-            {String(index + 1).padStart(2, '0')}
-          </span>
-          {/* Table Name */}
-          <h3 className="text-[11px] sm:text-xs font-bold tracking-tight leading-tight opacity-90">
-            {tableName}
-          </h3>
-          {/* Time */}
-          <span className="flex items-center gap-1 text-[10px] font-mono opacity-75">
-            <Clock className="w-2.5 h-2.5" />
-            {formatTimeOnly(ticket.created_at)}
-          </span>
-        </button>
-      </>
-    );
-  }
+        </div>
+
+        {/* Large Status Text (No fill color outside, no បានទទួល) */}
+        <div className="mt-0.5">
+          {effectiveStatus === 'accepted' ? (
+            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              Accepted
+            </span>
+          ) : effectiveStatus === 'rejected' ? (
+            <span className="text-sm sm:text-base font-black uppercase tracking-wider text-rose-600 dark:text-rose-400">
+              Rejected
+            </span>
+          ) : (
+            <span className="text-xs sm:text-sm font-extrabold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1.5">
+              <span className="relative flex h-1.5 w-1.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
+              </span>
+              <span>Pending</span>
+            </span>
+          )}
+        </div>
+      </button>
+    </>
+  )
 
 
   // =========================================================================

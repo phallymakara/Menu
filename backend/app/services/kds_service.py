@@ -5,7 +5,7 @@ from uuid import UUID
 
 import structlog
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -239,7 +239,13 @@ async def get_station_tickets(
         .where(
             Order.branch_id == branch_id,
             OrderItem.kitchen_station_id == station_id,
-            OrderItem.status.in_(active_item_statuses),
+            or_(
+                OrderItem.status.in_(active_item_statuses),
+                and_(
+                    Order.status == OrderStatus.CANCELLED,
+                    Order.updated_at >= datetime.now(timezone.utc) - timedelta(minutes=30),
+                ),
+            ),
         )
         .order_by(Order.created_at.asc(), OrderItem.created_at.asc())
     )
@@ -293,7 +299,13 @@ async def get_expediter_tickets(
         .where(
             Order.business_id == business_id,
             Order.branch_id == branch_id,
-            Order.status.in_(active_order_statuses),
+            or_(
+                Order.status.in_(active_order_statuses),
+                and_(
+                    Order.status == OrderStatus.CANCELLED,
+                    Order.updated_at >= datetime.now(timezone.utc) - timedelta(minutes=30),
+                ),
+            ),
         )
         .order_by(Order.created_at.asc())
     )
@@ -302,12 +314,15 @@ async def get_expediter_tickets(
 
     tickets: list[KDSTicketResponse] = []
     for order in orders:
-        visible_items = [
-            item for item in order.items if item.status != OrderItemStatus.VOIDED
-        ]
-        if not visible_items:
-            continue
-        tickets.append(_build_kds_ticket_response(order, visible_items))
+        if order.status == OrderStatus.CANCELLED:
+            tickets.append(_build_kds_ticket_response(order, order.items))
+        else:
+            visible_items = [
+                item for item in order.items if item.status != OrderItemStatus.VOIDED
+            ]
+            if not visible_items:
+                continue
+            tickets.append(_build_kds_ticket_response(order, visible_items))
 
     return tickets
 

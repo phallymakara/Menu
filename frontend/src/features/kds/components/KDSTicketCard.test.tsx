@@ -53,14 +53,76 @@ describe('KDSTicketCard - Incoming Order Redesign', () => {
 
     // Table name, order number, and time on the container button
     expect(screen.getByText('Table BAR-03')).toBeDefined()
-    expect(screen.getByText('##E346')).toBeDefined()
+    expect(screen.getByText(/#E346/)).toBeDefined()
+    expect(screen.getByText('Pending')).toBeDefined()
 
-    // Green filled background class should be present
-    const cardEl = screen.getByText('Table BAR-03').closest('.bg-emerald-600')
+    // Clean container with emerald border (no outer fill color)
+    const cardEl = screen.getByText('Table BAR-03').closest('.border-emerald-500')
     expect(cardEl).toBeDefined()
   })
 
-  it('applies yellow tier styling when order is between 15 and 25 mins old', () => {
+  it('renders large Accepted text and emerald border when order is accepted', () => {
+    const acceptedTicket: KDSTicket = {
+      ...mockTicket,
+      order_status: 'preparing',
+      items: [
+        {
+          id: 'item-1',
+          menu_item_id: 'mi-1',
+          name_en: 'Grilled Beef Skewers',
+          quantity: 2,
+          status: 'cooking',
+        },
+      ],
+    }
+
+    render(
+      <KDSTicketCard
+        ticket={acceptedTicket}
+        onBumpItem={vi.fn()}
+        onBumpTicket={vi.fn()}
+        onAcceptOrder={vi.fn()}
+        onRejectOrder={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Accepted')).toBeDefined()
+    const cardEl = screen.getByText('Table BAR-03').closest('.border-emerald-500')
+    expect(cardEl).toBeDefined()
+  })
+
+  it('renders large Rejected text and rose border when order is cancelled', () => {
+    const rejectedTicket: KDSTicket = {
+      ...mockTicket,
+      order_status: 'cancelled',
+      items: [
+        {
+          id: 'item-1',
+          menu_item_id: 'mi-1',
+          name_en: 'Grilled Beef Skewers',
+          quantity: 2,
+          status: 'voided',
+          void_reason: 'Out of ingredients',
+        },
+      ],
+    }
+
+    render(
+      <KDSTicketCard
+        ticket={rejectedTicket}
+        onBumpItem={vi.fn()}
+        onBumpTicket={vi.fn()}
+        onAcceptOrder={vi.fn()}
+        onRejectOrder={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Rejected')).toBeDefined()
+    const cardEl = screen.getByText('Table BAR-03').closest('.border-rose-500')
+    expect(cardEl).toBeDefined()
+  })
+
+  it('applies yellow tier border styling when order is between 15 and 25 mins old', () => {
     const yellowTicket: KDSTicket = {
       ...mockTicket,
       created_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(), // 20 mins ago
@@ -76,11 +138,11 @@ describe('KDSTicketCard - Incoming Order Redesign', () => {
       />
     )
 
-    const cardEl = screen.getByText('Table BAR-03').closest('.bg-amber-400')
+    const cardEl = screen.getByText('Table BAR-03').closest('.border-amber-400')
     expect(cardEl).toBeDefined()
   })
 
-  it('applies red tier styling when order is longer than 25 mins old', () => {
+  it('applies red tier border styling when order is longer than 25 mins old', () => {
     const redTicket: KDSTicket = {
       ...mockTicket,
       created_at: new Date(Date.now() - 26 * 60 * 1000).toISOString(), // 26 mins ago
@@ -96,7 +158,7 @@ describe('KDSTicketCard - Incoming Order Redesign', () => {
       />
     )
 
-    const cardEl = screen.getByText('Table BAR-03').closest('.bg-rose-600')
+    const cardEl = screen.getByText('Table BAR-03').closest('.border-rose-500')
     expect(cardEl).toBeDefined()
   })
 
